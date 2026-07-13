@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+*.egg-info/
+driveauth_store/
+driveauth_store_phase2a/
+example_store/
+.pytest_cache/
+.ruff_cache/
+
+# Phase 3 biometric datasets (keep local)
+data/**/*.wav
+data/**/*.jpg
+data/**/*.jpeg
+data/**/*.png
+data/**/*.npz
+data/**/*.csv
+!data/README.md
+!data/**/.gitkeep

@@ -1,0 +1,26 @@
+Phase: 1b (NVIDIA Thor — mock pipeline)
+Date: 2026-07-12
+
+Device: Linux 6.8.12-tegra · aarch64 · node=localhost.localdomain
+Python: 3.12.3
+DRIVEAUTH_USE_MOCK=1
+
+GPU / nvidia-smi:
+NVIDIA Thor, 580.00, [N/A]
+
+ORT 1.27.0 providers=['AzureExecutionProvider', 'CPUExecutionProvider']
+  (GPU DRM warnings OK for Phase 1b mock — CPU EP is enough)
+
+Auth latency: n=50  p50=0.6ms  p95=0.9ms  max=8.6ms
+RSS: 45760 KB
+  (compare Mac Phase 1a: p50=0.7ms · RSS≈28.2 MB)
+
+Pass checks:
+  [x] pytest -q (50 passed)
+  [x] driveauth-demo ACCEPT micro (Trust≈0.92 · early_stop voice)
+  [x] audit log grows (demo wrote driveauth_events.jsonl)
+  [x] dashboard on 0.0.0.0:8765 (Mac access via: ssh -p 10617 -L 8765:127.0.0.1:8765 …)
+
+Phase 1b complete. Phase 1 (Mac 1a + Thor 1b) complete.
+
+Next: optional Phase 2a on Thor (ECAPA + MobileFaceNet latency)

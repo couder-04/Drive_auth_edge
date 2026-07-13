@@ -1,0 +1,75 @@
+{
+  "store": "driveauth_store_phase2a",
+  "voice": {
+    "genuine": {
+      "n": 20,
+      "mean": 0.6995,
+      "p10": 0.6603,
+      "p50": 0.7,
+      "p90": 0.7345,
+      "min": 0.6502,
+      "max": 0.7715
+    },
+    "attack": {
+      "n": 7,
+      "mean": 0.2258,
+      "p10": 0.1035,
+      "p50": 0.1911,
+      "p90": 0.3866,
+      "min": 0.0533,
+      "max": 0.5648
+    },
+    "suggest_modality_bars": {
+      "accept_micro": 0.662,
+      "accept_standard": 0.692,
+      "accept_high": 0.722,
+      "reject": 0.387,
+      "note": "Derived from genuine p15/p35/p55 and attack p90; review before shipping."
+    }
+  },
+  "face": {
+    "genuine": {
+      "n": 20,
+      "mean": 0.6346,
+      "p10": 0.4938,
+      "p50": 0.6565,
+      "p90": 0.7216,
+      "min": 0.4023,
+      "max": 0.7486
+    },
+    "attack": {
+      "n": 15,
+      "mean": 0.3029,
+      "p10": 0.0119,
+      "p50": 0.3983,
+      "p90": 0.4663,
+      "min": 0.0,
+      "max": 0.5424
+    },
+    "suggest_modality_bars": {
+      "accept_micro": 0.566,
+      "accept_standard": 0.631,
+      "accept_high": 0.665,
+      "reject": 0.466,
+      "note": "Derived from genuine p15/p35/p55 and attack p90; review before shipping."
+    }
+  },
+  "current_policy": {
+    "TRUST_ACCEPT_MICRO": 0.75,
+    "TRUST_ACCEPT_STD": 0.82,
+    "TRUST_ACCEPT_HIGH": 0.88,
+    "TRUST_REJECT": 0.55,
+    "weights": {
+      "voice": 0.3,
+      "face": 0.4,
+      "finger": 0.3
+    }
+  },
+  "suggested_policy_trust": {
+    "accept_micro": 0.607,
+    "accept_standard": 0.657,
+    "accept_high": 0.689,
+    "reject": 0.432,
+    "how": "0.3/0.4 voice/face weight mix of modality percentile suggestions"
+  }
+}

@@ -1,0 +1,124 @@
+# DriveAuth Edge — policy thresholds (single source of truth).
+#
+# Every tunable uses a ${ENV_VAR:default} placeholder. Set the env var to
+# override; leave unset to use the default after the colon.
+# NOVA_* aliases are still honoured for Nova AI drop-in (see config.py).
+#
+# Point DRIVEAUTH_POLICY_FILE at another YAML to swap the whole policy pack
+# without rebuilding (e.g. fleet / OEM overlays).
+
+version: ${DRIVEAUTH_POLICY_VERSION:driveauth-1.0}
+
+risk:
+  approve: ${DRIVEAUTH_RISK_APPROVE:0.35}
+  reject: ${DRIVEAUTH_RISK_REJECT:0.80}
+
+trust:
+  # Phase 2b calibration (2026-07-13): lowered slightly toward genuine score
+  # distributions (see phases/phase2b_calibration.json). Full percentile
+  # suggestions also in phases/phase2b_suggested.env — review before fleet ship.
+  accept_micro: ${DRIVEAUTH_TRUST_ACCEPT_MICRO:0.70}
+  accept_standard: ${DRIVEAUTH_TRUST_ACCEPT_STD:0.78}
+  accept_high: ${DRIVEAUTH_TRUST_ACCEPT_HIGH:0.85}
+  reject: ${DRIVEAUTH_TRUST_REJECT:0.48}
+  weights:
+    voice: ${DRIVEAUTH_TRUST_W_VOICE:0.30}
+    face: ${DRIVEAUTH_TRUST_W_FACE:0.40}
+    finger: ${DRIVEAUTH_TRUST_W_FINGER:0.30}
+
+confidence:
+  floor: ${DRIVEAUTH_CONF_FLOOR:0.55}
+  # ConfidenceScorer internals (fusion.py)
+  disagreement_spread: ${DRIVEAUTH_CONF_DISAGREE_SPREAD:0.35}
+  single_modality_agreement: ${DRIVEAUTH_CONF_SINGLE_AGREE:0.60}
+  low_quality_bar: ${DRIVEAUTH_CONF_LOW_QUALITY:0.50}
+  ood_missing_penalty: ${DRIVEAUTH_CONF_OOD_MISSING:0.85}
+  behavioral_missing_penalty: ${DRIVEAUTH_CONF_BEHAVIOR_MISSING:0.55}
+  sensor_gap_penalty: ${DRIVEAUTH_CONF_SENSOR_GAP:0.70}
+  hardware_fault_penalty: ${DRIVEAUTH_CONF_HW_FAULT:0.25}
+  w_agreement: ${DRIVEAUTH_CONF_W_AGREE:0.45}
+  w_quality: ${DRIVEAUTH_CONF_W_QUALITY:0.35}
+  w_ood: ${DRIVEAUTH_CONF_W_OOD:0.20}
+
+tiers:
+  micro_max: ${DRIVEAUTH_TIER_MICRO_MAX:200.0}
+  high_min: ${DRIVEAUTH_TIER_HIGH_MIN:50000.0}
+  guest_max: ${DRIVEAUTH_TIER_GUEST_MAX:1000.0}
+
+fraud:
+  decay_hours: ${DRIVEAUTH_FRAUD_LADDER_DECAY_HOURS:24.0}
+  clean_streak: ${DRIVEAUTH_FRAUD_CLEAN_STREAK:5}
+  rigor:
+    bootstrap:
+      min_modalities: 2
+      force_step_up: true
+      block: false
+      trust_margin: 0.05
+    normal:
+      min_modalities: 1
+      force_step_up: false
+      block: false
+      trust_margin: 0.00
+    elevated:
+      min_modalities: 2
+      force_step_up: false
+      block: false
+      trust_margin: 0.05
+    heightened:
+      min_modalities: 3
+      force_step_up: true
+      block: false
+      trust_margin: 0.10
+    locked:
+      min_modalities: 3
+      force_step_up: true
+      block: true
+      trust_margin: 0.15
+
+otp:
+  ttl_s: ${DRIVEAUTH_OTP_TTL_S:120.0}
+  length: ${DRIVEAUTH_OTP_LENGTH:6}
+  max_tries: ${DRIVEAUTH_OTP_MAX_TRIES:3}
+  provider_url: ${DRIVEAUTH_OTP_PROVIDER_URL:}
+  provider_timeout_s: ${DRIVEAUTH_OTP_PROVIDER_TIMEOUT_S:6.0}
+
+step_up:
+  retries: ${DRIVEAUTH_STEP_UP_RETRIES:2}
+  pin_min_len: ${DRIVEAUTH_PIN_MIN_LEN:4}
+  fallback_min_trust: ${DRIVEAUTH_FALLBACK_MIN_TRUST:0.80}
+
+hardware:
+  fingerprint_available: ${DRIVEAUTH_FINGERPRINT_AVAILABLE:1}
+  ir_camera_index: ${DRIVEAUTH_IR_CAMERA_INDEX:0}
+  finger_socket: ${DRIVEAUTH_FINGER_SOCKET:/tmp/driveauth_finger.sock}
+
+escalation:
+  enabled: ${DRIVEAUTH_ESCALATION_ENABLED:1}
+  constant_time_ms: ${DRIVEAUTH_ESCALATION_CONSTANT_TIME_MS:0.0}
+
+bootstrap:
+  min_txns: ${DRIVEAUTH_BOOTSTRAP_MIN_TXNS:10}
+  min_days: ${DRIVEAUTH_BOOTSTRAP_MIN_DAYS:3.0}
+  stale_days: ${DRIVEAUTH_PROFILE_STALE_DAYS:90.0}
+  amount_cap: ${DRIVEAUTH_BOOTSTRAP_AMOUNT_CAP:2000.0}
+  schema_version: ${DRIVEAUTH_PROFILE_SCHEMA_VERSION:2}
+
+cache:
+  decision_ttl_s: ${DRIVEAUTH_DECISION_CACHE_TTL_S:8.0}
+
+quality:
+  voice_min_snr_db: ${DRIVEAUTH_Q_VOICE_MIN_SNR:6.0}
+  voice_clip_frac: ${DRIVEAUTH_Q_VOICE_CLIP_FRAC:0.02}
+  voice_min_seconds: ${DRIVEAUTH_Q_VOICE_MIN_SEC:1.0}
+  face_min_sharpness: ${DRIVEAUTH_Q_FACE_MIN_SHARP:40.0}
+  face_min_bright: ${DRIVEAUTH_Q_FACE_MIN_BRIGHT:25.0}
+  face_max_bright: ${DRIVEAUTH_Q_FACE_MAX_BRIGHT:235.0}
+  face_min_frac: ${DRIVEAUTH_FACE_MIN_FRAC:0.18}
+  finger_min_contact: ${DRIVEAUTH_Q_FINGER_MIN_CONTACT:0.35}
+
+ood:
+  z_thresh: ${DRIVEAUTH_OOD_Z_THRESH:3.0}
+  cosine_thresh: ${DRIVEAUTH_OOD_COSINE_THRESH:0.55}
+
+orchestrator:
+  uncertainty_thresh: ${DRIVEAUTH_ORCH_UNCERTAINTY:0.35}

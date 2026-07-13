@@ -1,0 +1,27 @@
+Phase: 2a (pretrained models on Mac)
+Date: 2026-07-10
+
+Device: MacBook Air M4, 16 GB, macOS 26.3.1, Python 3.11.14
+Store: ./driveauth_store_phase2a
+
+Models:
+  Voice: SpeechBrain ECAPA-TDNN (spkrec-ecapa-voxceleb) — ready=True
+  Face:  ArcFace-MobileFaceNet ONNX (CoreML+CPU) — ready=True
+  Finger / behavioral: mock (expected)
+
+Enrollment: synthetic smoke samples (replace with Phase 3 real data)
+
+Auth (mature micro, real voice):
+  Decision: ACCEPT
+  Trust≈0.93  Risk≈0.003  Confidence≈0.77
+  early_stop after voice
+
+Latency bench n=10 (real ECAPA):
+  p50=30.7ms  p95=35.1ms  max=35.1ms
+  (compare Phase 1a mock: p50=0.7ms)
+
+Next:
+  - Re-enroll with real data/driver1/*/enroll samples
+  - Continue Phase 3 capture
+  - Phase 2b fine-tune when enroll+genuine+attack exist
+  - Phase 1b: same scripts on Thor

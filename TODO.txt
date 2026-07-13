@@ -1,0 +1,19 @@
+# DriveAuth Edge — TODO
+
+## Demo
+- [x] `DEMO.md` runbook + `scripts/demo_preflight.sh`
+- [ ] Optional: screenshot of Thor dashboard for offline backup
+
+## Data / Phase 3 quality
+- [x] Replace face enroll + genuine with same-person Kaggle **Robert Downey Jr** (8 enroll / 20 genuine)
+- [x] attack_side / attack_blur already filled from same identity
+- [x] Fix OOD reseeding bug (`DriveAuth.load` was wiping 512-d face baselines with 128-d)
+- [x] Re-enroll + demo → **ACCEPT** (Trust≈0.80, face≈0.85)
+
+## Phase 2b
+- [x] Train risk LightGBM → `driveauth_store_phase2a/risk_gbt.onnx`
+- [x] Calibrate voice/face thresholds → `phases/phase2b_calibration.json` + conservative `policy.yaml` update
+- [ ] Optional: Phase 2a real models latency on Thor
+- [ ] Optional: voice anti-spoof / face PAD
+- [ ] Optional: finger when HW + weights exist
+- [ ] Retrain risk with larger txn history (current n=30 overfits cleanly)

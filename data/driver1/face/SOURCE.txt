@@ -1,0 +1,6 @@
+Face data from Kaggle vasukipatel/face-recognition-dataset
+Identity: Robert Downey Jr (same person for enroll + genuine + attacks)
+Source: /Users/par_04/.cache/kagglehub/datasets/vasukipatel/face-recognition-dataset/versions/1/Faces/Faces
+enroll: 8 best sharpness/eye-visible
+genuine: 20 next-best same identity (no overlap with enroll)
+attack_side / attack_blur: previously synthesized from same identity

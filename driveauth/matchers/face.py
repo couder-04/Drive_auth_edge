@@ -1,0 +1,264 @@
+"""MobileFaceNet ONNX face matcher (optional OpenCV + ONNX Runtime)."""
+
+from __future__ import annotations
+
+import logging
+import time
+from pathlib import Path
+
+import numpy as np
+
+from driveauth import config
+from driveauth.template_store import load_embedding
+from driveauth.types import ModalityResult
+
+logger = logging.getLogger("driveauth.matchers.face")
+
+
+def _ort_providers() -> list[str]:
+    try:
+        import onnxruntime as ort  # type: ignore
+
+        available = set(ort.get_available_providers())
+    except Exception:
+        return ["CPUExecutionProvider"]
+    preferred = [
+        "CUDAExecutionProvider",
+        "CoreMLExecutionProvider",
+        "CPUExecutionProvider",
+    ]
+    return [p for p in preferred if p in available] or ["CPUExecutionProvider"]
+
+
+class FaceMatcher:
+    _FACE_SIZE = (112, 112)
+    _MIN_FACE_FRAC = config.FACE_MIN_FRAC
+
+    def __init__(self, session, driver_embedding: np.ndarray | None):
+        self._session = session
+        self._emb = driver_embedding
+        self._cam_idx = config.IR_CAMERA_INDEX
+        self._inject_bgr: np.ndarray | None = None
+        self._last_meta: dict = {}
+
+    @property
+    def ready(self) -> bool:
+        return self._session is not None and self._emb is not None
+
+    def inject_bgr(self, frame_bgr: np.ndarray | None) -> None:
+        """Phase 2a / Mac: feed a still frame instead of the live camera."""
+        self._inject_bgr = None if frame_bgr is None else np.asarray(frame_bgr)
+
+    @classmethod
+    def load(cls, store_dir: str, driver_id: str = "driver1") -> FaceMatcher:
+        store = Path(store_dir)
+        session = None
+
+        candidates = [
+            store / "mobilefacenet_int8.onnx",
+            store / "mobilefacenet.onnx",
+            store / "models" / "mobilefacenet.onnx",
+            store / "models" / "arcface_mobilefacenet.onnx",
+        ]
+        onnx_path = next((p for p in candidates if p.exists()), None)
+        if onnx_path is not None:
+            try:
+                import onnxruntime as ort  # type: ignore
+
+                providers = _ort_providers()
+                session = ort.InferenceSession(str(onnx_path), providers=providers)
+                logger.info(
+                    "FaceMatcher: ONNX loaded from %s (%s)", onnx_path.name, providers
+                )
+            except Exception as exc:
+                logger.warning("FaceMatcher: ONNX load failed (%s)", exc)
+        else:
+            logger.warning(
+                "FaceMatcher: model not found (tried mobilefacenet*.onnx under %s)",
+                store,
+            )
+
+        driver_embedding = load_embedding(store, f"faces/{driver_id}.enc")
+        if driver_embedding is not None:
+            logger.info("FaceMatcher: template loaded for %s", driver_id)
+
+        return cls(session, driver_embedding)
+
+    def embed_bgr(self, frame_bgr: np.ndarray) -> np.ndarray | None:
+        if self._session is None or frame_bgr is None:
+            return None
+        try:
+            import cv2  # type: ignore
+
+            meta = self._extract_face_meta(frame_bgr, cv2)
+            if meta is None:
+                h, w = frame_bgr.shape[:2]
+                side = min(h, w)
+                y0, x0 = (h - side) // 2, (w - side) // 2
+                crop = frame_bgr[y0 : y0 + side, x0 : x0 + side]
+            else:
+                crop, face_frac, frontal_ok = meta
+                self._last_meta = {
+                    "face_frac": face_frac,
+                    "frontal_ok": frontal_ok,
+                    "bgr": crop,
+                }
+            return self._embed_crop_bgr(crop)
+        except Exception as exc:
+            logger.error("FaceMatcher.embed_bgr: %s", exc)
+            return None
+
+    def _embed_crop_bgr(self, crop_bgr: np.ndarray) -> np.ndarray | None:
+        import cv2  # type: ignore
+
+        face_rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB)
+        face_rgb = cv2.resize(face_rgb, self._FACE_SIZE)
+        blob = (face_rgb.astype(np.float32) - 127.5) / 128.0
+        blob = np.transpose(blob, (2, 0, 1))[np.newaxis]
+        input_name = self._session.get_inputs()[0].name
+        emb = self._session.run(None, {input_name: blob})[0][0].astype(np.float32)
+        norm = float(np.linalg.norm(emb))
+        if norm > 1e-8:
+            emb /= norm
+        return emb
+
+    def _read_camera_bgr(self):
+        import cv2  # type: ignore
+
+        if self._inject_bgr is not None:
+            return self._inject_bgr
+        cap = cv2.VideoCapture(self._cam_idx)
+        if not cap.isOpened():
+            return None
+        for _ in range(3):
+            cap.read()
+        ret, frame = cap.read()
+        cap.release()
+        return frame if ret else None
+
+    def capture_and_score(self) -> ModalityResult:
+        t0 = time.perf_counter()
+        if not self.ready:
+            return ModalityResult(score=None, confident=False, available=False)
+        try:
+            import cv2  # type: ignore
+
+            frame = self._read_camera_bgr()
+            if frame is None:
+                return ModalityResult(score=None, confident=False, available=False)
+            crop = self._extract_face_crop(frame, cv2)
+            if crop is None and self._inject_bgr is not None:
+                crop = self._center_crop(frame)
+                self._last_meta = {
+                    "face_frac": 1.0,
+                    "frontal_ok": True,
+                    "bgr": crop,
+                    "inject_fallback": True,
+                }
+            if crop is None:
+                return ModalityResult(
+                    score=None, confident=False, quality=0.2, available=False
+                )
+            emb = self._embed_crop_bgr(crop)
+            if emb is None or self._emb is None:
+                return ModalityResult(score=None, confident=False, available=False)
+            sim = float(np.clip(float(np.dot(self._emb, emb)), 0.0, 1.0))
+            lat = (time.perf_counter() - t0) * 1000
+            return ModalityResult(sim, True, latency_ms=lat, embedding=emb)
+        except Exception as exc:
+            logger.error("FaceMatcher.capture_and_score: %s", exc)
+            return ModalityResult(score=None, confident=False, available=False)
+
+    def _center_crop(self, frame_bgr: np.ndarray) -> np.ndarray:
+        h, w = frame_bgr.shape[:2]
+        side = min(h, w)
+        y0, x0 = (h - side) // 2, (w - side) // 2
+        return frame_bgr[y0 : y0 + side, x0 : x0 + side]
+
+    def capture_frame(self):
+        try:
+            import cv2  # type: ignore
+
+            if self._session is None:
+                return None
+            frame = self._read_camera_bgr()
+            if frame is None:
+                return None
+            meta = self._extract_face_meta(frame, cv2)
+            if meta is None:
+                # Still-frame inject / hard images: center-crop like embed_bgr
+                # so Phase 2a demos are not blocked by Haar misses.
+                if self._inject_bgr is None:
+                    return None
+                crop_bgr = self._center_crop(frame)
+                self._last_meta = {
+                    "face_frac": 1.0,
+                    "frontal_ok": True,
+                    "bgr": crop_bgr,
+                    "inject_fallback": True,
+                }
+                logger.info("FaceMatcher: Haar miss — center-crop fallback (inject)")
+            else:
+                crop_bgr, face_frac, frontal_ok = meta
+                self._last_meta = {
+                    "face_frac": face_frac,
+                    "frontal_ok": frontal_ok,
+                    "bgr": crop_bgr,
+                }
+            return cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2GRAY)
+        except Exception as exc:
+            logger.debug("FaceMatcher.capture_frame: %s", exc)
+            return None
+
+    def score_frame(self, frame_gray: np.ndarray) -> ModalityResult:
+        t0 = time.perf_counter()
+        if not self.ready or frame_gray is None:
+            return ModalityResult(score=None, confident=False, available=False)
+        try:
+            meta = getattr(self, "_last_meta", {}) or {}
+            bgr = meta.get("bgr")
+            if bgr is None:
+                return ModalityResult(score=None, confident=False, available=False)
+            emb = self._embed_crop_bgr(bgr)
+            if emb is None or self._emb is None:
+                return ModalityResult(score=None, confident=False, available=False)
+            sim = float(np.clip(float(np.dot(self._emb, emb)), 0.0, 1.0))
+            lat = (time.perf_counter() - t0) * 1000
+            return ModalityResult(sim, True, latency_ms=lat, embedding=emb)
+        except Exception as exc:
+            logger.error("FaceMatcher.score_frame: %s", exc)
+            return ModalityResult(score=None, confident=False, available=False)
+
+    def _extract_face_meta(self, frame, cv2):
+        try:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+            detector = cv2.CascadeClassifier(cascade_path)
+            faces = detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+            if len(faces) == 0:
+                return None
+            frame_h, frame_w = frame.shape[0], frame.shape[1]
+            x, y, w, h = max(faces, key=lambda r: r[2] * r[3])
+            face_frac = h / max(frame_h, 1)
+            if face_frac < self._MIN_FACE_FRAC:
+                return None
+            cx = (x + w / 2.0) / max(frame_w, 1)
+            aspect = w / max(h, 1)
+            frontal_ok = 0.25 <= cx <= 0.75 and 0.65 <= aspect <= 1.35
+            if not frontal_ok:
+                return None
+            pad = int(0.15 * h)
+            x0 = max(0, x - pad)
+            y0 = max(0, y - pad)
+            x1 = min(frame_w, x + w + pad)
+            y1 = min(frame_h, y + h + pad)
+            return frame[y0:y1, x0:x1], face_frac, True
+        except Exception as exc:
+            logger.debug(
+                "FaceMatcher: face-crop check failed (%s) — refusing full frame", exc
+            )
+            return None
+
+    def _extract_face_crop(self, frame, cv2):
+        meta = self._extract_face_meta(frame, cv2)
+        return None if meta is None else meta[0]
