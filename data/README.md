@@ -94,13 +94,34 @@ Or Photos / Photo Booth → export JPG into the right folder.
 
 ### Transaction labels (no hardware)
 
-Create `data/driver1/transaction/txns.csv`:
+Create `data/driver1/transaction/txns.csv`. The full schema consumed by
+`scripts/train_risk_gbt.py` is:
 
 ```csv
-amount,beneficiary,beneficiary_known,hour,speed_kmh,in_trusted_zone,label
-50,Mom,1,14,0,1,legit
-150,Starbucks,1,9,20,1,legit
-90000,unknown_merchant,0,2,95,0,suspicious
+amount,beneficiary,beneficiary_known,hour,speed_kmh,in_trusted_zone,dist_from_home_km,ignition_on,is_tunnel,behavioral_score,label,driver_id
+50,Mom,1,14,0,1,0.3,0,0,0.92,legit,drv_0001
+150,Starbucks,1,9,20,1,4.2,1,0,0.88,legit,drv_0001
+90000,unknown_merchant,0,2,95,0,52.7,1,1,0.14,suspicious,drv_0001
+```
+
+Older CSVs with just the first six columns still train fine (missing
+optional columns fall back to inference-time defaults), but you leave real
+signal on the table -- `behavior_anomaly` is the trained model's #1
+feature by gain. Include the full schema whenever you can.
+
+`driver_id` is optional but strongly recommended for larger sets: the
+trainer computes **per-driver** `amount_z` when it's present, which
+matches how inference computes amount_z from each driver's own rolling
+mean/std via `ProfileStore.apply_to_context`. Without `driver_id`, the
+trainer falls back to a global legit-only mean/std -- fine for a few
+dozen rows but a train/serve distribution mismatch on any real dataset.
+
+To generate a 50k-row synthetic set that satisfies the full schema and
+passes the built-in QA gates, use `scripts/generate_risk_txns.py`:
+
+```bash
+python scripts/generate_risk_txns.py --seed 42 --n 50000 \
+    --out data/driver1/transaction/txns.csv --meta meta.json
 ```
 
 30+ rows is enough to start risk-model experiments later.

@@ -12,6 +12,13 @@ version: ${DRIVEAUTH_POLICY_VERSION:driveauth-1.0}
 risk:
   approve: ${DRIVEAUTH_RISK_APPROVE:0.35}
   reject: ${DRIVEAUTH_RISK_REJECT:0.80}
+  # Review fix #8: when true, a corrupt/unloadable risk_gbt.onnx raises
+  # instead of silently degrading to the additive fallback -- so a bad
+  # checkpoint or ORT mismatch surfaces immediately rather than after an
+  # ambiguous week of drifted decisions in the field. A missing ONNX file
+  # (fresh install) still falls through to additive; only present-but-broken
+  # files trip the strict check.
+  strict_load: ${DRIVEAUTH_RISK_STRICT_LOAD:1}
 
 trust:
   # Phase 2b calibration (2026-07-13): lowered slightly toward genuine score
@@ -101,7 +108,10 @@ bootstrap:
   min_days: ${DRIVEAUTH_BOOTSTRAP_MIN_DAYS:3.0}
   stale_days: ${DRIVEAUTH_PROFILE_STALE_DAYS:90.0}
   amount_cap: ${DRIVEAUTH_BOOTSTRAP_AMOUNT_CAP:2000.0}
-  schema_version: ${DRIVEAUTH_PROFILE_SCHEMA_VERSION:2}
+  # Bumped 2 -> 3 in this release for home-learning fields (review fix #3).
+  # v3 records also carry home_lat/home_lon/home_n/home_last_update_at;
+  # v2 records forward-migrate automatically via profile_store._migrate.
+  schema_version: ${DRIVEAUTH_PROFILE_SCHEMA_VERSION:3}
 
 cache:
   decision_ttl_s: ${DRIVEAUTH_DECISION_CACHE_TTL_S:8.0}
@@ -122,3 +132,16 @@ ood:
 
 orchestrator:
   uncertainty_thresh: ${DRIVEAUTH_ORCH_UNCERTAINTY:0.35}
+
+# Geo / home-learning (review fix #3). The runtime learns home lat/lon online
+# from ACCEPT-decision GPS fixes so the risk model's dist_from_home and
+# out_of_zone features actually have live values in production instead of
+# staying at their RiskContext dataclass defaults.
+geo:
+  # in_trusted_zone := distance from learned home <= this many km.
+  trusted_zone_radius_km: ${DRIVEAUTH_TRUSTED_ZONE_RADIUS_KM:5.0}
+  # Home is treated as "not yet learned" (fail-neutral) until we've seen at
+  # least this many accepted-auth GPS fixes.
+  home_learn_min_samples: ${DRIVEAUTH_HOME_LEARN_MIN_SAMPLES:3}
+  # Drop GPS fixes worse than this from the home-learning Welford update.
+  home_learn_max_accuracy_m: ${DRIVEAUTH_HOME_LEARN_MAX_ACCURACY_M:100.0}

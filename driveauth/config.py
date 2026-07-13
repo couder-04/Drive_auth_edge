@@ -202,5 +202,15 @@ OOD_COSINE_THRESH = _as_float(_P["ood"]["cosine_thresh"])
 
 ORCH_UNCERTAINTY = _as_float(_P["orchestrator"]["uncertainty_thresh"])
 
+# Geo / home-learning (review fix #3).
+TRUSTED_ZONE_RADIUS_KM = _as_float(_P["geo"]["trusted_zone_radius_km"])
+HOME_LEARN_MIN_SAMPLES = _as_int(_P["geo"]["home_learn_min_samples"])
+HOME_LEARN_MAX_ACCURACY_M = _as_float(_P["geo"]["home_learn_max_accuracy_m"])
+
+# Risk-model load strictness (review fix #8). When true, a present-but-corrupt
+# risk_gbt.onnx causes RiskModel.load to raise instead of silently degrading
+# to the additive fallback -- a defensive default for a safety-critical head.
+RISK_STRICT_LOAD = _as_bool01(_P["risk"]["strict_load"])
+
 # Raw resolved tree for audit / dashboard introspection.
 POLICY: dict[str, Any] = _P

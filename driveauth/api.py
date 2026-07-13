@@ -600,6 +600,15 @@ class DriveAuth:
                 self._profile.record_transaction(
                     result.amount if result.is_payment else 0.0
                 )
+                # Home is learned only from ACCEPT-decision fixes so we're
+                # confident the enrolled driver was actually there (review
+                # fix #3). Bad-accuracy fixes are filtered inside
+                # record_location.
+                with self._ctx_lock:
+                    gps_lat = self._risk_ctx.gps_lat
+                    gps_lon = self._risk_ctx.gps_lon
+                    gps_acc = self._risk_ctx.gps_accuracy_m
+                self._profile.record_location(gps_lat, gps_lon, gps_acc)
                 self._cache_profile_epoch = self._profile_epoch()
 
     def _is_known_beneficiary(self, name: str) -> bool:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 
@@ -14,6 +15,24 @@ logger = logging.getLogger("driveauth.risk")
 
 RISK_APPROVE = config.RISK_APPROVE
 RISK_REJECT = config.RISK_REJECT
+
+# Hardcoded additive-fallback weights used only when no sidecar file is found
+# next to the ONNX model (i.e. a truly fresh install without any trained head).
+# When the trainer writes ``risk_gbt_fallback_weights.json`` these are
+# overridden per deployment so the fallback reflects what the trained model
+# actually learned instead of a hand-tuned prior (review fix #8).
+_DEFAULT_FALLBACK_WEIGHTS = {
+    "amount_z_scaled": 0.22,   # amount_z is transformed via clip01(x/4) below
+    "amount_norm": 0.14,
+    "beneficiary_novel": 0.16,
+    "dist_from_home": 0.12,
+    "out_of_zone": 0.12,
+    "night": 0.06,
+    "moving_fast": 0.06,
+    "ignition_off_anomaly": 0.04,
+    "tunnel": 0.02,
+    "behavior_anomaly": 0.06,
+}
 
 
 class RiskModel:
@@ -30,13 +49,47 @@ class RiskModel:
         "behavior_anomaly",
     )
 
-    def __init__(self, session=None):
+    def __init__(self, session=None, fallback_weights=None, importances=None):
         self._session = session
         self._input_name = session.get_inputs()[0].name if session is not None else None
+        # Additive-fallback weights (review fix #8). Prefer the sidecar written
+        # by the trainer; fall back to the hand-tuned prior for fresh installs.
+        self._fallback_weights = fallback_weights or dict(_DEFAULT_FALLBACK_WEIGHTS)
+        # Per-feature global importances used to filter which reasons we emit
+        # (review fix #9). None -> emit all reasons that pass threshold, i.e.
+        # the pre-fix behaviour.
+        self._importances = importances
 
     @classmethod
-    def load(cls, store_dir: str) -> RiskModel:
-        path = Path(store_dir) / "risk_gbt.onnx"
+    def load(cls, store_dir: str, strict: bool | None = None) -> RiskModel:
+        """
+        Load the trained risk head plus optional trainer sidecars.
+
+        The sidecars are two JSON files the trainer writes next to the ONNX:
+
+          * ``risk_gbt_fallback_weights.json`` -- feature-name -> weight,
+            derived from the trained model's importances. Used by the additive
+            fallback so that, if the ONNX ever fails to load, the fallback
+            still reflects what the trained model learned (review fix #8).
+          * ``risk_gbt.json`` -- the trainer's full meta report; used here only
+            for its ``feature_importances_gain`` field to drive
+            importance-aware reasons (review fix #9).
+
+        ``strict`` (default: ``config.RISK_STRICT_LOAD``) governs what happens
+        when ``risk_gbt.onnx`` exists but fails to open. Strict mode raises,
+        so a corrupt checkpoint or ORT mismatch is impossible to miss. Non-
+        strict logs and degrades to additive -- pre-fix behaviour, retained as
+        an opt-out. Missing ONNX (fresh install) always falls through to
+        additive, since there's nothing to be strict about.
+        """
+        if strict is None:
+            strict = config.RISK_STRICT_LOAD
+        store = Path(store_dir)
+        path = store / "risk_gbt.onnx"
+
+        fallback_weights = cls._load_fallback_weights(store)
+        importances = cls._load_importances(store)
+
         session = None
         if path.exists():
             try:
@@ -49,10 +102,56 @@ class RiskModel:
                 )
                 logger.info("RiskModel: trained model loaded (CPU)")
             except Exception as exc:
-                logger.warning("RiskModel: load failed (%s) — additive fallback", exc)
+                if strict:
+                    # Fix #8: silent degradation to additive is worse than a
+                    # loud failure -- an integrator can retry / roll back /
+                    # ship a good checkpoint. A silent 0.06-weight
+                    # behavior_anomaly path can look normal for weeks.
+                    raise RuntimeError(
+                        f"RiskModel: {path} exists but failed to load "
+                        f"(strict mode on): {exc}"
+                    ) from exc
+                logger.warning(
+                    "RiskModel: load failed (%s) — additive fallback "
+                    "(strict mode off)", exc
+                )
         else:
             logger.info("RiskModel: no trained model — using additive fallback")
-        return cls(session)
+        return cls(session, fallback_weights=fallback_weights, importances=importances)
+
+    @staticmethod
+    def _load_fallback_weights(store: Path) -> dict | None:
+        p = store / "risk_gbt_fallback_weights.json"
+        if not p.exists():
+            return None
+        try:
+            data = json.loads(p.read_text())
+            # Accept two shapes: raw {name: weight} or nested {weights: {...}}.
+            if isinstance(data, dict) and "weights" in data:
+                data = data["weights"]
+            if not isinstance(data, dict):
+                raise ValueError("fallback weights JSON must be an object")
+            return {str(k): float(v) for k, v in data.items()}
+        except Exception as exc:
+            logger.warning(
+                "RiskModel: fallback weights sidecar %s unreadable (%s) — "
+                "using defaults", p, exc,
+            )
+            return None
+
+    @staticmethod
+    def _load_importances(store: Path) -> dict | None:
+        p = store / "risk_gbt.json"
+        if not p.exists():
+            return None
+        try:
+            data = json.loads(p.read_text())
+            imps = data.get("feature_importances_gain")
+            if not isinstance(imps, dict):
+                return None
+            return {str(k): float(v) for k, v in imps.items()}
+        except Exception:
+            return None
 
     def _features(self, ctx: RiskContext) -> dict[str, float]:
         amount_z = 0.0
@@ -116,37 +215,64 @@ class RiskModel:
             except Exception as exc:
                 logger.warning("RiskModel: inference failed (%s)", exc)
 
+        # Additive fallback -- weights come from the sidecar written by the
+        # trainer when available (review fix #8), otherwise from
+        # _DEFAULT_FALLBACK_WEIGHTS. amount_z uses a special transform
+        # (clip01(x/4)) because it's the only feature not already in [0, 1].
+        w = self._fallback_weights
         risk = (
-            0.22 * clip01(feats["amount_z"] / 4.0)
-            + 0.14 * feats["amount_norm"]
-            + 0.16 * feats["beneficiary_novel"]
-            + 0.12 * feats["dist_from_home"]
-            + 0.12 * feats["out_of_zone"]
-            + 0.06 * feats["night"]
-            + 0.06 * feats["moving_fast"]
-            + 0.04 * feats["ignition_off_anomaly"]
-            + 0.02 * feats["tunnel"]
-            + 0.06 * feats["behavior_anomaly"]
+            w.get("amount_z_scaled", 0.0) * clip01(feats["amount_z"] / 4.0)
+            + w.get("amount_norm", 0.0) * feats["amount_norm"]
+            + w.get("beneficiary_novel", 0.0) * feats["beneficiary_novel"]
+            + w.get("dist_from_home", 0.0) * feats["dist_from_home"]
+            + w.get("out_of_zone", 0.0) * feats["out_of_zone"]
+            + w.get("night", 0.0) * feats["night"]
+            + w.get("moving_fast", 0.0) * feats["moving_fast"]
+            + w.get("ignition_off_anomaly", 0.0) * feats["ignition_off_anomaly"]
+            + w.get("tunnel", 0.0) * feats["tunnel"]
+            + w.get("behavior_anomaly", 0.0) * feats["behavior_anomaly"]
         )
         return clip01(risk), self._reasons(feats)
 
-    @staticmethod
-    def _reasons(feats: dict[str, float]) -> list[str]:
+    # Feature-name -> (threshold, human-readable reason). Threshold only fires
+    # a reason when the feature is above it AND the feature has non-negligible
+    # global importance in the deployed model (review fix #9).
+    _REASON_MAP: dict[str, tuple[float, str]] = {
+        "amount_z": (2.0, "amount_far_above_usual"),
+        "amount_norm": (0.5, "large_absolute_amount"),
+        "beneficiary_novel": (0.5, "first_time_beneficiary"),
+        "out_of_zone": (0.5, "unfamiliar_location"),
+        "dist_from_home": (0.6, "far_from_home"),
+        "night": (0.5, "unusual_hour"),
+        "moving_fast": (0.3, "transaction_while_moving"),
+        "behavior_anomaly": (0.4, "driving_style_anomaly"),
+    }
+
+    def _reasons(self, feats: dict[str, float]) -> list[str]:
+        """
+        Emit human-readable reasons for the current call.
+
+        When per-feature importances have been loaded (review fix #9) we only
+        surface reasons for features that both (a) exceed their threshold AND
+        (b) contribute a non-trivial share of the trained model's total gain.
+        This keeps ``reasons`` consistent with what the deployed model
+        actually cares about -- e.g. we stop emitting ``unusual_hour`` on
+        risk=0.9 calls when the model's own gain attribution for ``night`` is
+        near zero. When importances are absent (fresh install / no sidecar)
+        we fall back to threshold-only, matching pre-fix behaviour.
+        """
         reasons: list[str] = []
-        if feats["amount_z"] > 2.0:
-            reasons.append("amount_far_above_usual")
-        if feats["amount_norm"] > 0.5:
-            reasons.append("large_absolute_amount")
-        if feats["beneficiary_novel"] > 0.5:
-            reasons.append("first_time_beneficiary")
-        if feats["out_of_zone"] > 0.5:
-            reasons.append("unfamiliar_location")
-        if feats["dist_from_home"] > 0.6:
-            reasons.append("far_from_home")
-        if feats["night"] > 0.5:
-            reasons.append("unusual_hour")
-        if feats["moving_fast"] > 0.3:
-            reasons.append("transaction_while_moving")
-        if feats["behavior_anomaly"] > 0.4:
-            reasons.append("driving_style_anomaly")
+        min_share = 0.02  # 2% of total gain -- generous, only filters truly dead features
+        total_imp = None
+        if self._importances:
+            total_imp = float(sum(self._importances.values())) or None
+        for feat_name, (thr, label) in self._REASON_MAP.items():
+            val = feats.get(feat_name, 0.0)
+            if val <= thr:
+                continue
+            if total_imp is not None:
+                share = self._importances.get(feat_name, 0.0) / total_imp
+                if share < min_share:
+                    continue
+            reasons.append(label)
         return reasons
