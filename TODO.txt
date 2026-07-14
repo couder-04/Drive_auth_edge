@@ -1,19 +1,73 @@
-# DriveAuth Edge — TODO
+# DriveAuth Edge — TODO (from roadmap-2026-07.md)
 
-## Demo
-- [x] `DEMO.md` runbook + `scripts/demo_preflight.sh`
-- [ ] Optional: screenshot of Thor dashboard for offline backup
+## Deferred (do later — not blocking Mac Sprint 1)
+- [ ] Replace RDJ face enroll/genuine with own face → re-enroll → recalibrate
+- [ ] Wire GPS into Nova (`update_vehicle_context`) when integrating pipeline
+      (manual GPS/zone/speed in dashboard until then)
+- [ ] Replace synth finger / CAN / OOD with real HW captures when sensors arrive
 
-## Data / Phase 3 quality
-- [x] Replace face enroll + genuine with same-person Kaggle **Robert Downey Jr** (8 enroll / 20 genuine)
-- [x] attack_side / attack_blur already filled from same identity
-- [x] Fix OOD reseeding bug (`DriveAuth.load` was wiping 512-d face baselines with 128-d)
-- [x] Re-enroll + demo → **ACCEPT** (Trust≈0.80, face≈0.85)
+## Sprint 1 — do now
+- [x] Voice/face capture protocols + Phase 3 min sets
+- [x] Phase 2a voice+face enroll (ECAPA + MobileFaceNet)
+- [x] Manual score API + dashboard Nova I/O contract
+- [x] Timing side-channel test (`tests/test_security_sprint1.py`)
+- [x] OOD-drift attack simulation (`tests/test_security_sprint1.py`)
+- [x] README + demo GIF polish
+      (`docs/demo.gif` + `scripts/capture_dashboard_demo_gif.py`)
 
-## Phase 2b
-- [x] Train risk LightGBM → `driveauth_store_phase2a/risk_gbt.onnx`
-- [x] Calibrate voice/face thresholds → `phases/phase2b_calibration.json` + conservative `policy.yaml` update
-- [ ] Optional: Phase 2a real models latency on Thor
-- [ ] Optional: voice anti-spoof / face PAD
-- [ ] Optional: finger when HW + weights exist
-- [ ] Retrain risk with larger txn history (current n=30 overfits cleanly)
+## Phase 1 — Edge (Thor)
+- [x] Thor install + deps + GPU/NPU (CPU EP for mock; GPU visible via nvidia-smi)
+- [x] End-to-end demo on device (pytest · driveauth-demo ACCEPT · dashboard)
+- [x] Baseline hardware profile (CPU / GPU / RAM / latency)
+      → `phases/mac.txt` · `phases/thor.txt` · [`phases/phase1.md`](phases/phase1.md)
+      (mock auth p95 ≤ 10 ms: Mac 0.8 · Thor 0.9)
+
+## Phase 2a — Off-the-shelf models
+- [x] Risk — LightGBM → `risk_gbt.onnx`
+- [x] Voice — ECAPA-TDNN pretrained + enrolled
+- [x] Face — MobileFaceNet pretrained + enrolled (RDJ; own-face later)
+- [x] Mac latency profile — `phases/phase2a-mac.txt` (`scripts/phase2a_bench.py`)
+- [x] Thor latency profile — `phases/phase2a-thor.txt`
+      (ECAPA+face CUDA · ORT SM110 build · micro p95 7.7 · high 9.2 ms)
+- [ ] Fingerprint — vendor SDK (mock + ManualScores until HW)
+- [ ] Behavioral — LSTM/GRU/GBM (mock + synth CAN until HW)
+- [ ] Trust fusion — static OK; logreg is Phase 2b/4
+
+## Phase 2b — Fine-tune
+- [ ] Fine-tune voice (enroll + genuine + replay ready)
+- [ ] Fine-tune face / PAD (after own-face data)
+- [ ] Behavioral bake-off (after real CAN)
+- [ ] Trust fusion logistic regression
+
+## Phase 3 — Datasets
+- [x] Txns 50k · voice · face (RDJ) · finger/beh/ood synth
+- [ ] Own-face + real HW captures (see Deferred)
+
+## Phase 4 — Training (risk ✅ done)
+- [ ] Trust fusion logreg → ONNX
+- [ ] Behavioral → ONNX
+- [ ] Fine-tunes from Phase 2b
+
+## Phase 5 — Testing
+- [x] Timing side-channel test
+- [x] OOD-drift simulation
+- [ ] Real-model failure modes
+- [ ] Threshold re-baselining after own-face / real models
+- [ ] Grow toward 150+ tests
+
+## Phase 6 — Benchmarking
+- [ ] FAR / FRR / EER / ROC · PAD · risk · latency · vs OTP/static MFA
+
+## Phase 7 — Docs
+- [x] README refresh (July 2026 status / Phase 2a–3 / Nova contract)
+- [x] Demo GIF (`docs/demo.gif` — dashboard ACCEPT → STEP_UP)
+- [ ] Security assumptions · posts
+
+## Phase 8 — Publications
+- [ ] IV/ITSC or CCS/NDSS · demo video
+
+## Explicit non-goals
+- Retrain risk on real txns before ~5k labels
+- Apply `phase2b_suggested.env` until face overlap improves
+- Latency optimisation before Phase 2a Thor (real model) profile
+- Paper before Sprint 6

@@ -15,6 +15,9 @@ from pydantic import BaseModel, Field
 
 from driveauth import DriveAuth
 from driveauth.matchers.mock import (
+    MOCK_FACE_DIM,
+    MOCK_FINGER_DIM,
+    MOCK_VOICE_DIM,
     MockBehavioralMonitor,
     MockFaceMatcher,
     MockFingerMatcher,
@@ -73,6 +76,9 @@ class VehicleContext(BaseModel):
     dist_from_home_km: float = 0.0
     is_tunnel: bool = False
     ignition_on: bool = True
+    gps_lat: float | None = None
+    gps_lon: float | None = None
+    gps_accuracy_m: float = 50.0
 
 
 class AuthenticateRequest(BaseModel):
@@ -110,6 +116,17 @@ def _apply_mock_scores(auth: DriveAuth, scores: MockScores) -> None:
     auth._engine._m.face = MockFaceMatcher(score=scores.face)
     auth._engine._m.finger = MockFingerMatcher(score=scores.finger)
     auth._engine._m.behavioral = MockBehavioralMonitor(score=scores.behavioral)
+    auth._engine._m.fingerprint_available = scores.finger is not None
+    # Keep OOD baselines aligned with mock embedding dims (MobileFaceNet=512).
+    from driveauth.ood_detector import OODDetector
+
+    auth._engine._ood = OODDetector.seed_baselines(
+        auth._store,
+        auth.driver_id,
+        voice_dim=MOCK_VOICE_DIM,
+        face_dim=MOCK_FACE_DIM,
+        finger_dim=MOCK_FINGER_DIM,
+    )
 
 
 app = FastAPI(
@@ -145,7 +162,8 @@ def status() -> dict[str, Any]:
 @app.post("/api/context")
 def update_context(ctx: VehicleContext) -> dict[str, str]:
     auth = get_auth()
-    auth.update_vehicle_context(**ctx.model_dump())
+    data = {k: v for k, v in ctx.model_dump().items() if v is not None}
+    auth.update_vehicle_context(**data)
     auth.update_behavioral(
         {"vehicle_speed_kmh": ctx.speed_kmh, "ignition_on": float(ctx.ignition_on)}
     )
@@ -156,7 +174,10 @@ def update_context(ctx: VehicleContext) -> dict[str, str]:
 def authenticate(req: AuthenticateRequest) -> dict[str, Any]:
     auth = get_auth()
     _apply_mock_scores(auth, req.mock_scores)
-    auth.update_vehicle_context(**req.context.model_dump())
+    ctx = req.context.model_dump()
+    # Drop null GPS so RiskContext keeps Optional defaults cleanly
+    ctx = {k: v for k, v in ctx.items() if v is not None}
+    auth.update_vehicle_context(**ctx)
     auth.update_behavioral(
         {
             "vehicle_speed_kmh": req.context.speed_kmh,

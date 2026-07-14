@@ -1,27 +1,37 @@
-Phase: 2a (pretrained models on Mac)
-Date: 2026-07-10
+Phase: 2a (pretrained ECAPA + MobileFaceNet latency)
+Date: 2026-07-14
+Status: PASS (budget REAL_AUTH_P95_MS=200)
 
-Device: MacBook Air M4, 16 GB, macOS 26.3.1, Python 3.11.14
-Store: ./driveauth_store_phase2a
+Device: Darwin 25.3.0 · arm64 · node=macbook
+Python: 3.11.14
+Store: driveauth_store_phase2a
+Device hint (--device): mps
+ECAPA torch device: cpu
+
+GPU / nvidia-smi:
+(nvidia-smi: [Errno 2] No such file or directory: 'nvidia-smi')
+
+ORT 1.27.0 providers=['CoreMLExecutionProvider', 'AzureExecutionProvider', 'CPUExecutionProvider']
 
 Models:
-  Voice: SpeechBrain ECAPA-TDNN (spkrec-ecapa-voxceleb) — ready=True
-  Face:  ArcFace-MobileFaceNet ONNX (CoreML+CPU) — ready=True
-  Finger / behavioral: mock (expected)
+  Voice: VoiceMatcher ready=True
+  Face:  FaceMatcher ready=True
+  Finger / behavioral: mock (expected for 2a)
 
-Enrollment: synthetic smoke samples (replace with Phase 3 real data)
+Inputs: voice=enroll_01.wav  face=enroll_01.jpg
+Bench: n=30 warmup=3
 
-Auth (mature micro, real voice):
-  Decision: ACCEPT
-  Trust≈0.93  Risk≈0.003  Confidence≈0.77
-  early_stop after voice
+Per-modality latency:
+  ECAPA voice.score:     p50=31.7ms  p95=34.8ms  max=36.4ms
+  Face capture_and_score: p50=0.6ms  p95=0.7ms  max=0.7ms
 
-Latency bench n=10 (real ECAPA):
-  p50=30.7ms  p95=35.1ms  max=35.1ms
-  (compare Phase 1a mock: p50=0.7ms)
+Full authenticate():
+  Micro (early-stop voice): p50=33.6ms  p95=37.6ms  max=38.3ms
+    → ACCEPT  trust=0.724  risk=0.000  conf=0.820
+  High-value (+face):       p50=34.6ms  p95=38.2ms  max=38.4ms
+    → REJECT  trust=0.751  risk=0.999  conf=0.975
 
-Next:
-  - Re-enroll with real data/driver1/*/enroll samples
-  - Continue Phase 3 capture
-  - Phase 2b fine-tune when enroll+genuine+attack exist
-  - Phase 1b: same scripts on Thor
+Latency budget: REAL_AUTH_P95_MS=200 → micro_p95=37.6ms high_p95=38.2ms PASS
+  (compare Phase 1 mock: p50≈0.7ms)
+
+Compare: after Thor run, copy phases/phase2a-thor.txt beside this file.

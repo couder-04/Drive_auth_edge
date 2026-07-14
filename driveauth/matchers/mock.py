@@ -6,6 +6,12 @@ import numpy as np
 
 from driveauth.types import ModalityResult
 
+# Keep in sync with OODDetector.seed_baselines defaults and real matcher dims
+# (ECAPA≈192, MobileFaceNet=512, FingerNet-lite placeholder=64).
+MOCK_VOICE_DIM = 192
+MOCK_FACE_DIM = 512
+MOCK_FINGER_DIM = 64
+
 
 def _good_face_gray(size: int = 112) -> np.ndarray:
     """Sharp, mid-brightness synthetic face crop that passes QualityGate."""
@@ -30,7 +36,9 @@ class MockVoiceMatcher:
         if audio_f32 is None or audio_f32.size < sample_rate // 2:
             return ModalityResult(None, False, available=False)
         return ModalityResult(
-            self._score, self._confident, embedding=np.zeros(192, dtype=np.float32)
+            self._score,
+            self._confident,
+            embedding=np.zeros(MOCK_VOICE_DIM, dtype=np.float32),
         )
 
 
@@ -61,7 +69,9 @@ class MockFaceMatcher:
         if not self._available or frame_gray is None:
             return ModalityResult(None, False, available=False)
         return ModalityResult(
-            self._score, self._confident, embedding=np.zeros(128, dtype=np.float32)
+            self._score,
+            self._confident,
+            embedding=np.zeros(MOCK_FACE_DIM, dtype=np.float32),
         )
 
     def capture_and_score(self) -> ModalityResult:
@@ -99,7 +109,9 @@ class MockFingerMatcher:
         if not self._available or self._score is None:
             return ModalityResult(None, False, available=False)
         return ModalityResult(
-            self._score, self._confident, embedding=np.zeros(64, dtype=np.float32)
+            self._score,
+            self._confident,
+            embedding=np.zeros(MOCK_FINGER_DIM, dtype=np.float32),
         )
 
     def capture_and_score(self) -> ModalityResult:

@@ -26,14 +26,15 @@ echo "$OUT" | grep -q "Decision:.*ACCEPT" || {
 echo
 echo "== demo assets =="
 test -f README.md && echo "  README.md OK"
-test -f DEMO.md && echo "  DEMO.md OK"
+test -f roadmap-2026-07.md && echo "  roadmap-2026-07.md OK"
 test -f phases/mac.txt && echo "  phases/mac.txt OK"
 test -f phases/thor.txt && echo "  phases/thor.txt OK"
+test -f phases/phase1.md && echo "  phases/phase1.md OK"
 test -f data/driver1/transaction/txns.csv && echo "  txns.csv OK"
 echo "  voice wavs: $(find data/driver1/voice -name '*.wav' | wc -l | tr -d ' ')"
 echo "  face jpgs:  $(find data/driver1/face -name '*.jpg' | wc -l | tr -d ' ')"
 
 echo
-echo "Preflight OK — follow DEMO.md for talk order."
+echo "Preflight OK — mock path ready. See roadmap-2026-07.md for next steps."
 echo "Thor dashboard (optional): ssh -p 10617 -L 8765:127.0.0.1:8765 acf-thor@fw1.sshreachme-trial.com"
 echo "  then open http://127.0.0.1:8765"

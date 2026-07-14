@@ -18,6 +18,7 @@ def render_dashboard() -> str:
       --text: #e8edf4;
       --muted: #8b9cb3;
       --accent: #3b82f6;
+      --manual: #a78bfa;
       --accept: #22c55e;
       --stepup: #f59e0b;
       --reject: #ef4444;
@@ -53,13 +54,16 @@ def render_dashboard() -> str:
     }
     main {
       display: grid;
-      grid-template-columns: 340px 1fr;
+      grid-template-columns: 280px 320px 1fr;
       gap: 1rem;
       padding: 1rem 1.5rem 2rem;
-      max-width: 1400px;
+      max-width: 1600px;
       margin: 0 auto;
     }
-    @media (max-width: 900px) {
+    @media (max-width: 1100px) {
+      main { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 720px) {
       main { grid-template-columns: 1fr; }
     }
     .panel {
@@ -68,18 +72,29 @@ def render_dashboard() -> str:
       border-radius: 10px;
       padding: 1rem;
     }
+    .panel.manual {
+      border-color: #5b4a8a;
+      box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.15);
+    }
     .panel h2 {
       font-size: 0.8rem;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: var(--muted);
-      margin-bottom: 0.75rem;
+      margin-bottom: 0.35rem;
     }
+    .panel .hint {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+      line-height: 1.4;
+    }
+    .panel.manual h2 { color: var(--manual); }
     label {
       display: block;
       font-size: 0.8rem;
       color: var(--muted);
-      margin: 0.6rem 0 0.25rem;
+      margin: 0.55rem 0 0.25rem;
     }
     input, select {
       width: 100%;
@@ -158,7 +173,7 @@ def render_dashboard() -> str:
       border: 1px solid var(--border);
       color: var(--muted);
     }
-    .audit-list { max-height: 320px; overflow-y: auto; font-size: 0.78rem; }
+    .audit-list { max-height: 280px; overflow-y: auto; font-size: 0.78rem; }
     .audit-item {
       padding: 0.5rem 0;
       border-bottom: 1px solid var(--border);
@@ -175,6 +190,34 @@ def render_dashboard() -> str:
     }
     .scenario-btn:hover { border-color: var(--accent); }
     #status-bar { font-size: 0.8rem; color: var(--muted); }
+    .contract {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .contract h3 {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text);
+      margin: 0.75rem 0 0.35rem;
+    }
+    .contract table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.25rem;
+    }
+    .contract th, .contract td {
+      text-align: left;
+      padding: 0.3rem 0.4rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .contract th { color: var(--muted); font-weight: 600; width: 32%; }
+    .contract code {
+      font-size: 0.72rem;
+      color: #c4d4f0;
+    }
+    .col-stack { display: flex; flex-direction: column; gap: 1rem; }
   </style>
 </head>
 <body>
@@ -187,13 +230,21 @@ def render_dashboard() -> str:
   </header>
 
   <main>
-    <aside>
+    <!-- Col 1: real transaction / Nova payment fields -->
+    <div class="col-stack">
       <section class="panel">
-        <h2>Transaction</h2>
+        <h2>Transaction (Nova → DriveAuth)</h2>
+        <p class="hint">Payment fields Nova parses from the utterance / tool call.</p>
         <label>Amount (INR)</label>
         <input id="amount" type="number" value="150" min="0" step="1" />
         <label>Beneficiary</label>
         <input id="beneficiary" type="text" value="Starbucks" />
+        <label>Action</label>
+        <input id="action" type="text" value="pay" />
+        <label>Currency</label>
+        <input id="currency" type="text" value="INR" />
+        <label>Channel</label>
+        <input id="channel" type="text" value="dashboard" />
         <div class="checkbox-row">
           <input id="beneficiary_known" type="checkbox" checked />
           <label for="beneficiary_known" style="margin:0">Known beneficiary</label>
@@ -204,35 +255,7 @@ def render_dashboard() -> str:
         </div>
       </section>
 
-      <section class="panel" style="margin-top:1rem">
-        <h2>Mock biometrics</h2>
-        <label>Voice <span id="voice-val">0.92</span></label>
-        <input id="voice" type="range" min="0" max="1" step="0.01" value="0.92" />
-        <label>Face <span id="face-val">0.88</span></label>
-        <input id="face" type="range" min="0" max="1" step="0.01" value="0.88" />
-        <label>Finger <span id="finger-val">0.85</span></label>
-        <input id="finger" type="range" min="0" max="1" step="0.01" value="0.85" />
-        <label>Behavioral <span id="behavioral-val">0.95</span></label>
-        <input id="behavioral" type="range" min="0" max="1" step="0.01" value="0.95" />
-      </section>
-
-      <section class="panel" style="margin-top:1rem">
-        <h2>Vehicle context</h2>
-        <label>Speed (km/h)</label>
-        <input id="speed" type="number" value="0" min="0" />
-        <label>Distance from home (km)</label>
-        <input id="dist_home" type="number" value="0" min="0" step="0.1" />
-        <div class="checkbox-row">
-          <input id="trusted_zone" type="checkbox" checked />
-          <label for="trusted_zone" style="margin:0">In trusted zone</label>
-        </div>
-        <div class="checkbox-row">
-          <input id="tunnel" type="checkbox" />
-          <label for="tunnel" style="margin:0">In tunnel</label>
-        </div>
-      </section>
-
-      <section class="panel" style="margin-top:1rem">
+      <section class="panel">
         <h2>Actions</h2>
         <button class="btn-primary" onclick="runAuth()">Run authenticate()</button>
         <button class="btn-secondary" onclick="loadStatus()">Refresh status</button>
@@ -243,13 +266,94 @@ def render_dashboard() -> str:
         <button class="btn-danger" onclick="fraudReset()">Reset fraud ladder</button>
       </section>
 
-      <section class="panel" style="margin-top:1rem">
+      <section class="panel">
         <h2>Presets</h2>
         <div id="scenarios"></div>
       </section>
-    </aside>
+    </div>
 
-    <div>
+    <!-- Col 2: manual stand-ins for sensors Nova will own later -->
+    <div class="col-stack">
+      <section class="panel manual">
+        <h2>Manual stand-ins → auto later</h2>
+        <p class="hint">
+          These mimic sensors / matchers Nova will feed automatically
+          (mic, camera, fingerprint, CAN, GPS). Same values, different source.
+        </p>
+
+        <h2 style="margin-top:0.5rem;color:var(--manual)">Biometric match scores</h2>
+        <p class="hint">Later: ECAPA / ArcFace / FingerNet emit <code>ModalityResult.score ∈ [0,1]</code>.</p>
+        <label>Voice <span id="voice-val">0.92</span></label>
+        <input id="voice" type="range" min="0" max="1" step="0.01" value="0.92" />
+        <label>Face <span id="face-val">0.88</span></label>
+        <input id="face" type="range" min="0" max="1" step="0.01" value="0.88" />
+        <label>Finger <span id="finger-val">0.85</span></label>
+        <input id="finger" type="range" min="0" max="1" step="0.01" value="0.85" />
+        <label>Behavioral <span id="behavioral-val">0.95</span></label>
+        <input id="behavioral" type="range" min="0" max="1" step="0.01" value="0.95" />
+
+        <h2 style="margin-top:1rem;color:var(--manual)">GPS (vehicle / telematics)</h2>
+        <p class="hint">Later: Nova GPS thread → <code>update_vehicle_context(gps_lat=…)</code>. Home distance derived if home learned.</p>
+        <div class="row">
+          <div>
+            <label>gps_lat</label>
+            <input id="gps_lat" type="number" step="0.0001" placeholder="optional" />
+          </div>
+          <div>
+            <label>gps_lon</label>
+            <input id="gps_lon" type="number" step="0.0001" placeholder="optional" />
+          </div>
+        </div>
+        <label>gps_accuracy_m</label>
+        <input id="gps_accuracy_m" type="number" value="50" min="0" step="1" />
+        <label>dist_from_home_km <span style="opacity:.7">(override if no home yet)</span></label>
+        <input id="dist_home" type="number" value="0" min="0" step="0.1" />
+        <div class="checkbox-row">
+          <input id="trusted_zone" type="checkbox" checked />
+          <label for="trusted_zone" style="margin:0">in_trusted_zone</label>
+        </div>
+
+        <h2 style="margin-top:1rem;color:var(--manual)">Vehicle / CAN</h2>
+        <p class="hint">Later: CAN recorder → <code>update_behavioral({…})</code> + speed/ignition on context.</p>
+        <label>speed_kmh</label>
+        <input id="speed" type="number" value="0" min="0" />
+        <div class="checkbox-row">
+          <input id="ignition_on" type="checkbox" checked />
+          <label for="ignition_on" style="margin:0">ignition_on</label>
+        </div>
+        <div class="checkbox-row">
+          <input id="tunnel" type="checkbox" />
+          <label for="tunnel" style="margin:0">is_tunnel</label>
+        </div>
+      </section>
+    </div>
+
+    <!-- Col 3: results + Nova contract -->
+    <div class="col-stack">
+      <section class="panel">
+        <h2>Nova ↔ DriveAuth contract</h2>
+        <div class="contract">
+          <h3>Inputs Nova must supply</h3>
+          <table>
+            <tr><th>Field</th><td><code>audio_np</code> — float32 mono ~16 kHz (STT mic buffer)</td></tr>
+            <tr><th>Payment</th><td><code>amount</code>, <code>beneficiary</code>, <code>action</code>, <code>currency</code>, <code>channel</code>, <code>beneficiary_known</code>, <code>is_guest</code></td></tr>
+            <tr><th>Or utterance</th><td><code>intercept(transcript, audio_np, …)</code> — DriveAuth parses amount/beneficiary itself</td></tr>
+            <tr><th>Vehicle</th><td><code>update_vehicle_context(gps_lat, gps_lon, gps_accuracy_m, speed_kmh, ignition_on, is_tunnel, …)</code></td></tr>
+            <tr><th>CAN (optional)</th><td><code>update_behavioral({steering_torque_nm, brake_pressure_bar, throttle_pct, …})</code></td></tr>
+            <tr><th>Face frame</th><td>Inject BGR still / live cam via FaceMatcher when not using mocks</td></tr>
+            <tr><th>Finger / pad</th><td>HW module → same <code>ModalityResult(score∈[0,1])</code> (manual sliders here until then)</td></tr>
+          </table>
+          <h3>Outputs DriveAuth returns</h3>
+          <table>
+            <tr><th>decision</th><td><code>ACCEPT</code> | <code>STEP_UP_REQUIRED</code> | <code>REJECT</code> (legacy: pass / step_up / deny)</td></tr>
+            <tr><th>scores</th><td><code>trust_score</code>, <code>risk_score</code>, <code>confidence_score</code></td></tr>
+            <tr><th>routing</th><td><code>tier</code>, <code>policy_rule</code>, <code>fraud_state</code>, <code>step_up_method</code></td></tr>
+            <tr><th>debug</th><td><code>explanations[]</code>, <code>modality_scores</code>, <code>ood_flags</code>, <code>active_thresholds</code></td></tr>
+            <tr><th>intercept()</th><td>string <code>"pass"</code> | <code>"step_up"</code> | <code>"deny"</code> for STT worker queues</td></tr>
+          </table>
+        </div>
+      </section>
+
       <section class="panel">
         <h2>Result</h2>
         <div id="decision-banner" class="decision-banner decision-ACCEPT">—</div>
@@ -274,6 +378,7 @@ def render_dashboard() -> str:
           <dt>Tier</dt><dd id="tier">—</dd>
           <dt>Policy rule</dt><dd id="policy">—</dd>
           <dt>Step-up</dt><dd id="stepup">—</dd>
+          <dt>Legacy (Nova)</dt><dd id="legacy">—</dd>
           <dt>Explanations</dt>
           <dd><div class="tags" id="explanations"></div></dd>
           <dt>Modality scores</dt>
@@ -281,7 +386,7 @@ def render_dashboard() -> str:
         </dl>
       </section>
 
-      <section class="panel" style="margin-top:1rem">
+      <section class="panel">
         <h2>Audit log</h2>
         <div class="audit-list" id="audit-list">No events yet.</div>
       </section>
@@ -296,13 +401,22 @@ def render_dashboard() -> str:
     }
     ["voice","face","finger","behavioral"].forEach(k => bindRange(k, k + "-val"));
 
+    function numOrNull(id) {
+      const raw = document.getElementById(id).value;
+      if (raw === "" || raw == null) return null;
+      const v = parseFloat(raw);
+      return Number.isFinite(v) ? v : null;
+    }
+
     function payloadFromForm() {
       return {
         amount: parseFloat(document.getElementById("amount").value) || 0,
         beneficiary: document.getElementById("beneficiary").value,
         beneficiary_known: document.getElementById("beneficiary_known").checked,
         is_guest: document.getElementById("is_guest").checked,
-        action: "pay",
+        action: document.getElementById("action").value || "pay",
+        currency: document.getElementById("currency").value || "INR",
+        channel: document.getElementById("channel").value || "dashboard",
         mock_scores: {
           voice: parseFloat(document.getElementById("voice").value),
           face: parseFloat(document.getElementById("face").value),
@@ -314,7 +428,10 @@ def render_dashboard() -> str:
           in_trusted_zone: document.getElementById("trusted_zone").checked,
           dist_from_home_km: parseFloat(document.getElementById("dist_home").value) || 0,
           is_tunnel: document.getElementById("tunnel").checked,
-          ignition_on: true,
+          ignition_on: document.getElementById("ignition_on").checked,
+          gps_lat: numOrNull("gps_lat"),
+          gps_lon: numOrNull("gps_lon"),
+          gps_accuracy_m: parseFloat(document.getElementById("gps_accuracy_m").value) || 50,
         },
       };
     }
@@ -324,6 +441,9 @@ def render_dashboard() -> str:
       document.getElementById("beneficiary").value = p.beneficiary || "";
       document.getElementById("beneficiary_known").checked = !!p.beneficiary_known;
       document.getElementById("is_guest").checked = !!p.is_guest;
+      if (p.action) document.getElementById("action").value = p.action;
+      if (p.currency) document.getElementById("currency").value = p.currency;
+      if (p.channel) document.getElementById("channel").value = p.channel;
       const m = p.mock_scores || {};
       ["voice","face","finger","behavioral"].forEach(k => {
         if (m[k] != null) {
@@ -336,6 +456,10 @@ def render_dashboard() -> str:
       document.getElementById("dist_home").value = c.dist_from_home_km ?? 0;
       document.getElementById("trusted_zone").checked = c.in_trusted_zone !== false;
       document.getElementById("tunnel").checked = !!c.is_tunnel;
+      document.getElementById("ignition_on").checked = c.ignition_on !== false;
+      document.getElementById("gps_lat").value = c.gps_lat ?? "";
+      document.getElementById("gps_lon").value = c.gps_lon ?? "";
+      document.getElementById("gps_accuracy_m").value = c.gps_accuracy_m ?? 50;
     }
 
     function showResult(r) {
@@ -343,7 +467,7 @@ def render_dashboard() -> str:
       banner.textContent = r.decision;
       banner.className = "decision-banner decision-" + r.decision;
 
-      function setScore(id, barId, val, invert) {
+      function setScore(id, barId, val) {
         const pct = Math.round((val || 0) * 100);
         document.getElementById(id).textContent = (val ?? 0).toFixed(3);
         document.getElementById(barId).style.width = pct + "%";
@@ -355,6 +479,7 @@ def render_dashboard() -> str:
       document.getElementById("tier").textContent = r.tier;
       document.getElementById("policy").textContent = r.policy_rule;
       document.getElementById("stepup").textContent = r.step_up_method || "—";
+      document.getElementById("legacy").textContent = r.legacy_decision || "—";
 
       const tags = document.getElementById("explanations");
       tags.innerHTML = (r.explanations || []).map(e => `<span class="tag">${e}</span>`).join("");

@@ -1,0 +1,5 @@
+OOD Phase 3 negatives (not the enrolled driver)
+face: other Kaggle identity (or synthetic fallback)
+voice: macOS say TTS stand-ins
+finger: synthetic unknown prints
+Live OOD gating still uses store ood_stats/*.npz from enrollment.

@@ -16,6 +16,26 @@ logger = logging.getLogger("driveauth.matchers.face")
 
 
 def _ort_providers() -> list[str]:
+    """Pick ORT providers.
+
+    Override with comma-separated ``DRIVEAUTH_ORT_PROVIDERS``, e.g.
+    ``CPUExecutionProvider`` when a CUDA wheel lacks this GPU's SM arch
+    (``cudaErrorNoKernelImageForDevice``).
+    """
+    import os
+
+    raw = (os.getenv("DRIVEAUTH_ORT_PROVIDERS") or "").strip()
+    if raw:
+        requested = [p.strip() for p in raw.split(",") if p.strip()]
+        try:
+            import onnxruntime as ort  # type: ignore
+
+            available = set(ort.get_available_providers())
+        except Exception:
+            available = set()
+        picked = [p for p in requested if p in available] or ["CPUExecutionProvider"]
+        return picked
+
     try:
         import onnxruntime as ort  # type: ignore
 
@@ -28,6 +48,60 @@ def _ort_providers() -> list[str]:
         "CPUExecutionProvider",
     ]
     return [p for p in preferred if p in available] or ["CPUExecutionProvider"]
+
+
+def _open_face_session(onnx_path: Path):
+    """Load ONNX; if CUDA EP fails a smoke run, fall back to CPU."""
+    import onnxruntime as ort  # type: ignore
+
+    providers = _ort_providers()
+    try:
+        session = ort.InferenceSession(str(onnx_path), providers=providers)
+    except Exception as exc:
+        logger.warning("FaceMatcher: ONNX open failed (%s)", exc)
+        return None
+
+    # Probe once — CUDA wheels built for the wrong SM fail at Relu, not at load.
+    try:
+        inp = session.get_inputs()[0]
+        shape = []
+        for dim in inp.shape:
+            if isinstance(dim, int) and dim > 0:
+                shape.append(dim)
+            else:
+                shape.append(1)
+        if len(shape) == 4:
+            # NCHW MobileFaceNet: (1, 3, 112, 112)
+            shape = [1, 3, 112, 112]
+        dummy = np.zeros(shape, dtype=np.float32)
+        session.run(None, {inp.name: dummy})
+        logger.info(
+            "FaceMatcher: ONNX loaded from %s (%s)",
+            onnx_path.name,
+            session.get_providers(),
+        )
+        return session
+    except Exception as exc:
+        if "CUDAExecutionProvider" not in providers:
+            logger.warning("FaceMatcher: ONNX smoke failed (%s)", exc)
+            return None
+        logger.warning(
+            "FaceMatcher: CUDA EP failed smoke (%s) — falling back to CPU",
+            exc,
+        )
+        try:
+            session = ort.InferenceSession(
+                str(onnx_path), providers=["CPUExecutionProvider"]
+            )
+            logger.info(
+                "FaceMatcher: ONNX loaded from %s (%s)",
+                onnx_path.name,
+                session.get_providers(),
+            )
+            return session
+        except Exception as exc2:
+            logger.warning("FaceMatcher: CPU fallback failed (%s)", exc2)
+            return None
 
 
 class FaceMatcher:
@@ -62,16 +136,7 @@ class FaceMatcher:
         ]
         onnx_path = next((p for p in candidates if p.exists()), None)
         if onnx_path is not None:
-            try:
-                import onnxruntime as ort  # type: ignore
-
-                providers = _ort_providers()
-                session = ort.InferenceSession(str(onnx_path), providers=providers)
-                logger.info(
-                    "FaceMatcher: ONNX loaded from %s (%s)", onnx_path.name, providers
-                )
-            except Exception as exc:
-                logger.warning("FaceMatcher: ONNX load failed (%s)", exc)
+            session = _open_face_session(onnx_path)
         else:
             logger.warning(
                 "FaceMatcher: model not found (tried mobilefacenet*.onnx under %s)",

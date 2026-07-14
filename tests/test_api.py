@@ -27,6 +27,22 @@ def test_driveauth_accept_when_profile_mature():
     )
     assert result.decision == Decision.ACCEPT
     assert result.trust_score > 0.8
+    # Mock embeddings must match seeded OOD dims (was 128-d face vs 512-d baseline).
+    assert not result.ood_flags.get("face")
+    assert not any("ood" in e for e in result.explanations)
+
+
+def test_mock_ood_embedding_dims_align():
+    store = tempfile.mkdtemp()
+    auth = DriveAuth.load(store_dir=store, use_mock_matchers=True)
+    mature(auth)
+    face = auth._engine._m.face.score_frame(auth._engine._m.face.capture_frame())
+    voice = auth._engine._m.voice.score(good_audio())
+    assert face.embedding is not None and face.embedding.shape == (512,)
+    assert voice.embedding is not None and voice.embedding.shape == (192,)
+    assert auth._engine._ood.face._mean is not None
+    assert auth._engine._ood.face._mean.shape == face.embedding.shape
+    assert auth._engine._ood.voice._mean.shape == voice.embedding.shape
 
 
 def test_bootstrap_amount_cap():

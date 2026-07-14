@@ -3,62 +3,62 @@
   "voice": {
     "genuine": {
       "n": 20,
-      "mean": 0.6995,
-      "p10": 0.6603,
-      "p50": 0.7,
-      "p90": 0.7345,
-      "min": 0.6502,
-      "max": 0.7715
+      "mean": 0.6704,
+      "p10": 0.5583,
+      "p50": 0.6831,
+      "p90": 0.7589,
+      "min": 0.4364,
+      "max": 0.7876
     },
     "attack": {
-      "n": 7,
-      "mean": 0.2258,
-      "p10": 0.1035,
-      "p50": 0.1911,
-      "p90": 0.3866,
-      "min": 0.0533,
-      "max": 0.5648
+      "n": 12,
+      "mean": 0.2612,
+      "p10": 0.002,
+      "p50": 0.0974,
+      "p90": 0.6866,
+      "min": 0.0,
+      "max": 0.715
     },
     "suggest_modality_bars": {
-      "accept_micro": 0.662,
-      "accept_standard": 0.692,
-      "accept_high": 0.722,
-      "reject": 0.387,
+      "accept_micro": 0.59,
+      "accept_standard": 0.673,
+      "accept_high": 0.703,
+      "reject": 0.54,
       "note": "Derived from genuine p15/p35/p55 and attack p90; review before shipping."
     }
   },
   "face": {
     "genuine": {
       "n": 20,
-      "mean": 0.6346,
-      "p10": 0.4938,
-      "p50": 0.6565,
-      "p90": 0.7216,
-      "min": 0.4023,
-      "max": 0.7486
+      "mean": 0.6127,
+      "p10": 0.4792,
+      "p50": 0.6351,
+      "p90": 0.6934,
+      "min": 0.3817,
+      "max": 0.7816
     },
     "attack": {
-      "n": 15,
-      "mean": 0.3029,
-      "p10": 0.0119,
-      "p50": 0.3983,
-      "p90": 0.4663,
-      "min": 0.0,
-      "max": 0.5424
+      "n": 24,
+      "mean": 0.4094,
+      "p10": 0.1783,
+      "p50": 0.3007,
+      "p90": 0.7607,
+      "min": 0.1345,
+      "max": 0.8001
     },
     "suggest_modality_bars": {
-      "accept_micro": 0.566,
-      "accept_standard": 0.631,
-      "accept_high": 0.665,
-      "reject": 0.466,
+      "accept_micro": 0.55,
+      "accept_standard": 0.599,
+      "accept_high": 0.642,
+      "reject": 0.5,
       "note": "Derived from genuine p15/p35/p55 and attack p90; review before shipping."
     }
   },
   "current_policy": {
-    "TRUST_ACCEPT_MICRO": 0.75,
-    "TRUST_ACCEPT_STD": 0.82,
-    "TRUST_ACCEPT_HIGH": 0.88,
-    "TRUST_REJECT": 0.55,
+    "TRUST_ACCEPT_MICRO": 0.7,
+    "TRUST_ACCEPT_STD": 0.78,
+    "TRUST_ACCEPT_HIGH": 0.85,
+    "TRUST_REJECT": 0.48,
     "weights": {
       "voice": 0.3,
       "face": 0.4,
@@ -66,10 +66,10 @@
     }
   },
   "suggested_policy_trust": {
-    "accept_micro": 0.607,
-    "accept_standard": 0.657,
-    "accept_high": 0.689,
-    "reject": 0.432,
+    "accept_micro": 0.567,
+    "accept_standard": 0.631,
+    "accept_high": 0.668,
+    "reject": 0.517,
     "how": "0.3/0.4 voice/face weight mix of modality percentile suggestions"
   }
 }

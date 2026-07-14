@@ -26,6 +26,9 @@ from driveauth.fraud_state import FraudState, FraudStateMachine
 from driveauth.fusion import ConfidenceScorer, TrustFusion
 from driveauth.intent import is_payment_utterance, parse_transaction_intent
 from driveauth.matchers.mock import (
+    MOCK_FACE_DIM,
+    MOCK_FINGER_DIM,
+    MOCK_VOICE_DIM,
     MockBehavioralMonitor,
     MockFaceMatcher,
     MockFingerMatcher,
@@ -110,7 +113,13 @@ class DriveAuth:
             )
             # Mock embeddings are zeros — seed matching OOD baselines so demos
             # can ACCEPT without fail-closed OOD blocking every call.
-            ood = OODDetector.seed_baselines(str(store), driver_id)
+            ood = OODDetector.seed_baselines(
+                str(store),
+                driver_id,
+                voice_dim=MOCK_VOICE_DIM,
+                face_dim=MOCK_FACE_DIM,
+                finger_dim=MOCK_FINGER_DIM,
+            )
         else:
             from driveauth.matchers.behavioral import BehavioralMonitor
             from driveauth.matchers.face import FaceMatcher
@@ -228,6 +237,14 @@ class DriveAuth:
         )
         auth._risk_ctx = risk_ctx
         auth._ctx_lock = ctx_lock
+        # Optional HW stand-in: DRIVEAUTH_MANUAL_SCORES=path.json or inline JSON
+        try:
+            from driveauth.matchers.score_provider import apply_manual_scores_from_env
+
+            if apply_manual_scores_from_env(auth):
+                logger.info("DriveAuth: applied DRIVEAUTH_MANUAL_SCORES")
+        except Exception as exc:
+            logger.warning("DriveAuth: manual scores skipped (%s)", exc)
         return auth
 
     @classmethod

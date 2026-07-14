@@ -3,4 +3,34 @@ Identity: Robert Downey Jr (same person for enroll + genuine + attacks)
 Source: /Users/par_04/.cache/kagglehub/datasets/vasukipatel/face-recognition-dataset/versions/1/Faces/Faces
 enroll: 8 best sharpness/eye-visible
 genuine: 20 next-best same identity (no overlap with enroll)
-attack_side / attack_blur: previously synthesized from same identity
+attack_side / attack_blur: synthesized from enroll frames (8 side / 8 blur)
+
+Selected source files (score desc):
+  [enroll ] Robert Downey Jr_12.jpg  score=10023.1  sharp=8378.4  eyes=1.44
+  [enroll ] Robert Downey Jr_110.jpg  score=5691.1  sharp=5852.7  eyes=0.94
+  [enroll ] Robert Downey Jr_68.jpg  score=4590.6  sharp=4584.0  eyes=1.00
+  [enroll ] Robert Downey Jr_106.jpg  score=3924.4  sharp=4591.6  eyes=0.68
+  [enroll ] Robert Downey Jr_90.jpg  score=3508.9  sharp=4014.2  eyes=0.72
+  [enroll ] Robert Downey Jr_72.jpg  score=3388.7  sharp=3681.3  eyes=0.82
+  [enroll ] Robert Downey Jr_107.jpg  score=3284.1  sharp=3610.9  eyes=0.80
+  [enroll ] Robert Downey Jr_70.jpg  score=2619.8  sharp=2631.4  eyes=0.99
+  [genuine] Robert Downey Jr_94.jpg  score=2464.5  sharp=2809.5  eyes=0.73
+  [genuine] Robert Downey Jr_97.jpg  score=2439.8  sharp=2566.0  eyes=0.89
+  [genuine] Robert Downey Jr_88.jpg  score=2346.3  sharp=2135.5  eyes=1.22
+  [genuine] Robert Downey Jr_66.jpg  score=2243.4  sharp=2656.6  eyes=0.65
+  [genuine] Robert Downey Jr_36.jpg  score=2175.6  sharp=2272.4  eyes=0.91
+  [genuine] Robert Downey Jr_14.jpg  score=2032.2  sharp=2104.1  eyes=0.92
+  [genuine] Robert Downey Jr_37.jpg  score=2030.6  sharp=2344.7  eyes=0.70
+  [genuine] Robert Downey Jr_13.jpg  score=1919.9  sharp=2007.3  eyes=0.90
+  [genuine] Robert Downey Jr_21.jpg  score=1912.3  sharp=2122.7  eyes=0.78
+  [genuine] Robert Downey Jr_32.jpg  score=1834.1  sharp=2095.3  eyes=0.72
+  [genuine] Robert Downey Jr_74.jpg  score=1775.8  sharp=1879.0  eyes=0.88
+  [genuine] Robert Downey Jr_5.jpg  score=1680.7  sharp=1714.1  eyes=0.96
+  [genuine] Robert Downey Jr_63.jpg  score=1642.5  sharp=1885.0  eyes=0.71
+  [genuine] Robert Downey Jr_45.jpg  score=1605.2  sharp=1695.1  eyes=0.88
+  [genuine] Robert Downey Jr_80.jpg  score=1523.7  sharp=1726.4  eyes=0.74
+  [genuine] Robert Downey Jr_20.jpg  score=1491.0  sharp=1771.0  eyes=0.65
+  [genuine] Robert Downey Jr_58.jpg  score=1485.5  sharp=1673.3  eyes=0.75
+  [genuine] Robert Downey Jr_105.jpg  score=1467.8  sharp=1851.5  eyes=0.54
+  [genuine] Robert Downey Jr_34.jpg  score=1461.5  sharp=1489.8  eyes=0.96
+  [genuine] Robert Downey Jr_7.jpg  score=1437.5  sharp=1400.1  eyes=1.06

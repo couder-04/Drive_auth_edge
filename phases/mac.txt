@@ -6,8 +6,10 @@ DRIVEAUTH_USE_MOCK=1
 
 Auth latency: n=50  p50=0.7ms  p95=0.8ms  max=9.6ms
 RSS: 28912 KB ≈ 28.2 MB  (pid 90777)
+Latency budget: MOCK_AUTH_P95_MS=10.0 → p95=0.8ms PASS
 
 Date: 2026-07-10
-Phase: 1a (Mac workstation baseline) 
+Phase: 1a (Mac workstation baseline)
+Status: PASS (Phase 1 complete — see phases/phase1.md)
 
-Next: 1b on NVIDIA Thor → phases/thor.txt
+Next: done → phases/thor.txt (1b) · phases/phase1.md

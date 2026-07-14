@@ -1,0 +1,14 @@
+Voice attack fills
+==================
+attack_silent/: recorded live (near-silence, Mac mic) — silent_1..3.wav
+attack_other_speaker/: macOS `say` TTS stand-ins (Aman/Daniel/Fred/Flo/Junior)
+  same payment phrases as enroll. Replace with a real 2nd human when available.
+
+To re-do other_speaker with a friend (preferred):
+  MIC=":default"
+  for i in 01 02 03 04 05; do
+    echo "Other person speaks now ($i)"
+    ffmpeg -y -f avfoundation -i "$MIC" -ar 16000 -ac 1 -t 3 \
+      data/driver1/voice/attack_other_speaker/other_$i.wav
+    sleep 2
+  done

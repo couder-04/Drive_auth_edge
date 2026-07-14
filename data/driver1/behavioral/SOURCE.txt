@@ -1,0 +1,4 @@
+Behavioral Phase 3 — SYNTHETIC CAN windows (pre-hardware)
+Schema matches BehavioralMonitor.update() keys + t_ms + label.
+genuine: 20 × 50 rows  attack: 6 × 50 rows
+Replace with real CAN recorder dumps when HW arrives.

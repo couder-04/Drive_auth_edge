@@ -126,9 +126,31 @@ python scripts/generate_risk_txns.py --seed 42 --n 50000 \
 
 30+ rows is enough to start risk-model experiments later.
 
-### Finger / behavioral / IR
+### Finger / behavioral / OOD (synthetic now → real HW later)
 
-Skip until you have a sensor or car log. Leave empty dirs.
+Until the fingerprint sensor / face cam / CAN recorder arrive, fill with:
+
+```bash
+python scripts/generate_phase3_synth.py
+```
+
+| Path | Contents |
+|------|----------|
+| `finger/enroll/` · `genuine/` · `attack/{wrong,partial,wet,dry,spoof}/` | Synthetic ridge PNGs |
+| `behavioral/genuine/` · `attack/` | CAN CSV windows (7 sensor cols + `t_ms` + `label`) |
+| `ood/face/` · `ood/voice/` · `ood/finger/` | Non-enrolled identity negatives |
+
+**Manual scores (HW stand-in):** future sensors must emit `ModalityResult(score∈[0,1])`. For now:
+
+```bash
+# JSON file or inline
+export DRIVEAUTH_MANUAL_SCORES=phases/manual_scores_happy.json
+# or demo:
+python scripts/phase3_synth_demo.py --scenario happy
+python scripts/phase3_synth_demo.py --scores '{"finger":0.2,"behavioral":0.95}'
+```
+
+See `driveauth/matchers/score_provider.py`. When HW arrives, replace mock finger/behavioral classes — keep the same `capture_and_score` / `get_score` methods; DecisionEngine unchanged.
 
 ## Manifest (keep this updated)
 
@@ -155,10 +177,12 @@ After each capture session, append rows (or run the helper script if present).
 
 ## Done when (Phase 3 → 2b gate)
 
-- [ ] `driver1` has enroll + genuine + ≥1 attack for **voice**
-- [ ] `driver1` has enroll + genuine + ≥1 attack for **face**
-- [ ] `transaction/txns.csv` has ≥30 labeled rows
-- [ ] `manifest.csv` lists every file
+- [x] `driver1` has enroll + genuine + ≥1 attack for **voice**
+- [x] `driver1` has enroll + genuine + ≥1 attack for **face**
+  (Robert Downey Jr via `scripts/populate_face_rdj.py` — replace with your face later)
+- [x] `finger` / `behavioral` / `ood` — synthetic via `scripts/generate_phase3_synth.py` (swap for HW captures later)
+- [x] `transaction/txns.csv` — 50k synthetic rows shipped (Phase 3 txn modality done)
+- [x] `manifest.csv` rows appended by populate / generate scripts
 
 Then Phase **2b** can fine-tune; until then use Phase **2a** pretrained checkpoints only.
 
