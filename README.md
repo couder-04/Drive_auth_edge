@@ -15,8 +15,9 @@ Trust/Risk-separated biometric authorization for in-vehicle payments and sensiti
 | Voice (ECAPA-TDNN) + face (MobileFaceNet) | ✅ Pretrained wired + enrolled (Phase 2a) |
 | Finger / behavioral | Finger ⏳ mock until HW · Behavioral ✅ LSTM (synth bake-off; re-bake on real CAN) |
 | Phase 3 datasets | ✅ Voice · face · synth finger/CAN/OOD · 50k txns |
-| Nova live GPS | ⏳ Deferred — set manually in dashboard until integration |
-| Tests | ✅ 160+ incl. timing pad + OOD-drift + Phase 5/6 |
+| Nova live GPS | ⏳ Deferred — Maps / dashboard GPS until Nova telematics |
+| Standalone product | ✅ OpenRouter STT/TTS/intent · live ECAPA/face · Maps · `/manual` + `/standalone` pages ([`docs/standalone.md`](docs/standalone.md)) |
+| Tests | ✅ 160+ incl. timing pad + OOD-drift + Phase 5/6 + standalone session |
 | Phase 6 / Sprint 6 benchmarks | ✅ FAR/FRR/EER/ROC · PAD · risk · latency · vs OTP/MFA/staged ([`phases/phase6.md`](phases/phase6.md)) |
 | Phase 7 docs | ✅ README · demo GIF · [`docs/security-assumptions.md`](docs/security-assumptions.md) · [`docs/public-posts.md`](docs/public-posts.md) (publish URLs open) |
 
@@ -405,21 +406,31 @@ driveauth-demo
 
 Demo flags: `--amount`, `--beneficiary-known`, `--high-value`, `--reject-voice`.
 
-### Web dashboard (pipeline tester)
+### Web dashboard (two pipelines)
 
-Three columns: **Transaction** (Nova payment fields) · **Manual stand-ins** (bio scores, GPS, CAN — auto later) · **Result + Nova ↔ DriveAuth I/O contract**. See [Demo](#demo) GIF above for ACCEPT vs STEP_UP.
+Shared on both pages: **Actions** · **Live security pipeline** (Voice→Face→Finger staircase) · **Result** · **Audit log**.
+
+| Page | URL | Purpose |
+|------|-----|---------|
+| Manual | `/` or `/manual` | Slider stand-ins + presets (mock path) |
+| Standalone | `/standalone` | OpenRouter STT/TTS · intent slots · Maps GPS · live ECAPA/face |
+| Register | `/register` | Capture + enroll · registered-drivers list · Maps home pin |
 
 ```bash
-pip install -e ".[dashboard]"
+pip install -e ".[dashboard]"          # manual / mock dashboard
+# or: pip install -e ".[standalone]"   # + voice/face/onnx for live path
+cp secrets.env.example secrets.env     # OpenRouter + Google Maps (standalone)
 driveauth-dashboard
-# open http://127.0.0.1:8765
-# presets: Micro (ACCEPT) · Low voice→Face (ACCEPT) · Low biometrics (REJECT)
-# register: http://127.0.0.1:8765/register  (webcam + mic → data/<driver>/ → enroll)
+# http://127.0.0.1:8765/manual
+# http://127.0.0.1:8765/standalone
+# http://127.0.0.1:8765/register
 ```
 
 Optional: `--store ./demo_store` for a persistent store, `--reload` for dev auto-reload.
 
-**Register a new driver (face + voice):** open `/register`, set a driver id, capture ≥5 face stills + ≥5 voice clips (written under `data/<id>/{face,voice}/enroll/`), then **Enroll into store**. Needs Phase 2a models (`python scripts/phase2a_setup.py --store ./driveauth_store_phase2a`). Override paths with `DRIVEAUTH_REGISTER_STORE` / `DRIVEAUTH_DATA_ROOT`.
+**Register:** open `/register`, pick or create a driver id, capture ≥5 face stills + ≥5 voice clips (`data/<id>/{face,voice}/enroll/`), mark **home** on Maps, then **Enroll into store**. The page lists every known driver with enrollment status. Needs Phase 2a models (`python scripts/phase2a_setup.py`). Paths: `DRIVEAUTH_REGISTER_STORE` / `DRIVEAUTH_DATA_ROOT` / `secrets.env`.
+
+Standalone details: [`docs/standalone.md`](docs/standalone.md). Railway always-on deploy is documented there (Mac not required after deploy).
 
 ### Phase 2a real voice/face (hybrid)
 
@@ -509,6 +520,7 @@ benchmarks — **162** tests; see [`phases/phase5.md`](phases/phase5.md) ·
 | [docs/security-assumptions.md](docs/security-assumptions.md) | **Threat model, invariants, non-claims, integrator checklist** |
 | [roadmap-2026-07.md](roadmap-2026-07.md) | Current roadmap — phases, sprints, non-goals |
 | [TODO.txt](TODO.txt) | Working checklist (deferred face/Nova GPS called out) |
+| [docs/standalone.md](docs/standalone.md) | Standalone product: OpenRouter STT/TTS, Maps, Railway |
 | [docs/pipeline-fixes-2026-07.md](docs/pipeline-fixes-2026-07.md) | Risk-pipeline fix bundle details |
 | [docs/configuration.md](docs/configuration.md) | `policy.yaml` placeholders and `DRIVEAUTH_*` overrides |
 | [docs/integration.md](docs/integration.md) | **Nova ↔ DriveAuth I/O contract**, STT intercept, GPS/CAN |
@@ -519,20 +531,20 @@ benchmarks — **162** tests; see [`phases/phase5.md`](phases/phase5.md) ·
 
 ```
 staged_driveauth-edge/
-├── README.md
-├── roadmap-2026-07.md
-├── TODO.txt
+├── README.md · TODO.txt · roadmap-2026-07.md
+├── secrets.env.example    # copy → secrets.env (gitignored)
+├── Dockerfile · railway.toml
 ├── pyproject.toml
 ├── architecture/          # Design docs + diagrams
-├── dashboard/             # FastAPI tester (txn · manual stand-ins · contract)
+├── dashboard/             # /manual · /standalone · /register (+ standalone_ui)
 ├── demo/                  # CLI demo (mock matchers)
 ├── data/                  # Phase 3 datasets (biometrics gitignored)
 ├── scripts/               # phase2a_*, generate_*, calibrate_*, overfit_audit
-├── phases/                # calibration JSON, manual_scores_*.json, timing notes
+├── phases/                # calibration JSON, timing notes, Sprint 6
 ├── driveauth/
 │   ├── api.py             # Public DriveAuth API (+ Nova intercept())
-│   ├── geo.py             # Haversine / trusted-zone helpers
-│   ├── intent.py          # Payment intent parse
+│   ├── secrets.py · openrouter_client.py · standalone_session.py
+│   ├── audio_io.py · enrollment.py · geo.py · intent.py
 │   ├── config.py · policy.yaml
 │   ├── decision_engine.py · escalation.py · fusion.py
 │   ├── matchers/          # voice · face · finger · behavioral · score_provider
@@ -542,7 +554,7 @@ staged_driveauth-edge/
 │   └── types.py
 ├── tests/
 ├── examples/
-└── docs/
+└── docs/                  # standalone.md · security-assumptions · integration
 ```
 
 ## Nova AI integration

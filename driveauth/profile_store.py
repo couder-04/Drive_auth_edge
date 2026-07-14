@@ -209,6 +209,19 @@ class ProfileStore:
             self._p.last_txn_at = time.time()
             self._save()
 
+    def set_home(self, lat: float, lon: float) -> None:
+        """Explicit home pin (register Maps picker) — distance live immediately."""
+        with self._lock:
+            self._p.home_lat = float(lat)
+            self._p.home_lon = float(lon)
+            self._p.home_n = max(int(self._p.home_n), int(config.HOME_LEARN_MIN_SAMPLES))
+            self._p.home_last_update_at = time.time()
+            self._save()
+
+    def home_coords(self) -> tuple[float | None, float | None, int]:
+        with self._lock:
+            return self._p.home_lat, self._p.home_lon, int(self._p.home_n)
+
     def record_location(
         self,
         gps_lat: float | None,

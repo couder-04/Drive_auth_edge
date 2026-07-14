@@ -84,7 +84,7 @@
 - [x] Real-model failure modes
 - [x] Threshold re-baselining after own-face / real models
 - [x] Grow toward 150+ tests
-      → **155** tests; see `phases/phase5.md`
+      → **167** tests (pytest); see `phases/phase5.md`
 
 ## Phase 6 — Benchmarking
 - [x] FAR / FRR / EER / ROC · PAD · risk · latency · vs OTP/static MFA/staged
@@ -98,6 +98,18 @@
 - [x] Security assumptions (`docs/security-assumptions.md` · README linked)
 - [x] LinkedIn / Medium posts — drafts in [`docs/public-posts.md`](docs/public-posts.md)
       (publish URLs still open; tick table in that file after posting)
+
+## Standalone product (OpenRouter + Railway)
+- [x] secrets.env.example · OpenRouter STT/TTS/LLM · intent slot-fill
+- [x] Robust `INTENT_SYSTEM_PROMPT` · `ask_field` column TTS follow-ups
+- [x] Live `/api/standalone/auth` (ECAPA/face; finger manual) · unified store
+- [x] Register Maps home pin · pay GPS → `dist_from_home_km`
+- [x] Separate pages: `/manual` · `/standalone` · `/register`
+      (Actions / Live pipeline / Result / Audit on both pipeline pages)
+- [x] Register **Registered drivers** list (`/api/register/drivers`)
+- [x] Dockerfile · railway.toml · [`docs/standalone.md`](docs/standalone.md)
+- [x] Local `secrets.env` filled (OpenRouter + Maps) — **do not commit**
+- [ ] Deploy Railway volume at `/data` (always-on; Mac can sleep)
 
 ## Phase 8 — Publications
 - [ ] IV/ITSC or CCS/NDSS · demo video

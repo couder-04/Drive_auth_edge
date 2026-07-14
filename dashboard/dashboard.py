@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
+from dashboard.standalone_ui import panel_css, panel_html, panel_script
 
-def render_dashboard() -> str:
-    return """<!DOCTYPE html>
+
+def render_dashboard(*, mode: str = "manual") -> str:
+    mode = "standalone" if mode == "standalone" else "manual"
+    title = (
+        "DriveAuth Edge — Standalone Pay"
+        if mode == "standalone"
+        else "DriveAuth Edge — Manual Pipeline"
+    )
+    html = """<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>DriveAuth Edge — Live Pipeline</title>
+  <title>__PAGE_TITLE__</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -871,26 +879,51 @@ def render_dashboard() -> str:
       letter-spacing: 0.07em;
       color: var(--manual);
     }
+    /* STANDALONE_PAY_CSS */
+    .nav-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .nav-link.active {
+      border-color: rgba(45, 212, 191, 0.55);
+      color: var(--cyan);
+      background: rgba(45, 212, 191, 0.1);
+    }
+    body.mode-standalone .manual-only { display: none !important; }
+    body.mode-manual .standalone-only { display: none !important; }
+    body.mode-standalone .main-grid {
+      grid-template-columns: 240px minmax(320px, 1.2fr) minmax(280px, 1fr);
+    }
+    @media (max-width: 1100px) {
+      body.mode-standalone .main-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
-<body>
+<body class="__BODY_MODE__">
   <div class="wrap">
   <header>
     <div class="brand">
       <div class="logo">DA</div>
       <div>
         <h1>DriveAuth <span>Edge</span></h1>
-        <div class="sub">Trust · Risk · Confidence — live authorization pipeline</div>
+        <div class="sub">__PAGE_SUB__</div>
       </div>
     </div>
     <div class="header-right">
-      <a class="nav-link" href="/register">Register driver</a>
+      <nav class="nav-tabs" aria-label="Pipeline pages">
+        <a class="nav-link __NAV_MANUAL__" href="/manual">Manual pipeline</a>
+        <a class="nav-link __NAV_STANDALONE__" href="/standalone">Standalone pay</a>
+        <a class="nav-link" href="/register">Register driver</a>
+      </nav>
       <div id="status-bar">Loading…</div>
     </div>
   </header>
 
   <div class="page">
-    <section class="shipped">
+    <!-- STANDALONE_PAY -->
+    <section class="shipped manual-only">
       <div class="shipped-intro">
         <h2>July 2026</h2>
         <strong>Shipped stack</strong>
@@ -899,7 +932,7 @@ def render_dashboard() -> str:
       <div class="phase-strip" id="phase-strip" aria-label="Delivery status"></div>
     </section>
 
-    <section class="sources-box" id="sources-box">
+    <section class="sources-box manual-only" id="sources-box">
       <header>
         <h2>Inputs &amp; expected sources</h2>
         <p>What the pipeline consumes · where Nova / vehicle sensors should supply it · dashboard stand-in today</p>
@@ -910,7 +943,7 @@ def render_dashboard() -> str:
     <div class="main-grid">
       <!-- Col 1 -->
       <div class="col-stack">
-        <section class="panel">
+        <section class="panel manual-only">
           <h2>Transaction (Nova → DriveAuth)</h2>
           <p class="hint">Payment fields Nova parses from the utterance / tool call.</p>
           <label>Amount (INR)</label>
@@ -935,7 +968,11 @@ def render_dashboard() -> str:
 
         <section class="panel">
           <h2>Actions</h2>
-          <button class="btn-primary" onclick="runAuth()">Run authenticate()</button>
+          <button class="btn-primary manual-only" onclick="runAuth()">Run authenticate()</button>
+          <p class="hint standalone-only" style="margin-top:0">
+            Use <strong>Authorize payment</strong> above for live voice/face.
+            Session controls below still apply.
+          </p>
           <button class="btn-secondary" onclick="loadStatus()">Refresh status</button>
           <button class="btn-secondary" onclick="resetSession()">Reset session</button>
           <hr class="sep" />
@@ -944,7 +981,7 @@ def render_dashboard() -> str:
           <button class="btn-danger" onclick="fraudReset()">Reset fraud ladder</button>
         </section>
 
-        <section class="panel">
+        <section class="panel manual-only">
           <h2>Presets</h2>
           <div id="scenarios"></div>
         </section>
@@ -1043,7 +1080,7 @@ def render_dashboard() -> str:
           </div>
         </section>
 
-        <section class="panel manual">
+        <section class="panel manual manual-only">
           <h2>Manual stand-ins → auto later</h2>
           <p class="hint">
             Mimic sensors Nova will feed automatically (mic, camera, fingerprint, CAN, GPS).
@@ -1594,10 +1631,35 @@ def render_dashboard() -> str:
       });
 
     renderPhases();
-    refreshSources();
+    if (!document.body.classList.contains("mode-standalone")) {
+      refreshSources();
+      loadScenarios();
+    }
     loadStatus();
     loadAudit();
-    loadScenarios();
+    // STANDALONE_PAY_JS
+    if (document.body.classList.contains("mode-standalone")
+        && typeof initStandalonePay === "function") {
+      initStandalonePay().catch((e) => console.warn("standalone pay", e));
+    }
   </script>
 </body>
 </html>"""
+    pay_html = panel_html() if mode == "standalone" else ""
+    pay_js = panel_script() if mode == "standalone" else ""
+    pay_css = panel_css() if mode == "standalone" else ""
+    sub = (
+        "Standalone · OpenRouter STT/TTS · live ECAPA/face · Maps GPS"
+        if mode == "standalone"
+        else "Manual · slider stand-ins · Trust / Risk / Confidence pipeline"
+    )
+    return (
+        html.replace("__PAGE_TITLE__", title)
+        .replace("__BODY_MODE__", f"mode-{mode}")
+        .replace("__PAGE_SUB__", sub)
+        .replace("__NAV_MANUAL__", "active" if mode == "manual" else "")
+        .replace("__NAV_STANDALONE__", "active" if mode == "standalone" else "")
+        .replace("/* STANDALONE_PAY_CSS */", pay_css)
+        .replace("<!-- STANDALONE_PAY -->", pay_html)
+        .replace("// STANDALONE_PAY_JS", (pay_js + "\n    ") if pay_js else "")
+    )

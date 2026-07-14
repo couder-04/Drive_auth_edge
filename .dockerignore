@@ -1,0 +1,15 @@
+.venv
+__pycache__
+.pytest_cache
+.ruff_cache
+.git
+data/**/*.wav
+data/**/*.jpg
+data/**/*.jpeg
+data/**/*.png
+secrets.env
+.env
+*.egg-info
+.vscode
+docs/demo.gif
+agent-transcripts

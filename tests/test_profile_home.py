@@ -206,3 +206,17 @@ class TestApplyToContext:
         # signals when the caller hasn't provided a fix.
         assert ctx.dist_from_home_km == 0.0
         assert ctx.in_trusted_zone is True
+
+
+class TestSetHome:
+    def test_explicit_pin_enables_distance_immediately(self, store_dir: Path) -> None:
+        s = _new_store("drv_pin", store_dir)
+        s.set_home(12.9716, 77.5946)
+        lat, lon, n = s.home_coords()
+        assert lat == pytest.approx(12.9716)
+        assert lon == pytest.approx(77.5946)
+        assert n >= config.HOME_LEARN_MIN_SAMPLES
+        dist, in_zone = s.location_context(12.9716, 77.5946)
+        assert dist < 0.05 and in_zone is True
+        dist2, in_zone2 = s.location_context(13.0827, 80.2707)  # Chennai-ish
+        assert dist2 > 200.0 and in_zone2 is False

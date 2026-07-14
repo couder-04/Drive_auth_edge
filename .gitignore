@@ -9,6 +9,13 @@ example_store/
 .pytest_cache/
 .ruff_cache/
 
+# Product secrets (never commit)
+secrets.env
+.env
+.env.*
+!.env.example
+!secrets.env.example
+
 # Phase 3 biometric datasets (keep local)
 data/**/*.wav
 data/**/*.jpg

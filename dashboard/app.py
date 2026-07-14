@@ -14,12 +14,14 @@ from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
 from driveauth import DriveAuth
+from driveauth.audio_io import wav_bytes_to_float32
 from driveauth.enrollment import (
     enroll_driver,
     ensure_driver_layout,
     enrollment_status,
     list_enroll_images,
     list_enroll_wavs,
+    list_registered_drivers,
     save_face_jpeg,
     save_voice_wav_bytes,
     validate_driver_id,
@@ -33,21 +35,54 @@ from driveauth.matchers.mock import (
     MockFingerMatcher,
     MockVoiceMatcher,
 )
+from driveauth.profile_store import ProfileStore
+from driveauth.secrets import (
+    ensure_secrets_loaded,
+    get_secret,
+    google_maps_key,
+    openrouter_configured,
+)
+from driveauth.standalone_session import IntentSlots, process_audio, process_transcript
 from dashboard.dashboard import render_dashboard
 from dashboard.register import render_register
 
+ensure_secrets_loaded()
+
 _ROOT = Path(__file__).resolve().parents[1]
-_STORE = os.getenv("DRIVEAUTH_DASHBOARD_STORE", "")
-_REGISTER_STORE = os.getenv(
-    "DRIVEAUTH_REGISTER_STORE",
-    str(_ROOT / "driveauth_store_phase2a"),
-)
-_DATA_ROOT = Path(os.getenv("DRIVEAUTH_DATA_ROOT", str(_ROOT / "data")))
 _auth: DriveAuth | None = None
+_auth_key: tuple[str, str, bool] | None = None
+
+
+def _data_root() -> Path:
+    return Path(get_secret("DRIVEAUTH_DATA_ROOT", str(_ROOT / "data"))).expanduser().resolve()
+
+
+def _unified_store() -> Path:
+    """Register + auth share one store (standalone product path)."""
+    raw = (
+        get_secret("DRIVEAUTH_DASHBOARD_STORE")
+        or get_secret("DRIVEAUTH_REGISTER_STORE")
+        or ""
+    ).strip()
+    if raw:
+        return Path(raw).expanduser().resolve()
+    phase2a = _ROOT / "driveauth_store_phase2a"
+    if phase2a.is_dir():
+        return phase2a.resolve()
+    tmp = Path(tempfile.mkdtemp(prefix="driveauth_dashboard_"))
+    return tmp
 
 
 def _register_store() -> Path:
-    return Path(_REGISTER_STORE).expanduser().resolve()
+    return _unified_store()
+
+
+def _default_driver() -> str:
+    return get_secret("DRIVEAUTH_DEFAULT_DRIVER", "driver1") or "driver1"
+
+
+def _want_mock() -> bool:
+    return get_secret("DRIVEAUTH_USE_MOCK", "0").strip() == "1"
 
 
 def _fake_audio(seconds: float = 1.5, sr: int = 16_000) -> np.ndarray:
@@ -61,27 +96,96 @@ def _fake_audio(seconds: float = 1.5, sr: int = 16_000) -> np.ndarray:
     return (speech + noise).astype(np.float32)
 
 
-def _load_auth(*, mature: bool = True) -> DriveAuth:
-    store = _STORE or tempfile.mkdtemp(prefix="driveauth_dashboard_")
-    auth = DriveAuth.load(store_dir=store, use_mock_matchers=True)
+def _load_auth(
+    *,
+    mature: bool = True,
+    driver_id: str | None = None,
+    use_mock: bool | None = None,
+) -> DriveAuth:
+    store = str(_unified_store())
+    did = validate_driver_id(driver_id or _default_driver())
+    mock = _want_mock() if use_mock is None else use_mock
+    auth = DriveAuth.load(store_dir=store, driver_id=did, use_mock_matchers=mock)
     if mature:
         auth._profile.seed_mature()
     return auth
 
 
-def get_auth() -> DriveAuth:
-    global _auth
-    if _auth is None:
-        # Default to a mature driver so the ACCEPT scenario can actually ACCEPT.
-        # Bootstrap force_step_up otherwise overrides every happy-path micro pay.
-        _auth = _load_auth(mature=True)
+def get_auth(
+    driver_id: str | None = None,
+    *,
+    use_mock: bool | None = None,
+    mature: bool = True,
+) -> DriveAuth:
+    global _auth, _auth_key
+    did = validate_driver_id(driver_id or _default_driver())
+    mock = _want_mock() if use_mock is None else use_mock
+    store = str(_unified_store())
+    key = (store, did, mock)
+    if _auth is None or _auth_key != key:
+        _auth = _load_auth(mature=mature, driver_id=did, use_mock=mock)
+        _auth_key = key
     return _auth
 
 
-def reset_auth(*, mature: bool = True) -> DriveAuth:
-    global _auth
-    _auth = _load_auth(mature=mature)
-    return _auth
+def reset_auth(
+    *,
+    mature: bool = True,
+    driver_id: str | None = None,
+    use_mock: bool | None = None,
+) -> DriveAuth:
+    global _auth, _auth_key
+    _auth = None
+    _auth_key = None
+    return get_auth(driver_id, use_mock=use_mock, mature=mature)
+
+
+def _decode_face_jpeg(raw: bytes) -> np.ndarray:
+    try:
+        import cv2
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=503, detail="opencv required for face: pip install -e '.[face]'"
+        ) from exc
+    arr = np.frombuffer(raw, dtype=np.uint8)
+    bgr = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    if bgr is None:
+        raise HTTPException(status_code=400, detail="could not decode face JPEG")
+    return bgr
+
+
+def _apply_finger_manual(auth: DriveAuth, finger: float | None) -> None:
+    auth._engine._m.finger = MockFingerMatcher(score=finger)
+    auth._engine._m.fingerprint_available = finger is not None
+    if not hasattr(auth._engine._m, "behavioral") or auth._engine._m.behavioral is None:
+        auth._engine._m.behavioral = MockBehavioralMonitor(score=0.95)
+
+
+def _profile_for(driver_id: str) -> ProfileStore:
+    store = _unified_store()
+    did = validate_driver_id(driver_id)
+    return ProfileStore(store / "profiles" / f"{did}.json", did)
+
+
+def _list_enrolled_drivers() -> list[dict[str, Any]]:
+    store = _unified_store()
+    faces = store / "faces"
+    out: list[dict[str, Any]] = []
+    if faces.is_dir():
+        for p in sorted(faces.glob("*.enc")):
+            did = p.stem
+            home_lat, home_lon, home_n = _profile_for(did).home_coords()
+            out.append(
+                {
+                    "driver_id": did,
+                    "has_face": True,
+                    "has_voice": (store / "voices" / f"{did}.enc").is_file(),
+                    "home_lat": home_lat,
+                    "home_lon": home_lon,
+                    "home_set": home_n >= 1 and home_lat is not None,
+                }
+            )
+    return out
 
 
 class MockScores(BaseModel):
@@ -314,12 +418,27 @@ app = FastAPI(
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
-    return render_dashboard()
+    return render_dashboard(mode="manual")
+
+
+@app.get("/manual", response_class=HTMLResponse)
+def manual_page() -> str:
+    return render_dashboard(mode="manual")
+
+
+@app.get("/standalone", response_class=HTMLResponse)
+def standalone_page() -> str:
+    return render_dashboard(mode="standalone")
 
 
 @app.get("/register", response_class=HTMLResponse)
 def register_page() -> str:
     return render_register()
+
+
+@app.get("/api/register/drivers")
+def register_drivers_list() -> list[dict[str, Any]]:
+    return list_registered_drivers(_data_root(), _register_store())
 
 
 class RegisterDriverRequest(BaseModel):
@@ -329,7 +448,7 @@ class RegisterDriverRequest(BaseModel):
 @app.get("/api/register/status")
 def register_status(driver_id: str = "driver2") -> dict[str, Any]:
     try:
-        return enrollment_status(_DATA_ROOT, _register_store(), driver_id)
+        return enrollment_status(_data_root(), _register_store(), driver_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -337,14 +456,14 @@ def register_status(driver_id: str = "driver2") -> dict[str, Any]:
 @app.post("/api/register/init")
 def register_init(req: RegisterDriverRequest) -> dict[str, Any]:
     try:
-        root = ensure_driver_layout(_DATA_ROOT, req.driver_id)
+        root = ensure_driver_layout(_data_root(), req.driver_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
         "status": "ok",
         "driver_id": validate_driver_id(req.driver_id),
         "data_dir": str(root),
-        **enrollment_status(_DATA_ROOT, _register_store(), req.driver_id),
+        **enrollment_status(_data_root(), _register_store(), req.driver_id),
     }
 
 
@@ -362,11 +481,11 @@ async def register_face(
         raise HTTPException(status_code=400, detail="empty image upload")
     if len(raw) > 8_000_000:
         raise HTTPException(status_code=400, detail="image too large")
-    path = save_face_jpeg(_DATA_ROOT, driver_id, raw, split="enroll")
+    path = save_face_jpeg(_data_root(), driver_id, raw, split="enroll")
     return {
         "status": "ok",
-        "path": str(path.relative_to(_DATA_ROOT)),
-        **enrollment_status(_DATA_ROOT, _register_store(), driver_id),
+        "path": str(path.relative_to(_data_root())),
+        **enrollment_status(_data_root(), _register_store(), driver_id),
     }
 
 
@@ -385,13 +504,13 @@ async def register_voice(
     if len(raw) > 8_000_000:
         raise HTTPException(status_code=400, detail="audio too large")
     try:
-        path = save_voice_wav_bytes(_DATA_ROOT, driver_id, raw, split="enroll")
+        path = save_voice_wav_bytes(_data_root(), driver_id, raw, split="enroll")
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"invalid WAV: {exc}") from exc
     return {
         "status": "ok",
-        "path": str(path.relative_to(_DATA_ROOT)),
-        **enrollment_status(_DATA_ROOT, _register_store(), driver_id),
+        "path": str(path.relative_to(_data_root())),
+        **enrollment_status(_data_root(), _register_store(), driver_id),
     }
 
 
@@ -401,7 +520,7 @@ def register_complete(req: RegisterDriverRequest) -> dict[str, Any]:
         driver_id = validate_driver_id(req.driver_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    data_dir = _DATA_ROOT / driver_id
+    data_dir = _data_root() / driver_id
     store = _register_store()
     try:
         result = enroll_driver(store, data_dir, driver_id, require_minimums=True)
@@ -418,12 +537,12 @@ def register_clear(req: RegisterDriverRequest) -> dict[str, Any]:
         driver_id = validate_driver_id(req.driver_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    data_dir = _DATA_ROOT / driver_id
+    data_dir = _data_root() / driver_id
     for path in list_enroll_images(data_dir) + list_enroll_wavs(data_dir):
         path.unlink(missing_ok=True)
     return {
         "status": "ok",
-        **enrollment_status(_DATA_ROOT, _register_store(), driver_id),
+        **enrollment_status(_data_root(), _register_store(), driver_id),
     }
 
 
@@ -436,8 +555,8 @@ def register_face_preview(driver_id: str, filename: str) -> FileResponse:
     safe = Path(filename).name
     if safe != filename or ".." in filename:
         raise HTTPException(status_code=400, detail="invalid filename")
-    path = (_DATA_ROOT / driver_id / "face" / "enroll" / safe).resolve()
-    enroll_root = (_DATA_ROOT / driver_id / "face" / "enroll").resolve()
+    path = (_data_root() / driver_id / "face" / "enroll" / safe).resolve()
+    enroll_root = (_data_root() / driver_id / "face" / "enroll").resolve()
     if not path.is_relative_to(enroll_root) or not path.is_file():
         raise HTTPException(status_code=404, detail="not found")
     return FileResponse(path, media_type="image/jpeg")
@@ -445,9 +564,10 @@ def register_face_preview(driver_id: str, filename: str) -> FileResponse:
 
 @app.get("/api/status")
 def status() -> dict[str, Any]:
-    auth = get_auth()
+    auth = get_auth(use_mock=True)
     mature = auth._profile.is_mature()
     rigor = auth._fraud.effective_rigor(mature)
+    home_lat, home_lon, home_n = auth._profile.home_coords()
     return {
         "store_dir": auth._store,
         "driver_id": auth.driver_id,
@@ -457,24 +577,244 @@ def status() -> dict[str, Any]:
         "profile_maturity": auth._profile.maturity_reason(),
         "fraud_rigor": rigor,
         "enabled": auth._enabled,
-        "use_mock": True,
+        "use_mock": _want_mock(),
+        "openrouter": openrouter_configured(),
+        "google_maps": bool(google_maps_key()),
+        "home_lat": home_lat,
+        "home_lon": home_lon,
+        "home_set": home_n >= 1 and home_lat is not None,
     }
 
 
+class HomeRequest(BaseModel):
+    driver_id: str = Field(..., min_length=1, max_length=32)
+    lat: float
+    lon: float
+
+
+@app.post("/api/register/home")
+def register_home(req: HomeRequest) -> dict[str, Any]:
+    try:
+        driver_id = validate_driver_id(req.driver_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not (-90.0 <= req.lat <= 90.0 and -180.0 <= req.lon <= 180.0):
+        raise HTTPException(status_code=400, detail="lat/lon out of range")
+    profile = _profile_for(driver_id)
+    profile.set_home(req.lat, req.lon)
+    lat, lon, n = profile.home_coords()
+    return {
+        "status": "ok",
+        "driver_id": driver_id,
+        "home_lat": lat,
+        "home_lon": lon,
+        "home_n": n,
+    }
+
+
+@app.get("/api/standalone/config")
+def standalone_config() -> dict[str, Any]:
+    return {
+        "openrouter": openrouter_configured(),
+        "google_maps_api_key": google_maps_key(),
+        "default_driver": _default_driver(),
+        "store_dir": str(_unified_store()),
+        "use_mock": _want_mock(),
+        "drivers": _list_enrolled_drivers(),
+    }
+
+
+@app.get("/api/standalone/drivers")
+def standalone_drivers() -> list[dict[str, Any]]:
+    return _list_enrolled_drivers()
+
+
+class IntentRequest(BaseModel):
+    transcript: str = ""
+    amount: float = 0.0
+    beneficiary: str = ""
+    action: str = "pay"
+    currency: str = "INR"
+    synthesize_tts: bool = True
+    use_llm: bool = True
+
+
+@app.post("/api/standalone/intent")
+def standalone_intent(req: IntentRequest) -> dict[str, Any]:
+    prior = IntentSlots(
+        amount=req.amount,
+        beneficiary=req.beneficiary,
+        action=req.action or "pay",
+        currency=req.currency or "INR",
+        is_payment=bool(req.amount > 0 or req.beneficiary),
+    )
+    result = process_transcript(
+        req.transcript,
+        prior=prior if (prior.amount or prior.beneficiary) else None,
+        use_llm=req.use_llm and openrouter_configured(),
+        synthesize_tts=req.synthesize_tts and openrouter_configured(),
+    )
+    return result.as_dict()
+
+
+@app.post("/api/standalone/transcribe")
+async def standalone_transcribe(
+    file: UploadFile = File(...),
+    amount: float = Form(0.0),
+    beneficiary: str = Form(""),
+    action: str = Form("pay"),
+    currency: str = Form("INR"),
+    synthesize_tts: bool = Form(True),
+    use_llm: bool = Form(True),
+) -> dict[str, Any]:
+    if not openrouter_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="OPENROUTER_API_KEY missing — fill secrets.env",
+        )
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="empty audio")
+    if len(raw) > 12_000_000:
+        raise HTTPException(status_code=400, detail="audio too large")
+    prior = IntentSlots(
+        amount=amount,
+        beneficiary=beneficiary,
+        action=action or "pay",
+        currency=currency or "INR",
+        is_payment=bool(amount > 0 or beneficiary),
+    )
+    fmt = "wav"
+    if file.filename and "." in file.filename:
+        fmt = file.filename.rsplit(".", 1)[-1].lower()
+    result = process_audio(
+        raw,
+        audio_format=fmt,
+        prior=prior if (prior.amount or prior.beneficiary) else None,
+        use_llm=use_llm,
+        synthesize_tts=synthesize_tts,
+    )
+    return result.as_dict()
+
+
+@app.post("/api/standalone/auth")
+async def standalone_auth(
+    driver_id: str = Form(None),
+    amount: float = Form(...),
+    beneficiary: str = Form(...),
+    action: str = Form("pay"),
+    currency: str = Form("INR"),
+    beneficiary_known: bool = Form(True),
+    is_guest: bool = Form(False),
+    finger: float | None = Form(0.85),
+    behavioral: float = Form(0.95),
+    gps_lat: float | None = Form(None),
+    gps_lon: float | None = Form(None),
+    gps_accuracy_m: float = Form(50.0),
+    speed_kmh: float = Form(0.0),
+    ignition_on: bool = Form(True),
+    is_tunnel: bool = Form(False),
+    audio: UploadFile = File(...),
+    face: UploadFile | None = File(None),
+) -> dict[str, Any]:
+    """Live voice (+ optional face) auth; finger score stays manual."""
+    try:
+        did = validate_driver_id(driver_id or _default_driver())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    wav = await audio.read()
+    if not wav:
+        raise HTTPException(status_code=400, detail="empty audio")
+    try:
+        audio_np = wav_bytes_to_float32(wav)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"invalid WAV: {exc}") from exc
+
+    face_bgr = None
+    if face is not None:
+        face_raw = await face.read()
+        if face_raw:
+            face_bgr = _decode_face_jpeg(face_raw)
+
+    try:
+        auth = get_auth(did, use_mock=False, mature=True)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"failed to load live matchers for {did}: {exc}",
+        ) from exc
+
+    _apply_finger_manual(auth, finger)
+    auth._engine._m.behavioral = MockBehavioralMonitor(score=behavioral)
+
+    face_matcher = getattr(auth._engine._m, "face", None)
+    if face_bgr is not None and face_matcher is not None and hasattr(face_matcher, "inject_bgr"):
+        face_matcher.inject_bgr(face_bgr)
+
+    # GPS only — let ProfileStore compute dist_from_home / trusted zone.
+    ctx: dict[str, Any] = {
+        "speed_kmh": speed_kmh,
+        "ignition_on": ignition_on,
+        "is_tunnel": is_tunnel,
+        "gps_accuracy_m": gps_accuracy_m,
+    }
+    if gps_lat is not None and gps_lon is not None:
+        ctx["gps_lat"] = gps_lat
+        ctx["gps_lon"] = gps_lon
+        # Leave dist/zone at RiskContext defaults so apply_to_context fills them.
+        ctx["dist_from_home_km"] = 0.0
+        ctx["in_trusted_zone"] = True
+    auth.update_vehicle_context(**ctx)
+    auth.update_behavioral(
+        {"vehicle_speed_kmh": speed_kmh, "ignition_on": float(ignition_on)}
+    )
+
+    result = auth.authenticate(
+        audio_np=audio_np,
+        amount=float(amount),
+        beneficiary=beneficiary,
+        action=action,
+        currency=currency,
+        channel="standalone",
+        beneficiary_known=beneficiary_known,
+        is_guest=is_guest,
+        event="standalone_auth",
+    )
+    payload = _result_payload(result)
+    if gps_lat is not None and gps_lon is not None:
+        dist, zone = auth._profile.location_context(gps_lat, gps_lon)
+        payload["dist_from_home_km"] = dist
+        payload["in_trusted_zone"] = zone
+        payload["gps_lat"] = gps_lat
+        payload["gps_lon"] = gps_lon
+    return payload
+
+
 @app.post("/api/context")
-def update_context(ctx: VehicleContext) -> dict[str, str]:
-    auth = get_auth()
+def update_context(ctx: VehicleContext) -> dict[str, Any]:
+    auth = get_auth(use_mock=True)
     data = {k: v for k, v in ctx.model_dump().items() if v is not None}
+    # When GPS is provided without an explicit distance override, keep
+    # dist_from_home_km=0 / in_trusted_zone=True so ProfileStore fills them.
+    if ctx.gps_lat is not None and ctx.gps_lon is not None:
+        data.setdefault("dist_from_home_km", 0.0)
+        data.setdefault("in_trusted_zone", True)
     auth.update_vehicle_context(**data)
     auth.update_behavioral(
         {"vehicle_speed_kmh": ctx.speed_kmh, "ignition_on": float(ctx.ignition_on)}
     )
-    return {"status": "ok"}
+    out: dict[str, Any] = {"status": "ok"}
+    if ctx.gps_lat is not None and ctx.gps_lon is not None:
+        dist, zone = auth._profile.location_context(ctx.gps_lat, ctx.gps_lon)
+        out["dist_from_home_km"] = dist
+        out["in_trusted_zone"] = zone
+    return out
 
 
 @app.post("/api/authenticate")
 def authenticate(req: AuthenticateRequest) -> dict[str, Any]:
-    auth = get_auth()
+    auth = get_auth(use_mock=True)
     _apply_mock_scores(auth, req.mock_scores)
     ctx = req.context.model_dump()
     # Drop null GPS so RiskContext keeps Optional defaults cleanly
@@ -504,7 +844,7 @@ def authenticate(req: AuthenticateRequest) -> dict[str, Any]:
 
 @app.get("/api/audit")
 def audit(limit: int = 50) -> list[dict[str, Any]]:
-    auth = get_auth()
+    auth = get_auth(use_mock=True)
     path = Path(auth._store) / "audit" / "driveauth_events.jsonl"
     if not path.exists():
         return []
@@ -520,28 +860,28 @@ def audit(limit: int = 50) -> list[dict[str, Any]]:
 
 @app.post("/api/fraud/soft-flag")
 def fraud_soft_flag(reason: str = "dashboard_test") -> dict[str, Any]:
-    auth = get_auth()
+    auth = get_auth(use_mock=True)
     state = auth._fraud.record_soft_flag(reason)
     return {"fraud_state": state.value, "rigor": auth._fraud.rigor()}
 
 
 @app.post("/api/fraud/clean")
 def fraud_clean() -> dict[str, Any]:
-    auth = get_auth()
+    auth = get_auth(use_mock=True)
     state = auth._fraud.record_clean()
     return {"fraud_state": state.value, "rigor": auth._fraud.rigor()}
 
 
 @app.post("/api/fraud/reset")
 def fraud_reset() -> dict[str, Any]:
-    auth = get_auth()
+    auth = get_auth(use_mock=True)
     auth._fraud.reset()
     return {"fraud_state": auth._fraud.state.value, "rigor": auth._fraud.rigor()}
 
 
 @app.post("/api/reset")
 def reset_session(mature: bool = True) -> dict[str, Any]:
-    auth = reset_auth(mature=mature)
+    auth = reset_auth(mature=mature, use_mock=True)
     return {
         "status": "ok",
         "store_dir": auth._store,
@@ -552,7 +892,7 @@ def reset_session(mature: bool = True) -> dict[str, Any]:
 
 @app.post("/api/profile/mature")
 def profile_mature() -> dict[str, Any]:
-    auth = get_auth()
+    auth = get_auth(use_mock=True)
     auth._profile.seed_mature()
     mature = True
     return {
@@ -564,7 +904,7 @@ def profile_mature() -> dict[str, Any]:
 
 @app.post("/api/profile/bootstrap")
 def profile_bootstrap() -> dict[str, Any]:
-    auth = get_auth()
+    auth = get_auth(use_mock=True)
     auth._profile.reset_bootstrap()
     mature = False
     return {

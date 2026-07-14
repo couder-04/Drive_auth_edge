@@ -43,12 +43,25 @@ def _resolve_port(host: str, preferred: int, *, strict: bool) -> int:
 
 
 def main() -> None:
+    # Load secrets.env before reading host/port/store defaults.
+    try:
+        from driveauth.secrets import load_secrets
+
+        load_secrets()
+    except Exception as exc:  # noqa: BLE001
+        print(f"note: secrets load skipped ({exc})", file=sys.stderr)
+
     parser = argparse.ArgumentParser(description="DriveAuth Edge dashboard server")
     parser.add_argument(
-        "--host", default=os.getenv("DRIVEAUTH_DASHBOARD_HOST", "127.0.0.1")
+        "--host",
+        default=os.getenv("DRIVEAUTH_DASHBOARD_HOST")
+        or os.getenv("HOST")
+        or "127.0.0.1",
     )
     parser.add_argument(
-        "--port", type=int, default=int(os.getenv("DRIVEAUTH_DASHBOARD_PORT", "8765"))
+        "--port",
+        type=int,
+        default=int(os.getenv("DRIVEAUTH_DASHBOARD_PORT") or os.getenv("PORT") or "8765"),
     )
     parser.add_argument(
         "--strict-port",

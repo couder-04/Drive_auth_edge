@@ -234,6 +234,70 @@ def mean_embed_face(
     return mean
 
 
+def list_registered_drivers(
+    data_root: str | Path,
+    store_dir: str | Path,
+) -> list[dict]:
+    """Union of data/<id>/ folders and store face/voice templates."""
+    data_root = Path(data_root)
+    store = Path(store_dir)
+    ids: set[str] = set()
+    if data_root.is_dir():
+        for p in data_root.iterdir():
+            if p.is_dir() and DRIVER_ID_RE.match(p.name):
+                ids.add(p.name)
+    faces = store / "faces"
+    voices = store / "voices"
+    if faces.is_dir():
+        ids.update(p.stem for p in faces.glob("*.enc"))
+    if voices.is_dir():
+        ids.update(p.stem for p in voices.glob("*.enc"))
+
+    rows: list[dict] = []
+    for did in sorted(ids):
+        st = enrollment_status(data_root, store, did)
+        voice_t = bool(st["templates"]["voice"])
+        face_t = bool(st["templates"]["face"])
+        if voice_t and face_t:
+            status = "enrolled"
+            status_label = "Enrolled (voice + face)"
+        elif voice_t or face_t:
+            status = "partial_templates"
+            parts = []
+            if voice_t:
+                parts.append("voice")
+            if face_t:
+                parts.append("face")
+            status_label = "Partial templates · " + " + ".join(parts)
+        elif st["ready_to_register"]:
+            status = "ready_to_enroll"
+            status_label = "Samples ready · not enrolled"
+        elif st["face_count"] or st["voice_count"]:
+            status = "capturing"
+            status_label = (
+                f"Capturing · face {st['face_count']}/{st['min_face']} · "
+                f"voice {st['voice_count']}/{st['min_voice']}"
+            )
+        else:
+            status = "empty"
+            status_label = "No samples yet"
+        rows.append(
+            {
+                "driver_id": did,
+                "name": did,
+                "status": status,
+                "status_label": status_label,
+                "face_count": st["face_count"],
+                "voice_count": st["voice_count"],
+                "min_face": st["min_face"],
+                "min_voice": st["min_voice"],
+                "templates": st["templates"],
+                "ready_to_register": st["ready_to_register"],
+            }
+        )
+    return rows
+
+
 def enrollment_status(
     data_root: str | Path,
     store_dir: str | Path,

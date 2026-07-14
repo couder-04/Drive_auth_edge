@@ -229,6 +229,56 @@ def render_register() -> str:
       0%, 100% { opacity: 1; }
       50% { opacity: 0.7; }
     }
+    #home-map {
+      width: 100%;
+      height: 260px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #0a0e14;
+      margin-top: 0.5rem;
+    }
+    .home-meta { margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted); }
+    .nav-row { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+    .driver-list { display: flex; flex-direction: column; gap: 0.45rem; margin-top: 0.5rem; }
+    .driver-row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 0.65rem;
+      align-items: center;
+      padding: 0.65rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(0,0,0,0.22);
+    }
+    @media (max-width: 700px) {
+      .driver-row { grid-template-columns: 1fr; }
+    }
+    .driver-row .name {
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    .driver-row .meta {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 0.15rem;
+    }
+    .driver-row .status {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 0.28rem 0.55rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .driver-row .status.enrolled { color: var(--ok); border-color: #166534; }
+    .driver-row .status.ready_to_enroll { color: var(--accent); border-color: #1e3a5f; }
+    .driver-row .status.capturing,
+    .driver-row .status.partial_templates { color: var(--warn); border-color: #92400e; }
+    .driver-row .status.empty { color: var(--muted); }
+    .driver-row button { padding: 0.4rem 0.75rem; font-size: 0.85rem; }
   </style>
 </head>
 <body>
@@ -237,7 +287,10 @@ def render_register() -> str:
       <h1>DriveAuth</h1>
       <p>New driver registration — face + voice</p>
     </div>
-    <a class="nav" href="/">← Auth dashboard</a>
+    <div class="nav-row">
+      <a class="nav" href="/manual">Manual pipeline</a>
+      <a class="nav" href="/standalone">Standalone pay</a>
+    </div>
   </header>
 
   <main>
@@ -248,6 +301,17 @@ def render_register() -> str:
         <code>data/&lt;driver_id&gt;/{face,voice}/enroll/</code>, then
         enrollment writes templates into the Phase 2a store.
       </p>
+    </section>
+
+    <section class="panel">
+      <h3>Registered drivers</h3>
+      <p style="color:var(--muted);font-size:0.85rem;margin-bottom:0.35rem">
+        Everyone with samples or templates in the store. Click <strong>Select</strong> to continue enrollment.
+      </p>
+      <div class="driver-list" id="driver_list">Loading…</div>
+      <div class="row" style="margin-top:0.65rem">
+        <button id="btn_drivers_refresh" class="secondary" type="button">Refresh list</button>
+      </div>
     </section>
 
     <section class="panel">
@@ -287,7 +351,21 @@ def render_register() -> str:
     </section>
 
     <section class="panel">
-      <h3>4 · Register</h3>
+      <h3>4 · Home (Google Maps)</h3>
+      <p style="color:var(--muted);font-size:0.85rem;margin-bottom:0.5rem">
+        Click the map to pin this driver’s home. Used for
+        <code>dist_from_home_km</code> during standalone pay.
+      </p>
+      <div class="row">
+        <button id="btn_home_geo" class="secondary" type="button">Use my location</button>
+        <button id="btn_home_save" type="button" disabled>Save home pin</button>
+      </div>
+      <div id="home-map"></div>
+      <div class="home-meta" id="home_meta">No pin yet — set GOOGLE_MAPS_API_KEY in secrets.env</div>
+    </section>
+
+    <section class="panel">
+      <h3>5 · Register</h3>
       <div class="row">
         <button id="btn_enroll" type="button" disabled>Enroll into store</button>
         <button id="btn_clear" class="secondary danger" type="button">Clear enroll samples</button>
@@ -556,6 +634,7 @@ def render_register() -> str:
             `  → ${res.store_dir}/${res.face_template}`
         );
         await refresh();
+        await loadDrivers();
       } catch (e) {
         log("Enroll failed: " + e.message);
         $("btn_enroll").disabled = false;
@@ -577,7 +656,135 @@ def render_register() -> str:
       }
     };
 
+    /* ── Home Maps picker ─────────────────────────────────────────── */
+    const homeState = { map: null, marker: null, lat: null, lon: null, ready: false };
+
+    function setHomePin(lat, lon) {
+      homeState.lat = lat;
+      homeState.lon = lon;
+      $("home_meta").textContent = `Pin: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+      $("btn_home_save").disabled = false;
+      if (homeState.map && window.google) {
+        const pos = { lat, lng: lon };
+        if (!homeState.marker) {
+          homeState.marker = new google.maps.Marker({
+            position: pos, map: homeState.map, draggable: true,
+          });
+          homeState.marker.addListener("dragend", (e) => {
+            setHomePin(e.latLng.lat(), e.latLng.lng());
+          });
+        } else {
+          homeState.marker.setPosition(pos);
+        }
+        homeState.map.panTo(pos);
+      }
+    }
+
+    async function initHomeMap() {
+      const cfg = await api("/api/standalone/config");
+      const key = cfg.google_maps_api_key || "";
+      if (!key) {
+        $("home_meta").textContent = "Set GOOGLE_MAPS_API_KEY in secrets.env to enable the map picker.";
+        return;
+      }
+      await new Promise((resolve, reject) => {
+        if (window.google && window.google.maps) { resolve(); return; }
+        const s = document.createElement("script");
+        s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}`;
+        s.async = true;
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error("Google Maps failed to load"));
+        document.head.appendChild(s);
+      });
+      const center = { lat: 12.9716, lng: 77.5946 };
+      homeState.map = new google.maps.Map($("home-map"), {
+        center, zoom: 12, mapTypeControl: false, streetViewControl: false,
+        styles: [{ elementType: "geometry", stylers: [{ color: "#1a2332" }] }],
+      });
+      homeState.map.addListener("click", (e) => {
+        setHomePin(e.latLng.lat(), e.latLng.lng());
+      });
+      homeState.ready = true;
+      $("home_meta").textContent = "Click the map to drop a home pin.";
+      log("Google Maps ready for home pin");
+    }
+
+    $("btn_home_geo").onclick = () => {
+      if (!navigator.geolocation) {
+        log("Geolocation not available");
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setHomePin(pos.coords.latitude, pos.coords.longitude),
+        (err) => log("Geo failed: " + err.message),
+        { enableHighAccuracy: true, timeout: 12000 }
+      );
+    };
+
+    $("btn_home_save").onclick = async () => {
+      if (homeState.lat == null || homeState.lon == null) return;
+      try {
+        const res = await api("/api/register/home", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            driver_id: driverId(),
+            lat: homeState.lat,
+            lon: homeState.lon,
+          }),
+        });
+        log(`Home saved for ${res.driver_id}: ${res.home_lat}, ${res.home_lon}`);
+        $("home_meta").textContent =
+          `Saved home: ${Number(res.home_lat).toFixed(5)}, ${Number(res.home_lon).toFixed(5)}`;
+      } catch (e) {
+        log("Home save failed: " + e.message);
+      }
+    };
+
+    async function loadDrivers() {
+      const el = $("driver_list");
+      try {
+        const rows = await api("/api/register/drivers");
+        if (!rows.length) {
+          el.innerHTML = `<div class="chip warn">No drivers yet — create a Driver ID below.</div>`;
+          return;
+        }
+        el.innerHTML = rows.map((d) => {
+          const faceT = d.templates && d.templates.face;
+          const voiceT = d.templates && d.templates.voice;
+          return `
+            <div class="driver-row" data-id="${d.driver_id}">
+              <div>
+                <div class="name">${d.name || d.driver_id}</div>
+                <div class="meta">
+                  face ${d.face_count}/${d.min_face} · voice ${d.voice_count}/${d.min_voice}
+                  · templates: voice ${voiceT ? "✓" : "–"} / face ${faceT ? "✓" : "–"}
+                </div>
+              </div>
+              <span class="status ${d.status}">${d.status_label || d.status}</span>
+              <button type="button" class="secondary btn-pick" data-id="${d.driver_id}">Select</button>
+            </div>`;
+        }).join("");
+        el.querySelectorAll(".btn-pick").forEach((btn) => {
+          btn.onclick = () => {
+            $("driver_id").value = btn.dataset.id;
+            refresh().catch((e) => log(e.message));
+            log("Selected driver " + btn.dataset.id);
+          };
+        });
+      } catch (e) {
+        el.textContent = "Failed to load drivers: " + e.message;
+      }
+    }
+
+    $("btn_drivers_refresh").onclick = () => loadDrivers();
+
     refresh().catch((e) => log(e.message));
+    loadDrivers().catch((e) => log(e.message));
+    initHomeMap().catch((e) => {
+      $("home_meta").textContent = "Maps unavailable: " + e.message;
+      log("Maps: " + e.message);
+    });
   </script>
 </body>
 </html>

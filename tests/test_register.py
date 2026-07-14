@@ -77,8 +77,11 @@ def test_save_samples_into_driver_folder(tmp_path: Path) -> None:
 def test_register_api_init_and_uploads(tmp_path: Path, monkeypatch) -> None:
     import dashboard.app as app_mod
 
-    monkeypatch.setattr(app_mod, "_DATA_ROOT", tmp_path)
-    monkeypatch.setattr(app_mod, "_REGISTER_STORE", str(tmp_path / "store"))
+    store = tmp_path / "store"
+    store.mkdir()
+    monkeypatch.setattr(app_mod, "_data_root", lambda: tmp_path)
+    monkeypatch.setattr(app_mod, "_register_store", lambda: store)
+    monkeypatch.setattr(app_mod, "_unified_store", lambda: store)
 
     client = TestClient(app)
     r = client.post("/api/register/init", json={"driver_id": "driverNew"})
@@ -104,3 +107,17 @@ def test_register_api_init_and_uploads(tmp_path: Path, monkeypatch) -> None:
     r = client.get("/register")
     assert r.status_code == 200
     assert "Register a driver" in r.text
+    assert "Registered drivers" in r.text
+
+    r = client.get("/api/register/drivers")
+    assert r.status_code == 200
+    ids = {row["driver_id"] for row in r.json()}
+    assert "driverNew" in ids
+
+    r = client.get("/manual")
+    assert r.status_code == 200
+    assert "mode-manual" in r.text
+    r = client.get("/standalone")
+    assert r.status_code == 200
+    assert "mode-standalone" in r.text
+    assert "Pay · standalone" in r.text
