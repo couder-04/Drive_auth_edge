@@ -1,0 +1,249 @@
+{
+  "store": "driveauth_store_phase2a",
+  "data": "data/driver1",
+  "driver_id": "driver1",
+  "trust_fusion": "static (Stage 2 \u2014 logreg deferred)",
+  "finger_ood": "synth only \u2014 HW pending; not scored here",
+  "voice": {
+    "modality": "voice",
+    "source": "macOS say TTS (non-enrolled identity)",
+    "n_files": 5,
+    "n_embedded": 5,
+    "n_ood_flagged": 0,
+    "ood_flag_rate": 0.0,
+    "rejected_as_negative": 5,
+    "reject_rate": 1.0,
+    "match_score": {
+      "n": 5,
+      "mean": 0.0612,
+      "p50": 0.0432,
+      "p90": 0.1217,
+      "max": 0.157,
+      "min": 0.0167
+    },
+    "match_ceil": 0.55,
+    "details": [
+      {
+        "file": "ood_voice_01.wav",
+        "score": 0.0686,
+        "ood": false,
+        "dist": 0.1746,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_voice_02.wav",
+        "score": 0.0432,
+        "ood": false,
+        "dist": 0.1769,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_voice_03.wav",
+        "score": 0.157,
+        "ood": false,
+        "dist": 0.1665,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_voice_04.wav",
+        "score": 0.0203,
+        "ood": false,
+        "dist": 0.1789,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_voice_05.wav",
+        "score": 0.0167,
+        "ood": false,
+        "dist": 0.1792,
+        "baseline_missing": false,
+        "ok": true
+      }
+    ]
+  },
+  "face": {
+    "modality": "face",
+    "source": "other-identity stills (non-enrolled)",
+    "n_files": 20,
+    "n_embedded": 20,
+    "n_ood_flagged": 0,
+    "ood_flag_rate": 0.0,
+    "rejected_as_negative": 20,
+    "reject_rate": 1.0,
+    "match_score": {
+      "n": 20,
+      "mean": 0.0,
+      "p50": 0.0,
+      "p90": 0.0,
+      "max": 0.0,
+      "min": 0.0
+    },
+    "match_ceil": 0.55,
+    "details": [
+      {
+        "file": "ood_face_01.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1197,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_02.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1263,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_03.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1195,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_04.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1261,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_05.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1315,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_06.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1286,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_07.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1215,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_08.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1236,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_09.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1248,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_10.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1287,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_11.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1279,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_12.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1204,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_13.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1302,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_14.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1237,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_15.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1262,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_16.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1299,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_17.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1275,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_18.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1259,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_19.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1274,
+        "baseline_missing": false,
+        "ok": true
+      },
+      {
+        "file": "ood_face_20.jpg",
+        "score": 0.0,
+        "ood": false,
+        "dist": 0.1274,
+        "baseline_missing": false,
+        "ok": true
+      }
+    ]
+  }
+}

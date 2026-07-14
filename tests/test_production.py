@@ -45,18 +45,41 @@ def test_happy_path_accept():
     assert r.amount == 50.0
     assert r.currency == "INR"
     assert r.beneficiary == "Mom"
+    assert any("ladder_accept_voice" in e for e in r.explanations)
+    assert "probed_voice" in r.explanations or any(
+        e.startswith("probed_voice") for e in r.explanations
+    )
 
 
-def test_bootstrap_stepup():
+def test_low_voice_escalates_to_face_accept():
+    auth = make_auth()
+    mature(auth)
+    auth._engine._m.voice = MockVoiceMatcher(score=0.40)
+    auth._engine._m.face = MockFaceMatcher(score=0.92)
+    r = auth.authenticate(
+        audio_np=good_audio(),
+        amount=50.0,
+        beneficiary_known=True,
+        beneficiary="Mom",
+    )
+    assert r.decision == Decision.ACCEPT
+    assert any("ladder_escalate_after_voice" in e for e in r.explanations)
+    assert any("ladder_accept_face" in e for e in r.explanations)
+    assert any(e.startswith("probed_voice+face") for e in r.explanations)
+
+
+def test_bootstrap_ladder_accepts_strong_voice():
     auth = make_auth()
     r = auth.authenticate(
         audio_np=good_audio(), amount=50.0, beneficiary_known=True, beneficiary="Mom"
     )
-    assert r.decision == Decision.STEP_UP_REQUIRED
+    assert r.decision == Decision.ACCEPT
     assert r.fraud_state == "bootstrap"
+    assert any("ladder_accept" in e for e in r.explanations)
 
 
-def test_high_value_mandatory_stepup():
+def test_high_value_ladder_accepts_strong_voice():
+    """High-value probes the ladder; strong voice Accepts (no mandatory OTP)."""
     auth = make_auth()
     mature(auth)
     r = auth.authenticate(
@@ -65,8 +88,9 @@ def test_high_value_mandatory_stepup():
         beneficiary_known=False,
         beneficiary="new_merchant",
     )
-    assert r.decision == Decision.STEP_UP_REQUIRED
+    assert r.decision == Decision.ACCEPT
     assert r.tier == "high_value"
+    assert any("ladder_accept" in e for e in r.explanations)
 
 
 # ── 4–5 / 21–23 cache ────────────────────────────────────────────────────────
@@ -171,7 +195,8 @@ def test_payment_intercept_threads_amount():
 # ── 8–10 missing sensors ─────────────────────────────────────────────────────
 
 
-def test_missing_audio_fail_closed():
+def test_missing_audio_escalates_to_face():
+    """No voice → Face ladder stage; strong mock face → ACCEPT."""
     auth = make_auth()
     mature(auth)
     r = auth.authenticate(
@@ -181,11 +206,11 @@ def test_missing_audio_fail_closed():
         beneficiary="Mom",
         voice_expected=True,
     )
-    assert r.decision == Decision.STEP_UP_REQUIRED
-    assert any("voice" in e or "fail_closed" in e for e in r.explanations)
+    assert r.decision == Decision.ACCEPT
+    assert any("ladder_accept_face" in e for e in r.explanations)
 
 
-def test_silent_audio_fail_closed():
+def test_silent_audio_escalates_to_face():
     auth = make_auth()
     mature(auth)
     r = auth.authenticate(
@@ -194,7 +219,8 @@ def test_silent_audio_fail_closed():
         beneficiary_known=True,
         beneficiary="Mom",
     )
-    assert r.decision == Decision.STEP_UP_REQUIRED
+    assert r.decision == Decision.ACCEPT
+    assert any("ladder_accept_face" in e or "ladder_accept_finger" in e for e in r.explanations)
 
 
 def test_missing_face_with_no_voice_fail_closed():
@@ -228,32 +254,32 @@ def test_missing_fingerprint_when_unavailable():
 # ── 11–12 missing OOD / behavioral ───────────────────────────────────────────
 
 
-def test_missing_ood_stats_fail_closed():
+def test_missing_ood_stats_does_not_block_ladder_accept():
     auth = make_auth()
     mature(auth)
     clear_ood(auth)
     r = auth.authenticate(
         audio_np=good_audio(), amount=50.0, beneficiary_known=True, beneficiary="Mom"
     )
-    assert r.decision == Decision.STEP_UP_REQUIRED
+    assert r.decision == Decision.ACCEPT
     assert any("ood" in e for e in r.explanations)
 
 
-def test_missing_behavioral_model_fail_closed():
+def test_missing_behavioral_does_not_block_ladder_accept():
     auth = make_auth()
     mature(auth)
     auth._engine._m.behavioral = MockBehavioralMonitor(available=False)
     r = auth.authenticate(
         audio_np=good_audio(), amount=50.0, beneficiary_known=True, beneficiary="Mom"
     )
-    assert r.decision == Decision.STEP_UP_REQUIRED
+    assert r.decision == Decision.ACCEPT
     assert any("behavioral" in e for e in r.explanations)
 
 
 # ── 13–15 bad quality ────────────────────────────────────────────────────────
 
 
-def test_bad_quality_voice():
+def test_bad_quality_voice_escalates():
     auth = make_auth()
     mature(auth)
     r = auth.authenticate(
@@ -262,8 +288,9 @@ def test_bad_quality_voice():
         beneficiary_known=True,
         beneficiary="Mom",
     )
-    assert r.decision == Decision.STEP_UP_REQUIRED
-    assert any("voice" in e for e in r.explanations)
+    # Voice quality fails → Face (or Finger) can still Accept.
+    assert r.decision == Decision.ACCEPT
+    assert any("voice" in e or "ladder_escalate" in e for e in r.explanations)
 
 
 def test_bad_quality_face():
@@ -294,8 +321,8 @@ def test_bad_quality_fingerprint():
         beneficiary_known=True,
         beneficiary="Mom",
     )
-    # Finger rejected by quality; low voice/face → reject or step-up, never silent accept on finger
-    assert r.decision in (Decision.STEP_UP_REQUIRED, Decision.REJECT)
+    # Finger rejected by quality; low voice/face → REJECT (ladder exhausted).
+    assert r.decision == Decision.REJECT
     assert r.modality_scores["finger"]["score"] is None
 
 

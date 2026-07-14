@@ -1,4 +1,4 @@
-"""Core authentication pipeline — quality → staged matchers → scores → policy."""
+"""Core authentication pipeline — Voice → Face → Finger ladder → Accept / Reject."""
 
 from __future__ import annotations
 
@@ -21,6 +21,10 @@ from driveauth.risk_model import RiskModel
 from driveauth.types import Decision, DriveAuthResult, ModalityResult, RiskContext
 
 logger = logging.getLogger("driveauth.decision")
+
+# Parallel probe join budget; timed-out modalities fall back to unavailable
+# (fail-closed for that sensor). Monkeypatchable in Phase 5 timeout tests.
+CAPTURE_JOIN_TIMEOUT_S = 6.0
 
 
 @dataclass
@@ -88,7 +92,11 @@ class DecisionEngine:
         ctx.currency = currency
         ctx.channel = channel
         ctx.beneficiary_known = beneficiary_known
-        beh = self._m.behavioral.get_score()
+        try:
+            beh = self._m.behavioral.get_score()
+        except Exception as exc:
+            logger.error("DecisionEngine: behavioral.get_score failed: %s", exc)
+            beh = ModalityResult(None, False, available=False)
         ctx.behavioral_available = bool(getattr(beh, "available", True))
         # Behavioral failures must never inflate trust/risk-as-safe.
         ctx.behavioral_score = (
@@ -106,26 +114,55 @@ class DecisionEngine:
         qflags,
     ) -> ModalityResult:
         """Capture + quality-gate a single modality (skip-on-bad-quality)."""
-        if name == "voice":
-            if audio_np is None:
-                return ModalityResult(None, False, available=False)
-            if not qflags.voice_ok:
-                return ModalityResult(
-                    None, False, quality=qflags.voice_q, available=True
-                )
-            r = self._m.voice.score(audio_np)
-            r.quality = qflags.voice_q
-            return r
+        try:
+            if name == "voice":
+                if audio_np is None:
+                    return ModalityResult(None, False, available=False)
+                if not qflags.voice_ok:
+                    return ModalityResult(
+                        None, False, quality=qflags.voice_q, available=True
+                    )
+                r = self._m.voice.score(audio_np)
+                r.quality = qflags.voice_q
+                return r
 
-        if name == "face":
-            return self._probe_face(qflags)
+            if name == "face":
+                return self._probe_face(qflags)
 
-        if name == "finger":
-            if not self._m.fingerprint_available:
-                return ModalityResult(None, False, available=False)
-            return self._probe_finger(qflags)
+            if name == "finger":
+                if not self._m.fingerprint_available:
+                    return ModalityResult(None, False, available=False)
+                return self._probe_finger(qflags)
 
-        return ModalityResult(None, False, available=False)
+            return ModalityResult(None, False, available=False)
+        except Exception as exc:
+            # Real-model crash / SDK fault → modality unavailable (fail closed).
+            logger.error("DecisionEngine: %s probe crashed: %s", name, exc)
+            return ModalityResult(None, False, available=False)
+
+    def _probe_with_timeout(
+        self,
+        name: str,
+        audio_np: np.ndarray | None,
+        qflags,
+    ) -> ModalityResult:
+        """Run ``_probe_one`` under ``CAPTURE_JOIN_TIMEOUT_S`` (camera/ONNX hang)."""
+        box: dict[str, ModalityResult] = {}
+
+        def _run() -> None:
+            box["r"] = self._probe_one(name, audio_np, qflags)
+
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+        t.join(timeout=CAPTURE_JOIN_TIMEOUT_S)
+        if t.is_alive():
+            logger.error(
+                "DecisionEngine: %s probe timed out after %.2fs",
+                name,
+                CAPTURE_JOIN_TIMEOUT_S,
+            )
+            return ModalityResult(None, False, available=False)
+        return box.get("r", ModalityResult(None, False, available=False))
 
     def _probe_face(self, qflags) -> ModalityResult:
         face = self._m.face
@@ -149,6 +186,14 @@ class DecisionEngine:
                 r = face.score_frame(frame)
             else:
                 r = face.capture_and_score()
+            if getattr(face, "last_pad_reject", False):
+                qflags.face_ok = False
+                qflags.notes.append("face_pad_reject")
+                pad_p = getattr(face, "last_pad_score", None)
+                if pad_p is not None:
+                    q = min(q, float(pad_p))
+                    qflags.face_q = q
+                return ModalityResult(None, False, quality=q, available=True)
             r.quality = q
             return r
 
@@ -216,8 +261,8 @@ class DecisionEngine:
         explanations.extend(risk_reasons)
 
         if not risk_ctx.behavioral_available:
+            # Informational only — does not block Accept on a strong biometric ladder.
             explanations.append("behavioral_unavailable")
-            sensor_gaps.append("behavioral_unavailable")
 
         profile_mature = (
             self._profile.is_mature() if self._profile is not None else True
@@ -244,14 +289,12 @@ class DecisionEngine:
             "face": True,
             "finger": self._m.fingerprint_available,
         }
-        trust_bar = {
-            "micro": config.TRUST_ACCEPT_MICRO,
-            "standard": config.TRUST_ACCEPT_STD,
-            "high_value": config.TRUST_ACCEPT_HIGH,
-            "guest": 1.01,
-        }.get(tier, config.TRUST_ACCEPT_STD) + float(rigor.get("trust_margin", 0.0))
 
         ood_baseline_missing: dict[str, bool] = {}
+        trust, confidence, ood_flags, eff_w = 0.0, 0.0, {}, {}
+        ladder_decision: Decision | None = None
+        ladder_rule: str | None = None
+
         if config.ESCALATION_ENABLED and not is_guest:
             plan = self._escalation.plan(
                 tier=tier,
@@ -261,35 +304,47 @@ class DecisionEngine:
                 fingerprint_available=self._m.fingerprint_available,
             )
             explanations.append(f"escalation_{plan.reason}")
+            for mod, bar in plan.accept_bars.items():
+                explanations.append(f"ladder_accept_bar_{mod}_{bar:.3f}")
             probed: list[str] = []
-            trust, confidence, ood_flags, eff_w = 0.0, 0.0, {}, {}
+
             while True:
                 nxt = plan.next_modality(probed, available)
                 if nxt is None:
                     break
-                results[nxt] = self._probe_one(nxt, audio_np, qflags)
+                results[nxt] = self._probe_with_timeout(nxt, audio_np, qflags)
                 probed.append(nxt)
+                score = results[nxt].score
+                if not results[nxt].available and score is None:
+                    explanations.append(f"ladder_{nxt}_unavailable")
                 trust, confidence, ood_flags, ood_baseline_missing, eff_w = self._score(
                     results, qflags, sensor_gaps
                 )
-                n_conf = self._n_confident(results)
-                conf_mods = [
-                    n
-                    for n, r in results.items()
-                    if r.score is not None and r.confident and r.available
-                ]
-                if self._escalation.should_stop(
-                    plan=plan,
-                    trust=trust,
-                    confidence=confidence,
-                    n_confident=n_conf,
-                    trust_bar=trust_bar,
-                    conf_floor=config.CONF_FLOOR,
-                    confident_modalities=conf_mods,
+
+                if self._escalation.should_accept(
+                    plan=plan, score=score, modality=nxt
                 ):
+                    ladder_decision = Decision.ACCEPT
+                    ladder_rule = f"{config.POLICY_VERSION}:ladder_accept_{nxt}"
+                    explanations.append(
+                        f"ladder_accept_{nxt}_score_{float(score):.3f}"
+                    )
                     explanations.append(f"early_stop_after_{len(probed)}")
                     break
+
+                # Low / missing score → escalate to next modality
+                if score is None:
+                    explanations.append(f"ladder_escalate_after_{nxt}_no_score")
+                else:
+                    explanations.append(
+                        f"ladder_escalate_after_{nxt}_score_{float(score):.3f}"
+                    )
+
             explanations.append(f"probed_{'+'.join(probed) if probed else 'none'}")
+            if ladder_decision is None:
+                ladder_decision = Decision.REJECT
+                ladder_rule = f"{config.POLICY_VERSION}:ladder_reject"
+                explanations.append("ladder_exhausted_reject")
         else:
             results = self._capture_all(audio_np, qflags, available)
             trust, confidence, ood_flags, ood_baseline_missing, eff_w = self._score(
@@ -309,18 +364,10 @@ class DecisionEngine:
                 explanations.append("voice_unavailable")
         if not face_r.available and face_r.score is None:
             explanations.append("face_unavailable")
-        if (
-            self._m.fingerprint_available
-            and not finger_r.available
-            and finger_r.score is None
-        ):
-            # only note when finger was attempted / required
-            pass
         if any(ood_baseline_missing.values()):
             explanations.append("ood_baseline_missing")
-            sensor_gaps.append("ood_baseline_missing")
 
-        # Recompute confidence with final sensor_gaps.
+        # Reporting scores only — decision comes from the ladder.
         trust, confidence, ood_flags, ood_baseline_missing, eff_w = self._score(
             results, qflags, sensor_gaps
         )
@@ -334,40 +381,9 @@ class DecisionEngine:
             n_confident_modalities=n_conf,
             fraud_rigor=rigor,
             explanations=explanations,
+            ladder_decision=ladder_decision,
+            ladder_rule=ladder_rule,
         )
-
-        # Fail-closed: never silently ACCEPT when required evidence is missing.
-        if decision == Decision.ACCEPT:
-            block_reasons = []
-            if (
-                "voice_quality_rejected" in sensor_gaps
-                or "voice_unavailable" in sensor_gaps
-            ):
-                if expect_voice:
-                    block_reasons.append("fail_closed_voice")
-            if "ood_baseline_missing" in sensor_gaps:
-                block_reasons.append("fail_closed_ood")
-            if "behavioral_unavailable" in sensor_gaps:
-                block_reasons.append("fail_closed_behavioral")
-            if not face_r.available and n_conf == 0:
-                block_reasons.append("fail_closed_no_biometrics")
-            if block_reasons:
-                decision = Decision.STEP_UP_REQUIRED
-                step_up_method = step_up_method or "otp_mobile"
-                rule = f"{rule}+fail_closed"
-                explanations.extend(block_reasons)
-
-        if (
-            not profile_mature
-            and decision == Decision.ACCEPT
-            and amount > config.BOOTSTRAP_AMOUNT_CAP
-        ):
-            decision = Decision.STEP_UP_REQUIRED
-            step_up_method = "otp_mobile"
-            rule = f"{rule}+bootstrap_amount_cap"
-            explanations.append(
-                f"bootstrap_cap_exceeded_{amount:.0f}>{config.BOOTSTRAP_AMOUNT_CAP:.0f}"
-            )
 
         result = DriveAuthResult(
             trust_score=trust,
@@ -443,7 +459,7 @@ class DecisionEngine:
             t.start()
             threads.append(t)
         for t in threads:
-            t.join(timeout=6.0)
+            t.join(timeout=CAPTURE_JOIN_TIMEOUT_S)
         for k in ("voice", "face", "finger"):
             results.setdefault(k, ModalityResult(None, False, available=False))
         return results
@@ -458,7 +474,11 @@ class DecisionEngine:
         ood_flags = ood_eval.flags
         for name, r in (("voice", voice_r), ("face", face_r), ("finger", finger_r)):
             r.ood = ood_flags.get(name, False)
-        beh = self._m.behavioral.get_score()
+        try:
+            beh = self._m.behavioral.get_score()
+        except Exception as exc:
+            logger.error("DecisionEngine: behavioral.get_score failed: %s", exc)
+            beh = ModalityResult(None, False, available=False)
         behavioral_available = bool(getattr(beh, "available", True))
         orch_ctx = {
             "risk": 0.0,

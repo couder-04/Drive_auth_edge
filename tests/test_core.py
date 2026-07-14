@@ -45,14 +45,17 @@ def test_policy_accept_low_risk():
     assert "accept" in rule
 
 
-def test_policy_high_value_mandatory_stepup():
+def test_policy_honors_ladder_accept_even_on_high_value():
+    """High-value no longer forces STEP_UP — ladder Accept wins."""
+    from driveauth.types import Decision
+
     engine = PolicyEngine()
     decision, rule, _, method = engine.decide(
         trust=0.95,
         risk=0.05,
         confidence=0.90,
         tier="high_value",
-        n_confident_modalities=3,
+        n_confident_modalities=1,
         fraud_rigor={
             "min_modalities": 1,
             "force_step_up": False,
@@ -60,9 +63,36 @@ def test_policy_high_value_mandatory_stepup():
             "trust_margin": 0.0,
         },
         explanations=[],
+        ladder_decision=Decision.ACCEPT,
+        ladder_rule="driveauth-1.0:ladder_accept_voice",
     )
-    assert decision.value == "STEP_UP_REQUIRED"
-    assert method == "otp_mobile"
+    assert decision == Decision.ACCEPT
+    assert "ladder_accept" in rule
+    assert method is None
+
+
+def test_policy_honors_ladder_reject():
+    from driveauth.types import Decision
+
+    engine = PolicyEngine()
+    decision, rule, _, _ = engine.decide(
+        trust=0.50,
+        risk=0.05,
+        confidence=0.40,
+        tier="standard",
+        n_confident_modalities=0,
+        fraud_rigor={
+            "min_modalities": 1,
+            "force_step_up": False,
+            "block": False,
+            "trust_margin": 0.0,
+        },
+        explanations=[],
+        ladder_decision=Decision.REJECT,
+        ladder_rule="driveauth-1.0:ladder_reject",
+    )
+    assert decision == Decision.REJECT
+    assert "ladder_reject" in rule
 
 
 def test_confidence_drops_on_disagreement():

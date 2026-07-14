@@ -29,12 +29,14 @@ KAGGLE_FACES = (
     / ".cache/kagglehub/datasets/vasukipatel/face-recognition-dataset"
     / "versions/1/Faces/Faces"
 )
+# Matches driveauth.matchers.behavioral.BEHAVIORAL_FEATURE_KEYS + t_ms + label.
 CAN_COLS = [
     "t_ms",
-    "steering_torque_nm",
-    "brake_pressure_bar",
+    "steering_angle_deg",
+    "steering_rate_dps",
     "throttle_pct",
-    "seat_pressure_kpa",
+    "brake_pedal_pct",
+    "longitudinal_accel_g",
     "lateral_accel_g",
     "yaw_rate_dps",
     "vehicle_speed_kmh",
@@ -179,38 +181,43 @@ def _can_window(
 ) -> list[dict[str, float | str | int]]:
     rows: list[dict[str, float | str | int]] = []
     speed = 40.0 if mode != "attack_idle_odd" else 5.0
+    steer_angle = 0.0
     for t in range(n):
         if mode == "genuine":
-            steer = float(rng.normal(0.0, 1.2))
-            brake = max(0.0, float(rng.normal(0.3, 0.4)))
+            steer_rate = float(rng.normal(0.0, 4.0))
+            steer_angle = float(np.clip(steer_angle + steer_rate * 0.1, -25, 25))
+            brake = float(np.clip(rng.normal(5.0, 4.0), 0, 40))
             throttle = float(np.clip(rng.normal(25.0, 8.0), 0, 80))
-            seat = float(rng.normal(12.0, 0.4))
+            long_a = float(rng.normal(0.0, 0.08))
             lat = float(rng.normal(0.0, 0.05))
             yaw = float(rng.normal(0.0, 2.0))
             speed = float(np.clip(speed + rng.normal(0, 0.8), 0, 120))
         elif mode == "attack_aggressive":
-            steer = float(rng.normal(0.0, 6.0))
-            brake = float(np.clip(rng.normal(4.0, 2.0), 0, 12))
+            steer_rate = float(rng.normal(0.0, 35.0))
+            steer_angle = float(np.clip(steer_angle + steer_rate * 0.1, -55, 55))
+            brake = float(np.clip(rng.normal(55.0, 20.0), 0, 100))
             throttle = float(np.clip(rng.normal(70.0, 15.0), 0, 100))
-            seat = float(rng.normal(12.0, 1.5))
+            long_a = float(rng.normal(0.15, 0.25))
             lat = float(rng.normal(0.0, 0.35))
             yaw = float(rng.normal(0.0, 18.0))
             speed = float(np.clip(speed + rng.normal(2, 3), 0, 140))
-        else:  # attack_idle_odd — brake+throttle both high
-            steer = float(rng.normal(0.0, 0.5))
-            brake = float(np.clip(rng.normal(6.0, 1.0), 0, 12))
+        else:  # attack_idle_odd — brake+throttle both high at low speed
+            steer_rate = float(rng.normal(0.0, 2.0))
+            steer_angle = float(np.clip(steer_angle + steer_rate * 0.1, -10, 10))
+            brake = float(np.clip(rng.normal(60.0, 15.0), 0, 100))
             throttle = float(np.clip(rng.normal(55.0, 10.0), 0, 100))
-            seat = float(rng.normal(3.0, 0.5))  # wrong seat profile
+            long_a = float(rng.normal(-0.05, 0.12))
             lat = float(rng.normal(0.0, 0.02))
             yaw = float(rng.normal(0.0, 1.0))
             speed = float(np.clip(rng.normal(8.0, 4.0), 0, 40))
         rows.append(
             {
                 "t_ms": t * 100,
-                "steering_torque_nm": round(steer, 4),
-                "brake_pressure_bar": round(brake, 4),
+                "steering_angle_deg": round(steer_angle, 4),
+                "steering_rate_dps": round(steer_rate, 4),
                 "throttle_pct": round(throttle, 4),
-                "seat_pressure_kpa": round(seat, 4),
+                "brake_pedal_pct": round(brake, 4),
+                "longitudinal_accel_g": round(long_a, 4),
                 "lateral_accel_g": round(lat, 4),
                 "yaw_rate_dps": round(yaw, 4),
                 "vehicle_speed_kmh": round(speed, 4),
@@ -267,10 +274,12 @@ def generate_behavioral(rng: np.random.Generator, out: Path) -> list[dict[str, s
         )
 
     (out / "SOURCE.txt").write_text(
-        "Behavioral Phase 3 — SYNTHETIC CAN windows (pre-hardware)\n"
-        "Schema matches BehavioralMonitor.update() keys + t_ms + label.\n"
+        "Behavioral Phase 3 — SYNTHETIC CAN/IMU windows (pre-hardware)\n"
+        "Schema matches BEHAVIORAL_FEATURE_KEYS + t_ms + label:\n"
+        "  steering_angle_deg, steering_rate_dps, throttle_pct, brake_pedal_pct,\n"
+        "  longitudinal_accel_g, lateral_accel_g, yaw_rate_dps, vehicle_speed_kmh\n"
         "genuine: 20 × 50 rows  attack: 6 × 50 rows\n"
-        "Replace with real CAN recorder dumps when HW arrives.\n"
+        "Replace with real recorder dumps when HW arrives.\n"
     )
     return rows_m
 
@@ -403,7 +412,7 @@ def generate_ood_voice(out: Path, skip: bool) -> list[dict[str, str]]:
                 check=False,
                 capture_output=True,
             )
-            if wav.exists() and wav.stat().st_size > 100:
+            if wav.exists() and wav.stat().st_size > 1000:
                 rows.append(
                     {
                         "path": str(wav.relative_to(ROOT / "data")),

@@ -8,14 +8,16 @@ from driveauth.types import Decision
 from testsupport import good_audio, mature
 
 
-def test_bootstrap_requires_stepup_for_new_driver():
+def test_bootstrap_accepts_on_strong_voice_ladder():
+    """Immature profile still Accepts when Voice clears the ladder bar."""
     store = tempfile.mkdtemp()
     auth = DriveAuth.load(store_dir=store, use_mock_matchers=True)
     result = auth.authenticate(
         audio_np=good_audio(), amount=50.0, beneficiary_known=True, beneficiary="Mom"
     )
-    assert result.decision == Decision.STEP_UP_REQUIRED
+    assert result.decision == Decision.ACCEPT
     assert result.fraud_state == "bootstrap"
+    assert any("ladder_accept" in e for e in result.explanations)
 
 
 def test_driveauth_accept_when_profile_mature():
@@ -45,13 +47,15 @@ def test_mock_ood_embedding_dims_align():
     assert auth._engine._ood.voice._mean.shape == voice.embedding.shape
 
 
-def test_bootstrap_amount_cap():
+def test_bootstrap_high_amount_uses_ladder_not_stepup():
     store = tempfile.mkdtemp()
     auth = DriveAuth.load(store_dir=store, use_mock_matchers=True)
     result = auth.authenticate(
         audio_np=good_audio(), amount=99999.0, beneficiary_known=True, beneficiary="Mom"
     )
-    assert result.decision in (Decision.STEP_UP_REQUIRED, Decision.REJECT)
+    # Ladder Accept/Reject only (no OTP mid-ladder); strong mocks → ACCEPT.
+    assert result.decision in (Decision.ACCEPT, Decision.REJECT)
+    assert result.decision != Decision.STEP_UP_REQUIRED
 
 
 def test_second_layer_reuses_cached_decision():

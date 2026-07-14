@@ -1,30 +1,15 @@
 """
-Staged, risk-driven modality escalation (fixes #2, #3).
+Strict biometric ladder (voice → face → finger).
 
-Replaces the always-parallel "run all three matchers every time" capture with a
-sequential probe that stops as soon as the accumulated evidence clears the tier
-bar — and escalates to the next (more costly / higher-friction) modality only
-when the cheaper evidence is ambiguous.
+Architecture:
+  1. Probe Voice.  High match → ACCEPT.
+  2. Low / missing voice → Face.  High match → ACCEPT.
+  3. Still low → Fingerprint (last resort).  Match OK → ACCEPT.
+  4. Otherwise → REJECT.
 
-Design decisions baked in here, each tied to a review point:
-
-  * Probe ORDER is cheapest-friction-first: voice (already captured with the
-    command) → face (already-running IR/DMS frame) → finger (deliberate touch).
-  * A modality that FAILS its quality gate is skipped, not matched-then-
-    downweighted — cheaper and avoids a garbage score entering fusion.
-  * "min_modalities" from the fraud ladder is a FLOOR on how many confident
-    modalities must be collected before ACCEPT is even eligible — so early-stop
-    can never drop below the rigor the fraud state demands (fix #2's explicit
-    security-floor, so single-modality accept is a deliberate policy, not an
-    accident of parallelism).
-  * High-value tier and Bootstrap maturity force the full set regardless of how
-    confident the first probe looks.
-  * Timing side-channel mitigation (fix #3): the engine pads total wall-clock to
-    a fixed quantum so "fast accept vs slow escalation" is not externally
-    observable. Controlled by config.ESCALATION_CONSTANT_TIME.
-
-This module decides WHICH modalities to invoke; the actual matcher calls and
-fusion stay in DecisionEngine, which asks the plan what to run next.
+No OTP mid-ladder.  "High" / "match OK" are per-modality score thresholds
+from policy (``ladder.accept_voice`` / ``accept_face`` / ``accept_finger``).
+Timing pad remains optional (constant-time mitigation).
 """
 
 from __future__ import annotations
@@ -36,21 +21,31 @@ from driveauth import config
 
 logger = logging.getLogger("driveauth.escalation")
 
-# Cheapest-friction-first. "voice" is free if the command was spoken; "face" is
-# free if the DMS camera is already streaming; "finger" is the deliberate step.
-_DEFAULT_ORDER = ("voice", "face", "finger")
+PROBE_ORDER = ("voice", "face", "finger")
+
+
+def _default_accept_bars() -> dict[str, float]:
+    return {
+        "voice": float(config.LADDER_ACCEPT_VOICE),
+        "face": float(config.LADDER_ACCEPT_FACE),
+        "finger": float(config.LADDER_ACCEPT_FINGER),
+    }
 
 
 @dataclass
-class EscalationPlan:
-    """The probe order + stopping rules for one authentication call."""
+class LadderPlan:
+    """Fixed probe order for one authentication call."""
 
-    order: tuple[str, ...]
-    min_modalities: int
-    mandatory_full: bool  # must probe every available modality
-    mandatory_finger: bool  # finger may not be skipped
-    reason: str = ""
+    order: tuple[str, ...] = PROBE_ORDER
+    accept_bar: float = 0.70
+    accept_bars: dict[str, float] = field(default_factory=_default_accept_bars)
+    reason: str = "voice_face_finger_ladder"
     probed: list[str] = field(default_factory=list)
+
+    def bar_for(self, modality: str | None = None) -> float:
+        if modality and modality in self.accept_bars:
+            return float(self.accept_bars[modality])
+        return float(self.accept_bar)
 
     def next_modality(
         self, already: list[str], available: dict[str, bool]
@@ -63,76 +58,74 @@ class EscalationPlan:
             return m
         return None
 
+    def is_accept(self, score: float | None, modality: str | None = None) -> bool:
+        """True when this modality's match score is high enough to ACCEPT."""
+        if score is None:
+            return False
+        try:
+            val = float(score)
+        except (TypeError, ValueError):
+            return False
+        if val != val:  # NaN
+            return False
+        return val >= self.bar_for(modality)
+
 
 class EscalationPolicy:
-    """Builds an EscalationPlan from tier + risk + fraud rigor + maturity."""
+    """Builds a LadderPlan (kept name for call-site compatibility)."""
 
     def plan(
         self,
         *,
-        tier: str,
-        risk: float,
-        fraud_rigor: dict,
-        profile_mature: bool,
-        fingerprint_available: bool,
-    ) -> EscalationPlan:
-        min_mods = int(fraud_rigor.get("min_modalities", 1))
-        force_full = False
-        force_finger = False
-        reason = "staged"
-
-        # High-value and immature (bootstrap) profiles always take the full set:
-        # there's no "cheap accept" path when either the amount or our knowledge
-        # of the driver is high-stakes.
-        if tier == "high_value":
-            force_full = True
-            force_finger = fingerprint_available
-            reason = "high_value_full_set"
-        elif not profile_mature:
-            force_full = True
-            reason = "bootstrap_full_set"
-        elif fraud_rigor.get("force_step_up", False):
-            # Heightened/locked ladder: collect at least min_mods, don't early-stop
-            # on a single modality.
-            min_mods = max(min_mods, 2)
-            reason = "fraud_ladder_min_2"
-        elif risk >= config.RISK_APPROVE:
-            # Elevated risk (but below hard ceiling): require corroboration.
-            min_mods = max(min_mods, 2)
-            reason = "elevated_risk_min_2"
-
-        return EscalationPlan(
-            order=_DEFAULT_ORDER,
-            min_modalities=min_mods,
-            mandatory_full=force_full,
-            mandatory_finger=force_finger,
-            reason=reason,
+        tier: str = "standard",
+        risk: float = 0.0,
+        fraud_rigor: dict | None = None,
+        profile_mature: bool = True,
+        fingerprint_available: bool = True,
+    ) -> LadderPlan:
+        rigor = fraud_rigor or {}
+        # Fraud trust_margin raises every modality bar; never changes ladder shape.
+        margin = float(rigor.get("trust_margin", 0.0))
+        bars = {k: v + margin for k, v in _default_accept_bars().items()}
+        # Legacy accept_bar = voice bar (most common early-stop path).
+        accept_bar = bars["voice"]
+        return LadderPlan(
+            order=PROBE_ORDER,
+            accept_bar=accept_bar,
+            accept_bars=bars,
+            reason="voice_face_finger_ladder",
         )
+
+    @staticmethod
+    def should_accept(
+        *,
+        plan: LadderPlan,
+        score: float | None,
+        modality: str | None = None,
+    ) -> bool:
+        return plan.is_accept(score, modality=modality)
 
     @staticmethod
     def should_stop(
         *,
-        plan: EscalationPlan,
+        plan: LadderPlan,
         trust: float,
         confidence: float,
         n_confident: int,
         trust_bar: float,
         conf_floor: float,
         confident_modalities: list[str] | None = None,
+        score: float | None = None,
+        modality: str | None = None,
     ) -> bool:
         """
-        True when accumulated evidence is sufficient to STOP probing early.
-
-        Never stops before ``min_modalities`` confident results, and never stops
-        at all when the plan mandates the full set. This is the concrete
-        security floor that makes single-modality accept a deliberate,
-        tier-gated decision rather than a side effect of stopping too soon.
+        Compatibility shim: stop only when the latest modality score clears
+        the ladder accept bar (Accept).  Callers should prefer should_accept.
         """
-        if plan.mandatory_full:
-            return False
-        conf_mods = confident_modalities or []
-        if plan.mandatory_finger and "finger" not in conf_mods:
-            return False
-        if n_confident < plan.min_modalities:
-            return False
-        return trust >= trust_bar and confidence >= conf_floor
+        if score is not None:
+            return plan.is_accept(score, modality=modality)
+        return False
+
+
+# Back-compat alias used in docs / imports
+EscalationPlan = LadderPlan

@@ -213,7 +213,7 @@ class DriveAuth:
             quality=QualityGate(),
             ood=ood,
             risk=RiskModel.load(str(store)),
-            trust=TrustFusion(orchestrator),
+            trust=TrustFusion.load(str(store), orchestrator=orchestrator),
             confidence=ConfidenceScorer(),
             policy=PolicyEngine(),
             fraud=fraud,

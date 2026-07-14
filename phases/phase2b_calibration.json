@@ -24,34 +24,50 @@
       "accept_standard": 0.673,
       "accept_high": 0.703,
       "reject": 0.54,
-      "note": "Derived from genuine p15/p35/p55 and attack p90; review before shipping."
+      "note": "Derived from genuine p15/p35/p55 and attack p90; review before shipping.",
+      "ladder": {
+        "eer_thr": 0.609,
+        "eer": 0.183,
+        "ladder_accept": 0.72,
+        "ladder_far": 0.0,
+        "ladder_frr": 0.75,
+        "note": "lowest thr with FAR=0 on this set, ceiled to 2-dp (misses escalate)"
+      }
     }
   },
   "face": {
     "genuine": {
       "n": 20,
-      "mean": 0.6127,
-      "p10": 0.4792,
-      "p50": 0.6351,
-      "p90": 0.6934,
-      "min": 0.3817,
-      "max": 0.7816
+      "mean": 0.4982,
+      "p10": 0.4086,
+      "p50": 0.4934,
+      "p90": 0.5877,
+      "min": 0.3358,
+      "max": 0.6116
     },
     "attack": {
-      "n": 24,
-      "mean": 0.4094,
-      "p10": 0.1783,
-      "p50": 0.3007,
-      "p90": 0.7607,
-      "min": 0.1345,
-      "max": 0.8001
+      "n": 23,
+      "mean": 0.4975,
+      "p10": 0.3582,
+      "p50": 0.4621,
+      "p90": 0.6615,
+      "min": 0.3448,
+      "max": 0.6665
     },
     "suggest_modality_bars": {
       "accept_micro": 0.55,
-      "accept_standard": 0.599,
-      "accept_high": 0.642,
+      "accept_standard": 0.58,
+      "accept_high": 0.61,
       "reject": 0.5,
-      "note": "Derived from genuine p15/p35/p55 and attack p90; review before shipping."
+      "note": "Derived from genuine p15/p35/p55 and attack p90; review before shipping.",
+      "ladder": {
+        "eer_thr": 0.48,
+        "eer": 0.396,
+        "ladder_accept": 0.67,
+        "ladder_far": 0.0,
+        "ladder_frr": 1.0,
+        "note": "lowest thr with FAR=0 on this set, ceiled to 2-dp (misses escalate)"
+      }
     }
   },
   "current_policy": {
@@ -59,16 +75,26 @@
     "TRUST_ACCEPT_STD": 0.78,
     "TRUST_ACCEPT_HIGH": 0.85,
     "TRUST_REJECT": 0.48,
+    "LADDER_ACCEPT": 0.7,
+    "LADDER_ACCEPT_VOICE": 0.72,
+    "LADDER_ACCEPT_FACE": 0.7,
+    "LADDER_ACCEPT_FINGER": 0.7,
     "weights": {
       "voice": 0.3,
       "face": 0.4,
       "finger": 0.3
     }
   },
+  "suggested_ladder": {
+    "accept_voice": 0.72,
+    "accept_face": 0.7,
+    "accept_finger": 0.7,
+    "how": "voice/face = lowest FAR=0 thr (ceiled 2-dp); face stays \u22650.70 if no genuine clears FAR=0; finger unchanged until FingerNet+HW"
+  },
   "suggested_policy_trust": {
     "accept_micro": 0.567,
-    "accept_standard": 0.631,
-    "accept_high": 0.668,
+    "accept_standard": 0.62,
+    "accept_high": 0.65,
     "reject": 0.517,
     "how": "0.3/0.4 voice/face weight mix of modality percentile suggestions"
   }

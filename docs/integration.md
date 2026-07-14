@@ -10,7 +10,7 @@
 | Intent / LLM | Payment fields | `amount`, `beneficiary`, `action`, `currency`, `channel`, `beneficiary_known`, `is_guest` |
 | Utterance only | Raw transcript | `intercept()` — DriveAuth parses amount/beneficiary via `intent.py` |
 | GPS / telematics | Live fix | `update_vehicle_context(gps_lat=, gps_lon=, gps_accuracy_m=, speed_kmh=, ignition_on=, is_tunnel=…)` |
-| CAN (optional) | Driving windows | `update_behavioral({steering_torque_nm, brake_pressure_bar, throttle_pct, seat_pressure_kpa, lateral_accel_g, yaw_rate_dps, vehicle_speed_kmh})` |
+| CAN / IMU (optional) | Driving windows | `update_behavioral({steering_angle_deg, steering_rate_dps, throttle_pct, brake_pedal_pct, longitudinal_accel_g, lateral_accel_g, yaw_rate_dps, vehicle_speed_kmh})` |
 | Face camera | BGR frame | `FaceMatcher.inject_bgr` / live capture (or mock score until HW) |
 | Fingerprint | Match score `[0,1]` | Same `ModalityResult` from sensor SDK module (dashboard sliders until then) |
 
@@ -20,9 +20,9 @@ Until sensors exist, the **dashboard “Manual stand-ins” column** sets the sa
 
 | Field | Meaning |
 |-------|---------|
-| `decision` | `ACCEPT` \| `STEP_UP_REQUIRED` \| `REJECT` |
+| `decision` | `ACCEPT` \| `REJECT` from Voice→Face→Finger ladder (`STEP_UP_REQUIRED` only for guest PIN) |
 | `legacy_decision` | Nova-compatible: `pass` / `step_up` / `deny` |
-| `trust_score` / `risk_score` / `confidence_score` | Triad driving policy |
+| `trust_score` / `risk_score` / `confidence_score` | Reporting triad (Accept/Reject is ladder-driven) |
 | `tier` | `micro` \| `standard` \| `high_value` \| `guest` |
 | `policy_rule` | Which policy band fired |
 | `fraud_state` | Fraud ladder state |
@@ -104,9 +104,14 @@ Call from CAN/telematics thread:
 
 ```python
 auth.update_behavioral({
+    "steering_angle_deg": 4.2,
+    "steering_rate_dps": 8.0,
+    "throttle_pct": 28.0,
+    "brake_pedal_pct": 0.0,
+    "longitudinal_accel_g": 0.05,
+    "lateral_accel_g": 0.02,
+    "yaw_rate_dps": 3.5,
     "vehicle_speed_kmh": 65.0,
-    "steering_torque_nm": 1.2,
-    "ignition_on": 1.0,
 })
 auth.update_vehicle_context(
     gps_lat=12.97,

@@ -13,18 +13,20 @@ Trust/Risk-separated biometric authorization for in-vehicle payments and sensiti
 | Phase 2a latency (Mac + Thor) | ✅ `phases/phase2a-mac.txt` · `phases/phase2a-thor.txt` (Thor: ECAPA+face **CUDA**) |
 | Risk head (LightGBM → ONNX) | ✅ Trained on 50k txns, val AUC ≈ 0.9955 |
 | Voice (ECAPA-TDNN) + face (MobileFaceNet) | ✅ Pretrained wired + enrolled (Phase 2a) |
-| Finger / behavioral | ⏳ Mock + synthetic data; HW / ManualScores until sensors |
+| Finger / behavioral | Finger ⏳ mock until HW · Behavioral ✅ LSTM (synth bake-off; re-bake on real CAN) |
 | Phase 3 datasets | ✅ Voice · face · synth finger/CAN/OOD · 50k txns |
 | Nova live GPS | ⏳ Deferred — set manually in dashboard until integration |
-| Tests | ✅ ~98 incl. timing pad + OOD-drift (`tests/test_security_sprint1.py`) |
+| Tests | ✅ 160+ incl. timing pad + OOD-drift + Phase 5/6 |
+| Phase 6 / Sprint 6 benchmarks | ✅ FAR/FRR/EER/ROC · PAD · risk · latency · vs OTP/MFA/staged ([`phases/phase6.md`](phases/phase6.md)) |
+| Phase 7 docs | ✅ README · demo GIF · [`docs/security-assumptions.md`](docs/security-assumptions.md) · [`docs/public-posts.md`](docs/public-posts.md) (publish URLs open) |
 
 Full plan: [`roadmap-2026-07.md`](roadmap-2026-07.md) · checklist: [`TODO.txt`](TODO.txt)
 
 ## Demo
 
-Dashboard presets: **Micro payment → ACCEPT**, then **High value → STEP_UP** (Trust / Risk / Confidence → policy decision).
+Dashboard presets: **Micro payment → ACCEPT**, **Low voice → Face ACCEPT**, **Low biometrics → REJECT** (Voice → Face → Finger ladder).
 
-![DriveAuth dashboard: Trust / Risk / Confidence → ACCEPT or STEP_UP](docs/demo.gif)
+![DriveAuth dashboard: Voice → Face → Finger ladder → ACCEPT or REJECT](docs/demo.gif)
 
 Regen: `driveauth-dashboard` + `python scripts/capture_dashboard_demo_gif.py` (needs `pillow` + `playwright`).
 
@@ -39,6 +41,8 @@ Regen: `driveauth-dashboard` + `python scripts/capture_dashboard_demo_gif.py` (n
 These three scores feed a **deterministic Policy Engine** — not another ML head — so compliance teams can audit and change rules without retraining models.
 
 See [architecture/trust-risk-separation.md](architecture/trust-risk-separation.md) for score definitions, policy bands, and transaction tiers.
+
+**Security:** what we assume, enforce, and explicitly do **not** claim — including fail-closed probes, OOD-refresh gating, optional timing pad, and HW/synth limits — is in [`docs/security-assumptions.md`](docs/security-assumptions.md).
 
 ## Architecture
 
@@ -55,30 +59,27 @@ flowchart LR
     CTX[Amount · GPS · speed · CAN]
   end
 
-  subgraph Scores["Scores"]
-    T["Trust\nvoice + face + finger"]
-    R["Risk\namount · location · behaviour"]
-    C["Confidence\nquality · OOD · agreement"]
+  subgraph Ladder["Biometric ladder"]
+    V[Voice]
+    F[Face]
+    G[Finger]
+    V -->|high| A1[ACCEPT]
+    V -->|low| F
+    F -->|high| A2[ACCEPT]
+    F -->|low| G
+    G -->|match OK| A3[ACCEPT]
+    G -->|fail| X[REJECT]
   end
 
-  subgraph Out["Decision"]
-    PE[Policy Engine]
-    A[ACCEPT]
-    S[STEP_UP]
-    X[REJECT]
+  subgraph Side["Side scores"]
+    R["Risk · fraud lock"]
   end
 
-  MIC --> T
-  CAM --> T
-  FNG --> T
+  MIC --> V
+  CAM --> F
+  FNG --> G
   CTX --> R
-  T --> C
-  R --> PE
-  T --> PE
-  C --> PE
-  PE --> A
-  PE --> S
-  PE --> X
+  R -->|hard ceiling / locked| X
 ```
 
 ### System context
@@ -101,7 +102,6 @@ flowchart LR
 
   subgraph Outcomes
     OK[ACCEPT → LLM / payment]
-    SU[STEP_UP → OTP / PIN]
     NO[REJECT / deny]
     AUD[AuditLog]
   end
@@ -111,7 +111,6 @@ flowchart LR
   FP --> ENG
   CAN --> ENG
   POL --> OK
-  POL --> SU
   POL --> NO
   POL --> AUD
 ```
@@ -132,44 +131,21 @@ flowchart TD
   RISK --> TIER["classify_tier\nmicro · standard · high_value · guest"]
   TIER --> FRAUD["FraudStateMachine\nbootstrap · normal · elevated · heightened · locked"]
 
-  FRAUD --> ESC["EscalationPolicy\nvoice → face → finger · early-stop"]
-  ESC --> QV["QualityGate · voice"]
-  QV -->|pass| MV["VoiceMatcher"]
-  QV -->|fail| SKIPV[Skip voice]
-  ESC --> QF["QualityGate · face\nsize · blur · brightness · frontal"]
-  QF -->|pass| MF["FaceMatcher"]
-  QF -->|fail| SKIPF[Skip face]
-  ESC --> QG["QualityGate · finger\ncontact · pressure · clarity"]
-  QG -->|pass| MG["FingerMatcher"]
-  QG -->|fail| SKIPG[Skip finger]
+  FRAUD --> ESC["Ladder: Voice → Face → Finger"]
+  ESC --> QV["1. QualityGate · VoiceMatcher"]
+  QV -->|score ≥ ladder.accept_voice| ACC[ACCEPT]
+  QV -->|low / no score| QF["2. QualityGate · FaceMatcher"]
+  QF -->|score ≥ ladder.accept_face| ACC
+  QF -->|low / no score| QG["3. QualityGate · FingerMatcher"]
+  QG -->|score ≥ ladder.accept_finger| ACC
+  QG -->|fail / unavailable| REJ[REJECT]
 
-  MV --> OOD[OODDetector]
-  MF --> OOD
-  MG --> OOD
-  SKIPV --> FUSE
-  SKIPF --> FUSE
-  SKIPG --> FUSE
-  OOD --> FUSE["TrustFusion ← biometrics only"]
-  OOD --> CONF["ConfidenceScorer\nagreement · quality · OOD · sensor gaps"]
+  RISK --> HARD{Risk ceiling / fraud lock?}
+  HARD -->|Yes| REJ
+  HARD -->|No| ESC
 
-  FUSE --> POL["PolicyEngine\nTrust + Risk + Confidence + rigor"]
-  CONF --> POL
-  RISK --> POL
-  FRAUD --> POL
-
-  POL --> FC{Fail-closed?\nmissing OOD / behavioural / bad voice}
-  FC -->|Yes| SU1[STEP_UP_REQUIRED]
-  FC -->|No| DEC{Decision}
-
-  DEC -->|ACCEPT| ACC[ACCEPT]
-  DEC -->|STEP_UP| SU2[STEP_UP_REQUIRED]
-  DEC -->|REJECT| REJ[REJECT]
-
-  SU1 --> STEP
-  SU2 --> STEP["OTP cellular → offline PIN + biometric"]
-  ACC --> POST["AuditLog + profile maturity update + decision cache"]
+  ACC --> POST["AuditLog + profile update + decision cache"]
   REJ --> POST
-  STEP --> POST
 ```
 
 ### Trust / Risk / Confidence separation
@@ -203,43 +179,48 @@ flowchart TB
     D --> CS
   end
 
-  TF --> PE[PolicyEngine]
-  RM --> PE
-  CS --> PE
-  PE --> OUT["ACCEPT · STEP_UP_REQUIRED · REJECT"]
+  TF --> RPT[Reporting / audit]
+  RM --> HARD[Hard reject gates]
+  CS --> RPT
+  HARD --> OUT["ACCEPT · REJECT\n(+ guest STEP_UP for PIN)"]
 ```
 
-Behaviour and location **never** enter Trust — only Risk. A night drive in an unfamiliar city raises scrutiny without distorting the biometric match.
+Behaviour and location **never** enter Trust — only Risk. Biometric Accept/Reject is decided only by the Voice → Face → Finger ladder.
 
-### Staged escalation & fraud ladder
-
-Simple view — probe cheapest first; stop when enough evidence; otherwise escalate:
+### Biometric ladder (Accept / Reject)
 
 ```mermaid
 flowchart LR
-  V[Voice] -->|ambiguous| F[Face] -->|still weak| G[Finger]
-  V -->|strong enough| OK[Done]
-  F -->|strong enough| OK
-  G --> OK
+  V[Voice] -->|conf low| F[Face] -->|still low| G[Finger]
+  V -->|conf high| OK[ACCEPT]
+  F -->|conf high| OK
+  G -->|match OK| OK
+  G -->|fail| X[REJECT]
 ```
 
-Probe order is cheapest-friction first: **voice → face → finger**. Escalation stops early when the tier bar is met, but never below fraud `min_modalities`, and never early on high-value / bootstrap (full set required).
+Probe order is fixed: **voice → face → finger**.
+
+- **High score** (per-modality bar + fraud `trust_margin`) → **ACCEPT** immediately:
+  - voice `≥ ladder.accept_voice` (default **0.72**)
+  - face `≥ ladder.accept_face` (default **0.70**)
+  - finger `≥ ladder.accept_finger` (default **0.70**, “match OK”)
+- **Low / missing score** → escalate to the next modality.
+- After fingerprint (last option) still fails → **REJECT**.
+- No OTP mid-ladder. Risk hard-ceiling and fraud-lock can still force REJECT. Guest mode may still request PIN (`STEP_UP_REQUIRED`).
+- Re-baseline with `python scripts/calibrate_bio_thresholds.py --store ./driveauth_store_phase2a`.
 
 ```mermaid
 flowchart TD
-  START[Payment auth] --> PLAN["EscalationPolicy\ntier · risk · fraud rigor · maturity"]
-  PLAN --> V2["1. Probe voice\nQualityGate → VoiceMatcher"]
-  V2 --> VOK{Voice clears\ntier bar?}
-  VOK -->|Yes + early-stop OK| DONE[Fuse → Policy]
-  VOK -->|No / need more| F2["2. Probe face\nQualityGate → FaceMatcher"]
-  F2 --> FOK{Voice+face clear\ntier bar?}
-  FOK -->|Yes + early-stop OK| DONE
-  FOK -->|No / need more| G2["3. Probe finger\nQualityGate → FingerMatcher"]
-  G2 --> DONE
-
-  PLAN -.->|high_value / bootstrap| FULL["mandatory_full\nrun all available"]
-  FULL --> V2
-  PLAN -.->|fraud min_modalities| FLOOR["never early-stop\nbelow floor"]
+  START[Payment auth] --> V2["1. Probe voice"]
+  V2 --> VOK{score ≥ accept?}
+  VOK -->|Yes| ACC[ACCEPT]
+  VOK -->|No| F2["2. Probe face"]
+  F2 --> FOK{score ≥ accept?}
+  FOK -->|Yes| ACC
+  FOK -->|No| G2["3. Probe finger"]
+  G2 --> GOK{match OK?}
+  GOK -->|Yes| ACC
+  GOK -->|No| REJ[REJECT]
 ```
 
 Fraud ladder (separate from probe order — raises rigor over time):
@@ -363,20 +344,30 @@ flowchart TB
 | Behavioral | **LSTM** (or GRU / windowed GBM bake-off) | `matchers/behavioral.py` · `behavioral_lstm_int8.onnx` | Driving-style anomaly → **Risk only**, never Trust | Green mock / synth CAN until recorder + weights |
 | Risk | **LightGBM** → ONNX | `risk_model.py` · `risk_gbt.onnx` | Tabular txn/GPS/CAN features; audit-friendly attributions | Blue — trained (50k rows, val AUC 0.9955); additive heuristic if ONNX missing |
 | Trust weights | **PolicyMLP** | `orchestrator.py` · `orchestrator_mlp.onnx` | Context-adaptive voice/face/finger weights + uncertainty | Red — optional ONNX; yellow static weights if absent |
-| Trust fusion | **Logistic regression** (Phase 4) | planned (today: weighted avg in `fusion.py`) | Calibrated ACCEPT/STEP_UP from labeled outcomes | Gray — **not implemented**; static fusion runs |
+| Trust fusion | **Logistic regression** | `fusion.py` · `trust_fusion.onnx` | Learned Trust from labeled multimodal scores; static weights if ONNX missing | Blue — Stage 2 / Phase 4 trained |
 | OOD | Stats (z / cosine) | `ood_detector.py` | Fail-closed when baselines missing | Yellow — no neural net; optional AE later |
-| Anti-spoof / PAD | TBD | planned | Replay / presentation attack | Gray — **not in repo** |
+| Anti-spoof / PAD | Hand-crafted features → logreg | `matchers/face_pad_features.py` · `face_pad.onnx` | Presentation-attack gate before face match | Blue — Stage 2 (blur/side/screen) |
 | SmolLM2 | LLM helper | docstring only in `orchestrator.py` | Optional narrative / policy assist | Gray — **not implemented** |
 
-#### Not in the repo yet (planned separately)
+#### Stage 2 heads (wired; frozen ECAPA / MobileFaceNet)
 
-These appear on the roadmap but have **no production weights / HW path** today:
+| Head | Artifact | Trainer |
+|------|----------|---------|
+| Voice calibrator | `voice_calibrator.onnx` | `scripts/train_voice_calibrator.py` |
+| Face PAD | `face_pad.onnx` | `scripts/train_face_pad.py` |
+| Face calibrator | `face_calibrator.onnx` | `scripts/train_face_calibrator.py` |
+| Trust fusion logreg | `trust_fusion.onnx` | `scripts/train_trust_fusion.py` |
+| FAR/FRR eval | `phases/phase2b_bio_eval.json` | `scripts/eval_bio_far_frr.py` |
+| Sprint 6 bench | `phases/phase6_sprint6.json` · `phase6.md` | `scripts/phase6_benchmark.py` |
+
+Set `DRIVEAUTH_STAGE2_RAW=1` to force frozen 2a cosine-only scoring (no PAD/calibrators).
+
+#### Still planned / HW-gated
 
 | Planned model | Intended role | Replaces / extends |
 |---------------|---------------|--------------------|
-| Trust-fusion **logreg** | Learned Trust from auth labels | Static `TrustFusion` weights |
-| Voice **anti-spoof** | Replay / synthetic speech gate | QualityGate SNR only |
-| Face **PAD** | Presentation-attack detection | QualityGate blur/brightness/frontal |
+| Voice **anti-spoof** (deep) | Replay / synthetic speech gate | QualityGate + score calibrator |
+| Real-CAN behavioral re-bake | Production FAR/FRR for driving style | Current synth bake-off winner |
 | **SmolLM2** | Optional orchestrator side-channel | — (unused) |
 | OOD **autoencoder** | Embedding reconstruction anomaly | Current z-score / cosine OOD |
 
@@ -422,10 +413,13 @@ Three columns: **Transaction** (Nova payment fields) · **Manual stand-ins** (bi
 pip install -e ".[dashboard]"
 driveauth-dashboard
 # open http://127.0.0.1:8765
-# presets: Micro payment (ACCEPT) · High value (STEP_UP) · Low biometrics (REJECT)
+# presets: Micro (ACCEPT) · Low voice→Face (ACCEPT) · Low biometrics (REJECT)
+# register: http://127.0.0.1:8765/register  (webcam + mic → data/<driver>/ → enroll)
 ```
 
 Optional: `--store ./demo_store` for a persistent store, `--reload` for dev auto-reload.
+
+**Register a new driver (face + voice):** open `/register`, set a driver id, capture ≥5 face stills + ≥5 voice clips (written under `data/<id>/{face,voice}/enroll/`), then **Enroll into store**. Needs Phase 2a models (`python scripts/phase2a_setup.py --store ./driveauth_store_phase2a`). Override paths with `DRIVEAUTH_REGISTER_STORE` / `DRIVEAUTH_DATA_ROOT`.
 
 ### Phase 2a real voice/face (hybrid)
 
@@ -464,7 +458,7 @@ result = auth.authenticate(
 print(result.decision, result.legacy_decision, result.trust_score, result.risk_score)
 ```
 
-Decisions: `ACCEPT`, `STEP_UP_REQUIRED`, `REJECT` (Nova-compatible aliases: `pass`, `step_up`, `deny`).
+Decisions: `ACCEPT`, `REJECT` from the biometric ladder; `STEP_UP_REQUIRED` remains for guest PIN / OTP fallbacks only (Nova aliases: `pass`, `step_up`, `deny`).
 
 ## Phase 3 data
 
@@ -488,7 +482,10 @@ python scripts/calibrate_bio_thresholds.py --store ./driveauth_store_phase2a --a
 | [examples/basic_auth.py](examples/basic_auth.py) | Minimal mock-matcher authentication |
 | [examples/payment_step_up.py](examples/payment_step_up.py) | High-value payment + vehicle context → step-up |
 | [scripts/phase2a_demo.py](scripts/phase2a_demo.py) | Real ECAPA + MobileFaceNet hybrid auth |
-| [scripts/phase3_synth_demo.py](scripts/phase3_synth_demo.py) | Manual finger/behavioral scores (HW stand-in) |
+| [scripts/train_behavioral_bakeoff.py](scripts/train_behavioral_bakeoff.py) | LSTM vs GRU vs windowed GBM → best → `behavioral_model.onnx` |
+| [scripts/train_trust_fusion.py](scripts/train_trust_fusion.py) | Stage 2 trust logreg → `trust_fusion.onnx` |
+| [scripts/eval_bio_far_frr.py](scripts/eval_bio_far_frr.py) | Voice/face FAR/FRR vs baseline (`phase2b_bio_eval.json`) |
+| [scripts/phase6_benchmark.py](scripts/phase6_benchmark.py) | Sprint 6 table + ablations → `phases/phase6.md` |
 
 ## Testing
 
@@ -497,7 +494,11 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Includes fail-closed paths, cache invalidation, geo/home learning, score provider, and Sprint 1 security tests (constant-time pad + OOD-refresh gate).
+Includes fail-closed paths, cache invalidation, geo/home learning, score provider,
+Sprint 1 security (constant-time pad + OOD-refresh gate), Phase 5 coverage
+(threshold re-baseline + real-model timeout/crash modes), and Phase 6 / Sprint 6
+benchmarks — **162** tests; see [`phases/phase5.md`](phases/phase5.md) ·
+[`phases/phase6.md`](phases/phase6.md).
 
 ## Documentation
 
@@ -505,12 +506,14 @@ Includes fail-closed paths, cache invalidation, geo/home learning, score provide
 |-----|----------|
 | [architecture/overview.md](architecture/overview.md) | Pipeline diagram and module map |
 | [architecture/trust-risk-separation.md](architecture/trust-risk-separation.md) | Trust, Risk, Confidence scores and policy tiers |
+| [docs/security-assumptions.md](docs/security-assumptions.md) | **Threat model, invariants, non-claims, integrator checklist** |
 | [roadmap-2026-07.md](roadmap-2026-07.md) | Current roadmap — phases, sprints, non-goals |
 | [TODO.txt](TODO.txt) | Working checklist (deferred face/Nova GPS called out) |
 | [docs/pipeline-fixes-2026-07.md](docs/pipeline-fixes-2026-07.md) | Risk-pipeline fix bundle details |
 | [docs/configuration.md](docs/configuration.md) | `policy.yaml` placeholders and `DRIVEAUTH_*` overrides |
 | [docs/integration.md](docs/integration.md) | **Nova ↔ DriveAuth I/O contract**, STT intercept, GPS/CAN |
 | [data/README.md](data/README.md) | Phase 3 capture layout + synth generators |
+| [phases/phase6.md](phases/phase6.md) | Sprint 6 FAR/FRR/EER · PAD · risk · latency · ablations |
 
 ## Repository layout
 

@@ -5,7 +5,7 @@ Public API: :class:`DriveAuth` in :mod:`driveauth.api`.
 """
 
 from driveauth.api import DriveAuth
-from driveauth.escalation import EscalationPlan, EscalationPolicy
+from driveauth.escalation import EscalationPlan, EscalationPolicy, LadderPlan
 from driveauth.intent import (
     TransactionIntent,
     is_payment_utterance,
@@ -31,6 +31,7 @@ __all__ = [
     "RiskContext",
     "EscalationPolicy",
     "EscalationPlan",
+    "LadderPlan",
     "ProfileStore",
     "DriverProfile",
     "TransactionIntent",

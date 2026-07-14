@@ -9,11 +9,21 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
 from driveauth import DriveAuth
+from driveauth.enrollment import (
+    enroll_driver,
+    ensure_driver_layout,
+    enrollment_status,
+    list_enroll_images,
+    list_enroll_wavs,
+    save_face_jpeg,
+    save_voice_wav_bytes,
+    validate_driver_id,
+)
 from driveauth.matchers.mock import (
     MOCK_FACE_DIM,
     MOCK_FINGER_DIM,
@@ -24,9 +34,20 @@ from driveauth.matchers.mock import (
     MockVoiceMatcher,
 )
 from dashboard.dashboard import render_dashboard
+from dashboard.register import render_register
 
+_ROOT = Path(__file__).resolve().parents[1]
 _STORE = os.getenv("DRIVEAUTH_DASHBOARD_STORE", "")
+_REGISTER_STORE = os.getenv(
+    "DRIVEAUTH_REGISTER_STORE",
+    str(_ROOT / "driveauth_store_phase2a"),
+)
+_DATA_ROOT = Path(os.getenv("DRIVEAUTH_DATA_ROOT", str(_ROOT / "data")))
 _auth: DriveAuth | None = None
+
+
+def _register_store() -> Path:
+    return Path(_REGISTER_STORE).expanduser().resolve()
 
 
 def _fake_audio(seconds: float = 1.5, sr: int = 16_000) -> np.ndarray:
@@ -93,6 +114,156 @@ class AuthenticateRequest(BaseModel):
     context: VehicleContext = Field(default_factory=VehicleContext)
 
 
+def _pipeline_trace(result) -> dict[str, Any]:
+    """Derive a stage-by-stage flow for the live dashboard visualization."""
+    expl = list(result.explanations or [])
+    mods = result.modality_scores or {}
+    probed: list[str] = []
+    for e in expl:
+        if e.startswith("probed_"):
+            raw = e.removeprefix("probed_")
+            if raw and raw != "none":
+                probed = [p for p in raw.split("+") if p]
+            break
+
+    def _mod_score(name: str) -> float | None:
+        block = mods.get(name) or {}
+        if not isinstance(block, dict):
+            return None
+        val = block.get("score")
+        return float(val) if val is not None else None
+
+    ladder_stages: list[dict[str, Any]] = []
+    order = ("voice", "face", "finger")
+    accept_mod: str | None = None
+    for mod in order:
+        # Prefer "ladder_accept_voice_score_…" over "ladder_accept_bar_voice_…"
+        if any(e.startswith(f"ladder_accept_{mod}_") for e in expl):
+            accept_mod = mod
+            break
+    if accept_mod is None and result.policy_rule:
+        for mod in order:
+            if f"ladder_accept_{mod}" in result.policy_rule:
+                accept_mod = mod
+                break
+
+    accept_idx = order.index(accept_mod) if accept_mod in order else None
+    last_probed = probed[-1] if probed else None
+    decided_reject = result.decision.value == "REJECT"
+
+    for mod in order:
+        score = _mod_score(mod)
+        idx = order.index(mod)
+        if accept_idx is not None and idx > accept_idx:
+            status, detail = "skipped", "early-stop · not probed"
+        elif mod in probed:
+            if accept_mod == mod:
+                status = "accept"
+                detail = f"≥ bar · {score:.3f}" if score is not None else "accepted"
+            elif decided_reject and mod == last_probed:
+                status = "reject"
+                detail = f"exhausted · {score:.3f}" if score is not None else "exhausted"
+            else:
+                status = "escalate"
+                detail = f"below bar · {score:.3f}" if score is not None else "no score"
+        elif accept_mod is not None:
+            status, detail = "skipped", "not needed"
+        else:
+            status, detail = "idle", "not reached"
+        ladder_stages.append(
+            {"id": mod, "label": mod.title(), "status": status, "score": score, "detail": detail}
+        )
+
+    hard_gate = None
+    for key, label in (
+        ("fraud_locked", "Fraud lock"),
+        ("risk_above_hard_ceiling", "Risk ceiling"),
+        ("guest_mode_requires_pin", "Guest PIN"),
+    ):
+        if any(key in e for e in expl):
+            hard_gate = label
+            break
+
+    decision = result.decision.value
+    stages = [
+        {
+            "id": "intent",
+            "label": "Intent",
+            "status": "done",
+            "detail": f"{result.action or 'pay'} · {result.currency} {result.amount:g}",
+        },
+        {
+            "id": "risk",
+            "label": "Risk model",
+            "status": "done",
+            "detail": f"risk {result.risk_score:.3f} · tier {result.tier}",
+        },
+        {
+            "id": "fraud",
+            "label": "Fraud ladder",
+            "status": "block" if hard_gate == "Fraud lock" else "done",
+            "detail": hard_gate if hard_gate == "Fraud lock" else (result.fraud_state or "normal"),
+        },
+        {
+            "id": "ladder",
+            "label": "Bio ladder",
+            "status": (
+                "block"
+                if decision == "REJECT" and hard_gate is None
+                else "accept"
+                if decision == "ACCEPT"
+                else "stepup"
+                if decision == "STEP_UP_REQUIRED"
+                else "done"
+            ),
+            "detail": (
+                f"probed {' → '.join(probed) if probed else '—'}"
+                + (f" · early-stop {accept_mod}" if accept_mod else "")
+            ),
+            "rungs": ladder_stages,
+        },
+        {
+            "id": "policy",
+            "label": "Policy",
+            "status": (
+                "accept"
+                if decision == "ACCEPT"
+                else "stepup"
+                if decision == "STEP_UP_REQUIRED"
+                else "block"
+            ),
+            "detail": result.policy_rule or "—",
+        },
+        {
+            "id": "decision",
+            "label": "Decision",
+            "status": (
+                "accept"
+                if decision == "ACCEPT"
+                else "stepup"
+                if decision == "STEP_UP_REQUIRED"
+                else "block"
+            ),
+            "detail": decision,
+        },
+    ]
+
+    return {
+        "stages": stages,
+        "probed": probed,
+        "accept_modality": accept_mod,
+        "hard_gate": hard_gate,
+        "path_summary": (
+            hard_gate
+            or (
+                f"{' → '.join(m.title() for m in probed)} → {decision}"
+                if probed
+                else decision
+            )
+        ),
+    }
+
+
 def _result_payload(result) -> dict[str, Any]:
     return {
         "decision": result.decision.value,
@@ -108,6 +279,11 @@ def _result_payload(result) -> dict[str, Any]:
         "modality_scores": result.modality_scores,
         "active_thresholds": result.active_thresholds,
         "ood_flags": result.ood_flags,
+        "pipeline": _pipeline_trace(result),
+        "amount": result.amount,
+        "currency": result.currency,
+        "beneficiary": result.beneficiary,
+        "action": result.action,
     }
 
 
@@ -131,14 +307,140 @@ def _apply_mock_scores(auth: DriveAuth, scores: MockScores) -> None:
 
 app = FastAPI(
     title="DriveAuth Edge Dashboard",
-    description="Test and monitor the Trust/Risk-separated authorization pipeline.",
-    version="0.2.0",
+    description="Live Trust/Risk/Confidence pipeline tester with Nova I/O contract.",
+    version="0.3.0",
 )
 
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
     return render_dashboard()
+
+
+@app.get("/register", response_class=HTMLResponse)
+def register_page() -> str:
+    return render_register()
+
+
+class RegisterDriverRequest(BaseModel):
+    driver_id: str = Field(..., min_length=1, max_length=32)
+
+
+@app.get("/api/register/status")
+def register_status(driver_id: str = "driver2") -> dict[str, Any]:
+    try:
+        return enrollment_status(_DATA_ROOT, _register_store(), driver_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/register/init")
+def register_init(req: RegisterDriverRequest) -> dict[str, Any]:
+    try:
+        root = ensure_driver_layout(_DATA_ROOT, req.driver_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "status": "ok",
+        "driver_id": validate_driver_id(req.driver_id),
+        "data_dir": str(root),
+        **enrollment_status(_DATA_ROOT, _register_store(), req.driver_id),
+    }
+
+
+@app.post("/api/register/face")
+async def register_face(
+    driver_id: str = Form(...),
+    file: UploadFile = File(...),
+) -> dict[str, Any]:
+    try:
+        validate_driver_id(driver_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="empty image upload")
+    if len(raw) > 8_000_000:
+        raise HTTPException(status_code=400, detail="image too large")
+    path = save_face_jpeg(_DATA_ROOT, driver_id, raw, split="enroll")
+    return {
+        "status": "ok",
+        "path": str(path.relative_to(_DATA_ROOT)),
+        **enrollment_status(_DATA_ROOT, _register_store(), driver_id),
+    }
+
+
+@app.post("/api/register/voice")
+async def register_voice(
+    driver_id: str = Form(...),
+    file: UploadFile = File(...),
+) -> dict[str, Any]:
+    try:
+        validate_driver_id(driver_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="empty audio upload")
+    if len(raw) > 8_000_000:
+        raise HTTPException(status_code=400, detail="audio too large")
+    try:
+        path = save_voice_wav_bytes(_DATA_ROOT, driver_id, raw, split="enroll")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"invalid WAV: {exc}") from exc
+    return {
+        "status": "ok",
+        "path": str(path.relative_to(_DATA_ROOT)),
+        **enrollment_status(_DATA_ROOT, _register_store(), driver_id),
+    }
+
+
+@app.post("/api/register/complete")
+def register_complete(req: RegisterDriverRequest) -> dict[str, Any]:
+    try:
+        driver_id = validate_driver_id(req.driver_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    data_dir = _DATA_ROOT / driver_id
+    store = _register_store()
+    try:
+        result = enroll_driver(store, data_dir, driver_id, require_minimums=True)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"status": "ok", **result}
+
+
+@app.post("/api/register/clear")
+def register_clear(req: RegisterDriverRequest) -> dict[str, Any]:
+    try:
+        driver_id = validate_driver_id(req.driver_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    data_dir = _DATA_ROOT / driver_id
+    for path in list_enroll_images(data_dir) + list_enroll_wavs(data_dir):
+        path.unlink(missing_ok=True)
+    return {
+        "status": "ok",
+        **enrollment_status(_DATA_ROOT, _register_store(), driver_id),
+    }
+
+
+@app.get("/api/register/preview/face/{driver_id}/{filename}")
+def register_face_preview(driver_id: str, filename: str) -> FileResponse:
+    try:
+        driver_id = validate_driver_id(driver_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    safe = Path(filename).name
+    if safe != filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="invalid filename")
+    path = (_DATA_ROOT / driver_id / "face" / "enroll" / safe).resolve()
+    enroll_root = (_DATA_ROOT / driver_id / "face" / "enroll").resolve()
+    if not path.is_relative_to(enroll_root) or not path.is_file():
+        raise HTTPException(status_code=404, detail="not found")
+    return FileResponse(path, media_type="image/jpeg")
 
 
 @app.get("/api/status")
@@ -284,24 +586,33 @@ def scenarios() -> list[dict[str, Any]]:
             ).model_dump(),
         },
         {
-            "id": "bootstrap_stepup",
-            "label": "New driver bootstrap (STEP_UP)",
+            "id": "bootstrap_ladder",
+            "label": "New driver bootstrap (ladder ACCEPT on strong voice)",
             "profile": "bootstrap",
             "request": AuthenticateRequest(
                 amount=50.0, beneficiary_known=True
             ).model_dump(),
         },
         {
-            "id": "high_value_stepup",
-            "label": "High value (STEP_UP)",
+            "id": "high_value_ladder",
+            "label": "High value (ladder ACCEPT if voice/face strong)",
             "profile": "mature",
             "request": AuthenticateRequest(
                 amount=75_000.0, beneficiary_known=False, beneficiary="new_merchant"
             ).model_dump(),
         },
         {
+            "id": "escalate_face",
+            "label": "Low voice → Face ACCEPT",
+            "profile": "mature",
+            "request": AuthenticateRequest(
+                amount=150.0,
+                mock_scores=MockScores(voice=0.40, face=0.90, finger=0.40),
+            ).model_dump(),
+        },
+        {
             "id": "low_trust_reject",
-            "label": "Low biometrics (REJECT)",
+            "label": "Low biometrics (REJECT after ladder)",
             "profile": "mature",
             "request": AuthenticateRequest(
                 amount=150.0,
@@ -318,6 +629,16 @@ def scenarios() -> list[dict[str, Any]]:
                 context=VehicleContext(
                     speed_kmh=95.0, in_trusted_zone=False, dist_from_home_km=45.0
                 ),
+            ).model_dump(),
+        },
+        {
+            "id": "guest_stepup",
+            "label": "Guest mode (STEP_UP)",
+            "profile": "mature",
+            "request": AuthenticateRequest(
+                amount=150.0,
+                is_guest=True,
+                beneficiary_known=True,
             ).model_dump(),
         },
     ]

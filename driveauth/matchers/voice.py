@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import time
 from pathlib import Path
 
 import numpy as np
 
+from driveauth.matchers.onnx_head import OnnxLogitHead
 from driveauth.template_store import load_embedding
 from driveauth.types import ModalityResult
 
@@ -30,16 +32,31 @@ def preprocess(audio: np.ndarray) -> np.ndarray:
 
 
 class VoiceMatcher:
-    """Cosine similarity against an enrolled voiceprint."""
+    """Cosine similarity against an enrolled voiceprint.
 
-    def __init__(self, ecapa_model, driver_embedding: np.ndarray | None, device: str):
+    Stage 2: optional ``voice_calibrator.onnx`` maps (cosine, quality feats)
+    → calibrated match score. Disabled when ``DRIVEAUTH_STAGE2_RAW=1``.
+    """
+
+    def __init__(
+        self,
+        ecapa_model,
+        driver_embedding: np.ndarray | None,
+        device: str,
+        calibrator: OnnxLogitHead | None = None,
+    ):
         self._model = ecapa_model
         self._emb = driver_embedding
         self._device = device
+        self._calibrator = calibrator
 
     @property
     def ready(self) -> bool:
         return self._model is not None and self._emb is not None
+
+    @property
+    def has_calibrator(self) -> bool:
+        return self._calibrator is not None
 
     @classmethod
     def load_ecapa(cls, savedir: str | Path, device: str = "cpu"):
@@ -113,7 +130,13 @@ class VoiceMatcher:
         except Exception as exc:
             logger.warning("VoiceMatcher: ECAPA load failed (%s)", exc)
 
-        return cls(ecapa_model, driver_embedding, device)
+        calibrator = None
+        if os.getenv("DRIVEAUTH_STAGE2_RAW", "").strip() not in ("1", "true", "yes"):
+            calibrator = OnnxLogitHead.load(store_path / "voice_calibrator.onnx")
+            if calibrator is not None:
+                logger.info("VoiceMatcher: Stage-2 calibrator loaded")
+
+        return cls(ecapa_model, driver_embedding, device, calibrator=calibrator)
 
     def embed(self, audio_f32: np.ndarray, sample_rate: int = 16_000) -> np.ndarray | None:
         if self._model is None or audio_f32 is None or len(audio_f32) < sample_rate // 2:
@@ -134,6 +157,19 @@ class VoiceMatcher:
             logger.error("VoiceMatcher.embed: %s", exc)
             return None
 
+    def _voice_cal_features(
+        self, sim: float, audio_f32: np.ndarray, sample_rate: int
+    ) -> np.ndarray:
+        from driveauth.quality_gate import score_voice
+
+        ok, q, _notes = score_voice(audio_f32, sample_rate)
+        duration = float(audio_f32.size / max(sample_rate, 1))
+        clip_frac = float(np.mean(np.abs(audio_f32) > 0.995)) if audio_f32.size else 1.0
+        return np.array(
+            [sim, q, 1.0 if ok else 0.0, min(duration / 5.0, 1.0), clip_frac],
+            dtype=np.float32,
+        )
+
     def score(self, audio_f32: np.ndarray, sample_rate: int = 16_000) -> ModalityResult:
         t0 = time.perf_counter()
         if not self.ready:
@@ -146,8 +182,14 @@ class VoiceMatcher:
             if live_emb is None or self._emb is None:
                 return ModalityResult(score=None, confident=False, available=False)
             sim = float(np.clip(float(np.dot(self._emb, live_emb)), 0.0, 1.0))
+            score = sim
+            if self._calibrator is not None:
+                feats = self._voice_cal_features(sim, audio_f32, sample_rate)
+                score = float(
+                    np.clip(self._calibrator.predict_proba(feats), 0.0, 1.0)
+                )
             lat = (time.perf_counter() - t0) * 1000
-            return ModalityResult(sim, True, latency_ms=lat, embedding=live_emb)
+            return ModalityResult(score, True, latency_ms=lat, embedding=live_emb)
         except Exception as exc:
             logger.error("VoiceMatcher.score: %s", exc)
             return ModalityResult(score=None, confident=False, available=False)

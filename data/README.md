@@ -137,7 +137,7 @@ python scripts/generate_phase3_synth.py
 | Path | Contents |
 |------|----------|
 | `finger/enroll/` · `genuine/` · `attack/{wrong,partial,wet,dry,spoof}/` | Synthetic ridge PNGs |
-| `behavioral/genuine/` · `attack/` | CAN CSV windows (7 sensor cols + `t_ms` + `label`) |
+| `behavioral/genuine/` · `attack/` | CAN/IMU CSV windows (8 features + `t_ms` + `label`): `steering_angle_deg`, `steering_rate_dps`, `throttle_pct`, `brake_pedal_pct`, `longitudinal_accel_g`, `lateral_accel_g`, `yaw_rate_dps`, `vehicle_speed_kmh` |
 | `ood/face/` · `ood/voice/` · `ood/finger/` | Non-enrolled identity negatives |
 
 **Manual scores (HW stand-in):** future sensors must emit `ModalityResult(score∈[0,1])`. For now:
@@ -180,7 +180,9 @@ After each capture session, append rows (or run the helper script if present).
 - [x] `driver1` has enroll + genuine + ≥1 attack for **voice**
 - [x] `driver1` has enroll + genuine + ≥1 attack for **face**
   (Robert Downey Jr via `scripts/populate_face_rdj.py` — replace with your face later)
-- [x] `finger` / `behavioral` / `ood` — synthetic via `scripts/generate_phase3_synth.py` (swap for HW captures later)
+- [x] `finger` / `behavioral` — synthetic via `scripts/generate_phase3_synth.py` (swap for HW later)
+- [x] `ood/voice` + `ood/face` — Stage 1 real negatives (TTS + other-id stills);
+      eval with `scripts/eval_ood_negatives.py` · finger OOD still synth
 - [x] `transaction/txns.csv` — 50k synthetic rows shipped (Phase 3 txn modality done)
 - [x] `manifest.csv` rows appended by populate / generate scripts
 

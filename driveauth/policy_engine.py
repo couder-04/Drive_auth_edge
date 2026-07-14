@@ -1,4 +1,4 @@
-"""Declarative policy engine — Trust + Risk + Confidence → Decision (§8a.4)."""
+"""Hard gates + guest handling. Biometric Accept/Reject is the voice→face→finger ladder."""
 
 from __future__ import annotations
 
@@ -35,6 +35,14 @@ def classify_tier(ctx: RiskContext, is_guest: bool = False) -> str:
 
 
 class PolicyEngine:
+    """
+    Hard security gates only.
+
+    Biometric Accept / Reject is decided by the Voice → Face → Finger ladder in
+    ``DecisionEngine``.  This engine only applies irreversible rejects (fraud
+    lock, risk ceiling) and guest handling.
+    """
+
     def decide(
         self,
         *,
@@ -45,11 +53,11 @@ class PolicyEngine:
         n_confident_modalities: int,
         fraud_rigor: dict,
         explanations: list[str],
+        ladder_decision: Decision | None = None,
+        ladder_rule: str | None = None,
     ) -> tuple[Decision, str, dict[str, float], str | None]:
         trust_bar = _TRUST_ACCEPT.get(tier, _TRUST_ACCEPT["standard"])
         trust_bar += float(fraud_rigor.get("trust_margin", 0.0))
-        min_mods = int(fraud_rigor.get("min_modalities", 1))
-        force_su = bool(fraud_rigor.get("force_step_up", False))
         blocked = bool(fraud_rigor.get("block", False))
 
         active = {
@@ -58,10 +66,15 @@ class PolicyEngine:
             "risk_low": _RISK_LOW,
             "risk_high": _RISK_HIGH,
             "conf_floor": _CONF_FLOOR,
-            "min_modalities": float(min_mods),
+            "ladder_accept": float(config.LADDER_ACCEPT),
+            "ladder_accept_voice": float(config.LADDER_ACCEPT_VOICE),
+            "ladder_accept_face": float(config.LADDER_ACCEPT_FACE),
+            "ladder_accept_finger": float(config.LADDER_ACCEPT_FINGER),
+            "min_modalities": float(fraud_rigor.get("min_modalities", 1)),
         }
 
         if blocked:
+            explanations.append("fraud_locked")
             return Decision.REJECT, f"{POLICY_VERSION}:fraud_locked", active, None
 
         if tier == "guest":
@@ -77,51 +90,19 @@ class PolicyEngine:
             explanations.append("risk_above_hard_ceiling")
             return Decision.REJECT, f"{POLICY_VERSION}:risk_ceiling", active, None
 
-        if trust < _TRUST_REJECT:
-            explanations.append("trust_below_floor")
-            return Decision.REJECT, f"{POLICY_VERSION}:trust_floor", active, None
+        # Ladder already chose ACCEPT or REJECT from biometric probes.
+        if ladder_decision is not None:
+            rule = ladder_rule or f"{POLICY_VERSION}:ladder"
+            return ladder_decision, rule, active, None
 
-        if n_confident_modalities < min_mods:
-            explanations.append(
-                f"need_{min_mods}_modalities_have_{n_confident_modalities}"
-            )
-            return (
-                Decision.STEP_UP_REQUIRED,
-                f"{POLICY_VERSION}:insufficient_modalities",
-                active,
-                "otp_mobile",
-            )
-
-        if tier == "high_value" or force_su:
-            rule = (
-                "high_value_mandatory_stepup"
-                if tier == "high_value"
-                else "fraud_ladder_stepup"
-            )
-            explanations.append(rule)
-            return (
-                Decision.STEP_UP_REQUIRED,
-                f"{POLICY_VERSION}:{rule}",
-                active,
-                "otp_mobile",
-            )
-
-        if confidence < _CONF_FLOOR:
-            explanations.append("low_confidence_inputs")
-            return (
-                Decision.STEP_UP_REQUIRED,
-                f"{POLICY_VERSION}:low_confidence",
-                active,
-                "otp_mobile",
-            )
-
-        if trust >= trust_bar and risk <= _RISK_LOW:
+        # Fallback when ladder disabled: Accept on strong fused trust, else Reject.
+        if (
+            trust >= trust_bar
+            and risk <= _RISK_LOW
+            and confidence >= _CONF_FLOOR
+            and n_confident_modalities >= 1
+        ):
             return Decision.ACCEPT, f"{POLICY_VERSION}:accept_{tier}", active, None
 
-        explanations.append("ambiguous_trust_or_risk")
-        return (
-            Decision.STEP_UP_REQUIRED,
-            f"{POLICY_VERSION}:ambiguous",
-            active,
-            "otp_mobile",
-        )
+        explanations.append("biometric_ladder_reject")
+        return Decision.REJECT, f"{POLICY_VERSION}:reject", active, None

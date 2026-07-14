@@ -47,7 +47,7 @@ def capture(url: str, out_dir: Path) -> list[tuple[Path, int]]:
         page.screenshot(path=str(accept), full_page=False)
         shots.append((accept, 2200))
 
-        page.get_by_role("button", name="High value (STEP_UP)").click()
+        page.get_by_role("button", name="Guest mode (STEP_UP)").click()
         page.wait_for_function(
             "() => document.getElementById('decision-banner').textContent.trim() === 'STEP_UP_REQUIRED'"
         )

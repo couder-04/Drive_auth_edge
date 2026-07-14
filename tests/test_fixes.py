@@ -37,58 +37,45 @@ def test_intent_unknown_fails_safe_to_highvalue():
     assert classify_tier(ctx) == "high_value"
 
 
-def test_escalation_stops_early_when_bar_met():
+def test_ladder_accepts_high_modality_score():
     pol = EscalationPolicy()
     plan = EscalationPlan(
         order=("voice", "face", "finger"),
-        min_modalities=1,
-        mandatory_full=False,
-        mandatory_finger=False,
+        accept_bar=0.70,
+        accept_bars={"voice": 0.72, "face": 0.70, "finger": 0.70},
     )
-    assert (
-        pol.should_stop(
-            plan=plan,
-            trust=0.9,
-            confidence=0.9,
-            n_confident=1,
-            trust_bar=0.75,
-            conf_floor=0.55,
-        )
-        is True
-    )
+    assert pol.should_accept(plan=plan, score=0.85, modality="voice") is True
+    assert plan.is_accept(0.85, modality="voice") is True
+    # Per-modality: 0.71 clears face (0.70) but not voice (0.72)
+    assert plan.is_accept(0.71, modality="face") is True
+    assert plan.is_accept(0.71, modality="voice") is False
 
 
-def test_escalation_never_stops_below_min_modalities():
+def test_ladder_escalates_on_low_score():
     pol = EscalationPolicy()
     plan = EscalationPlan(
         order=("voice", "face", "finger"),
-        min_modalities=2,
-        mandatory_full=False,
-        mandatory_finger=False,
+        accept_bar=0.70,
+        accept_bars={"voice": 0.72, "face": 0.70, "finger": 0.70},
     )
-    assert (
-        pol.should_stop(
-            plan=plan,
-            trust=0.99,
-            confidence=0.99,
-            n_confident=1,
-            trust_bar=0.75,
-            conf_floor=0.55,
-        )
-        is False
-    )
+    assert pol.should_accept(plan=plan, score=0.40, modality="voice") is False
+    assert plan.next_modality(["voice"], {"voice": True, "face": True, "finger": True}) == "face"
 
 
-def test_escalation_high_value_forces_full_set():
+def test_ladder_same_shape_on_high_value():
+    """High-value does not force full-set / OTP — same Voice→Face→Finger ladder."""
     pol = EscalationPolicy()
     plan = pol.plan(
         tier="high_value",
         risk=0.1,
-        fraud_rigor={"min_modalities": 1},
+        fraud_rigor={"min_modalities": 1, "trust_margin": 0.0},
         profile_mature=True,
         fingerprint_available=True,
     )
-    assert plan.mandatory_full is True
+    assert plan.order == ("voice", "face", "finger")
+    assert plan.reason == "voice_face_finger_ladder"
+    assert plan.bar_for("voice") == plan.accept_bars["voice"]
+    assert plan.bar_for("face") == plan.accept_bars["face"]
 
 
 def test_profile_maturity_needs_history_and_recency():

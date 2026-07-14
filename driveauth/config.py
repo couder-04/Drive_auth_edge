@@ -141,6 +141,13 @@ TRUST_W_VOICE = _as_float(_P["trust"]["weights"]["voice"])
 TRUST_W_FACE = _as_float(_P["trust"]["weights"]["face"])
 TRUST_W_FINGER = _as_float(_P["trust"]["weights"]["finger"])
 
+# Modality score bars for Voice → Face → Finger ladder Accept.
+_LADDER = _P.get("ladder", {}) or {}
+LADDER_ACCEPT = _as_float(_LADDER.get("accept", TRUST_ACCEPT_MICRO))
+LADDER_ACCEPT_VOICE = _as_float(_LADDER.get("accept_voice", LADDER_ACCEPT))
+LADDER_ACCEPT_FACE = _as_float(_LADDER.get("accept_face", LADDER_ACCEPT))
+LADDER_ACCEPT_FINGER = _as_float(_LADDER.get("accept_finger", LADDER_ACCEPT))
+
 CONF_FLOOR = _as_float(_P["confidence"]["floor"])
 CONF_DISAGREE_SPREAD = _as_float(_P["confidence"]["disagreement_spread"])
 CONF_SINGLE_AGREE = _as_float(_P["confidence"]["single_modality_agreement"])

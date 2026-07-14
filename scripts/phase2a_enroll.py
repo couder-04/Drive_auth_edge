@@ -18,86 +18,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from driveauth.matchers.face import FaceMatcher  # noqa: E402
-from driveauth.matchers.voice import VoiceMatcher  # noqa: E402
-from driveauth.ood_detector import OODDetector  # noqa: E402
-from driveauth.template_store import ensure_key, save_embedding  # noqa: E402
-
-
-def _load_wav(path: Path, sr: int = 16_000) -> np.ndarray:
-    try:
-        import wave
-
-        with wave.open(str(path), "rb") as w:
-            assert w.getnchannels() in (1, 2)
-            frames = w.readframes(w.getnframes())
-            audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
-            if w.getnchannels() == 2:
-                audio = audio.reshape(-1, 2).mean(axis=1)
-            if w.getframerate() != sr:
-                # crude resample
-                ratio = sr / w.getframerate()
-                idx = (np.arange(int(len(audio) * ratio)) / ratio).astype(int)
-                idx = np.clip(idx, 0, len(audio) - 1)
-                audio = audio[idx]
-            return audio.astype(np.float32)
-    except Exception:
-        import soundfile as sf  # type: ignore
-
-        audio, file_sr = sf.read(str(path), dtype="float32")
-        if audio.ndim > 1:
-            audio = audio.mean(axis=1)
-        if file_sr != sr:
-            ratio = sr / file_sr
-            idx = (np.arange(int(len(audio) * ratio)) / ratio).astype(int)
-            idx = np.clip(idx, 0, len(audio) - 1)
-            audio = audio[idx]
-        return audio.astype(np.float32)
-
-
-def _mean_embed_voice(store: Path, wavs: list[Path], driver_id: str) -> np.ndarray:
-    vm = VoiceMatcher.load(str(store / "enroll"), driver_id, store_dir=str(store))
-    if vm._model is None:
-        raise RuntimeError("ECAPA not loaded — run phase2a_setup.py first")
-    embs = []
-    for p in wavs:
-        audio = _load_wav(p)
-        emb = vm.embed(audio)
-        if emb is not None:
-            embs.append(emb)
-            print(f"  voice ok: {p.name}")
-        else:
-            print(f"  voice skip: {p.name}")
-    if not embs:
-        raise RuntimeError("no voice embeddings produced")
-    mean = np.mean(np.stack(embs), axis=0).astype(np.float32)
-    save_embedding(store, f"voices/{driver_id}.enc", mean)
-    return mean
-
-
-def _mean_embed_face(store: Path, images: list[Path], driver_id: str) -> np.ndarray:
-    import cv2  # type: ignore
-
-    fm = FaceMatcher.load(str(store), driver_id)
-    if fm._session is None:
-        raise RuntimeError("Face ONNX not loaded — run phase2a_setup.py first")
-    embs = []
-    for p in images:
-        bgr = cv2.imread(str(p))
-        if bgr is None:
-            print(f"  face skip (unreadable): {p.name}")
-            continue
-        emb = fm.embed_bgr(bgr)
-        if emb is not None:
-            embs.append(emb)
-            print(f"  face ok: {p.name}")
-        else:
-            print(f"  face skip: {p.name}")
-    if not embs:
-        raise RuntimeError("no face embeddings produced")
-    mean = np.mean(np.stack(embs), axis=0).astype(np.float32)
-    save_embedding(store, f"faces/{driver_id}.enc", mean)
-    return mean
+from driveauth.enrollment import (  # noqa: E402
+    enroll_driver,
+    list_enroll_images,
+    list_enroll_wavs,
+)
+from driveauth.template_store import ensure_key  # noqa: E402
 
 
 def _synthetic_voice_wavs(data_dir: Path, n: int = 5) -> list[Path]:
@@ -134,7 +60,6 @@ def _synthetic_face_images(data_dir: Path, n: int = 5) -> list[Path]:
     for i in range(n):
         path = out_dir / f"synth_enroll_{i:02d}.jpg"
         img = np.full((240, 240, 3), 40, dtype=np.uint8)
-        # crude oval "face" so cascade/center-crop has structure
         cv2.ellipse(img, (120, 120), (70, 90), 0, 0, 360, (180, 160, 140), -1)
         cv2.circle(img, (95, 100), 8, (20, 20, 20), -1)
         cv2.circle(img, (145, 100), 8, (20, 20, 20), -1)
@@ -154,7 +79,7 @@ def main() -> None:
     parser.add_argument(
         "--synthetic",
         action="store_true",
-        help="Generate synthetic enroll samples if folders are empty (smoke test)",
+        help="ONLY for smoke tests: generate blob face/voice samples if folders are empty",
     )
     args = parser.parse_args()
 
@@ -162,56 +87,48 @@ def main() -> None:
     data = Path(args.data)
     ensure_key(store)
 
-    voice_dir = data / "voice" / "enroll"
-    face_dir = data / "face" / "enroll"
-    wavs = sorted(
-        list(voice_dir.glob("*.wav"))
-        + list(voice_dir.glob("*.flac"))
-        + list(voice_dir.glob("*.mp3"))
-    )
-    images = sorted(
-        list(face_dir.glob("*.jpg"))
-        + list(face_dir.glob("*.jpeg"))
-        + list(face_dir.glob("*.png"))
-    )
+    wavs = list_enroll_wavs(data)
+    images = list_enroll_images(data)
 
-    if args.synthetic or not wavs:
+    if args.synthetic:
         if not wavs:
-            print("No voice enroll WAVs — generating synthetic samples")
+            print("No voice enroll WAVs — generating synthetic samples (--synthetic)")
             wavs = _synthetic_voice_wavs(data)
-    if args.synthetic or not images:
         if not images:
-            print("No face enroll images — generating synthetic samples")
+            print("No face enroll images — generating synthetic samples (--synthetic)")
             images = _synthetic_face_images(data)
+    else:
+        missing: list[str] = []
+        if not wavs:
+            missing.append(f"voice WAVs in {data / 'voice' / 'enroll'}")
+        if not images:
+            missing.append(f"face images in {data / 'face' / 'enroll'}")
+        if missing:
+            print("Missing enroll samples (refusing to invent synthetic data):")
+            for item in missing:
+                print(f"  - {item}")
+            print(
+                "\nCapture real samples via the dashboard register UI "
+                "(driveauth-dashboard → /register), or pass --synthetic for a smoke test only."
+            )
+            raise SystemExit(1)
 
-    print("Enrolling voice from", len(wavs), "files")
-    v_emb = _mean_embed_voice(store, wavs, args.driver_id)
-    print("Enrolling face from", len(images), "files")
-    f_emb = _mean_embed_face(store, images, args.driver_id)
+        # Refuse to enroll leftover smoke-test blobs as if they were a real identity.
+        synth_faces = [p for p in images if p.name.startswith("synth_")]
+        synth_wavs = [p for p in wavs if p.name.startswith("synth_")]
+        if synth_faces or synth_wavs:
+            print("Found synthetic enroll files — remove them before real enrollment:")
+            for path in synth_faces + synth_wavs:
+                print(f"  - {path}")
+            print("\nOr re-run with --synthetic if you truly want a smoke-test template.")
+            raise SystemExit(1)
 
-    OODDetector.seed_baselines(
-        str(store),
-        args.driver_id,
-        voice_dim=int(v_emb.shape[0]),
-        face_dim=int(f_emb.shape[0]),
-        finger_dim=64,
-    )
-    # Overwrite means with real enrollment embeddings for tighter OOD later
-    ood_dir = store / "ood_stats"
-    np.savez(
-        ood_dir / f"voice_{args.driver_id}.npz",
-        mean=v_emb,
-        std=np.ones_like(v_emb) * 0.5,
-    )
-    np.savez(
-        ood_dir / f"face_{args.driver_id}.npz",
-        mean=f_emb,
-        std=np.ones_like(f_emb) * 0.5,
-    )
-
+    print("Enrolling voice from", len(list_enroll_wavs(data)), "files")
+    print("Enrolling face from", len(list_enroll_images(data)), "files")
+    result = enroll_driver(store, data, args.driver_id, require_minimums=False)
     print("\nEnrollment complete:")
-    print(f"  {store}/voices/{args.driver_id}.enc")
-    print(f"  {store}/faces/{args.driver_id}.enc")
+    print(f"  {store}/{result['voice_template']}")
+    print(f"  {store}/{result['face_template']}")
     print("  OOD baselines updated")
     print(f"\nNext: python scripts/phase2a_demo.py --store {store}")
 

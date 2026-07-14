@@ -1,0 +1,2 @@
+OOD voice: macOS say TTS stand-ins (Ralph/Kathy/Zarvox/Trinoids/Whisper)
+Generated Stage 1 — real OOD where possible (2026-07-15)

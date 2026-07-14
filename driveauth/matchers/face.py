@@ -3,16 +3,22 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from pathlib import Path
 
 import numpy as np
 
 from driveauth import config
+from driveauth.matchers.face_pad_features import extract_face_pad_features
+from driveauth.matchers.onnx_head import OnnxLogitHead
 from driveauth.template_store import load_embedding
 from driveauth.types import ModalityResult
 
 logger = logging.getLogger("driveauth.matchers.face")
+
+# Bonafide probability below this → PAD reject (overridable via env).
+_DEFAULT_PAD_THRESHOLD = 0.45
 
 
 def _ort_providers() -> list[str]:
@@ -108,16 +114,33 @@ class FaceMatcher:
     _FACE_SIZE = (112, 112)
     _MIN_FACE_FRAC = config.FACE_MIN_FRAC
 
-    def __init__(self, session, driver_embedding: np.ndarray | None):
+    def __init__(
+        self,
+        session,
+        driver_embedding: np.ndarray | None,
+        *,
+        pad_head: OnnxLogitHead | None = None,
+        calibrator: OnnxLogitHead | None = None,
+        pad_threshold: float = _DEFAULT_PAD_THRESHOLD,
+    ):
         self._session = session
         self._emb = driver_embedding
         self._cam_idx = config.IR_CAMERA_INDEX
         self._inject_bgr: np.ndarray | None = None
         self._last_meta: dict = {}
+        self._pad = pad_head
+        self._calibrator = calibrator
+        self._pad_threshold = pad_threshold
+        self.last_pad_score: float | None = None
+        self.last_pad_reject: bool = False
 
     @property
     def ready(self) -> bool:
         return self._session is not None and self._emb is not None
+
+    @property
+    def has_pad(self) -> bool:
+        return self._pad is not None
 
     def inject_bgr(self, frame_bgr: np.ndarray | None) -> None:
         """Phase 2a / Mac: feed a still frame instead of the live camera."""
@@ -147,7 +170,58 @@ class FaceMatcher:
         if driver_embedding is not None:
             logger.info("FaceMatcher: template loaded for %s", driver_id)
 
-        return cls(session, driver_embedding)
+        pad_head = None
+        calibrator = None
+        pad_thr = _DEFAULT_PAD_THRESHOLD
+        if os.getenv("DRIVEAUTH_STAGE2_RAW", "").strip() not in ("1", "true", "yes"):
+            pad_head = OnnxLogitHead.load(store / "face_pad.onnx")
+            calibrator = OnnxLogitHead.load(store / "face_calibrator.onnx")
+            thr_env = os.getenv("DRIVEAUTH_FACE_PAD_THRESHOLD", "").strip()
+            if thr_env:
+                try:
+                    pad_thr = float(thr_env)
+                except ValueError:
+                    pass
+            meta_path = store / "face_pad.json"
+            if meta_path.exists() and not thr_env:
+                try:
+                    import json
+
+                    meta = json.loads(meta_path.read_text())
+                    if "threshold" in meta:
+                        pad_thr = float(meta["threshold"])
+                except Exception:
+                    pass
+            if pad_head is not None:
+                logger.info("FaceMatcher: Stage-2 PAD loaded (thr=%.3f)", pad_thr)
+            if calibrator is not None:
+                logger.info("FaceMatcher: Stage-2 face calibrator loaded")
+
+        return cls(
+            session,
+            driver_embedding,
+            pad_head=pad_head,
+            calibrator=calibrator,
+            pad_threshold=pad_thr,
+        )
+
+    def _run_pad(self, crop_bgr: np.ndarray) -> tuple[bool, float]:
+        """Return (pass, bonafide_proba). pass=True when no PAD or score≥thr."""
+        self.last_pad_score = None
+        self.last_pad_reject = False
+        if self._pad is None:
+            return True, 1.0
+        meta = self._last_meta or {}
+        feats = extract_face_pad_features(
+            crop_bgr,
+            face_frac=meta.get("face_frac"),
+            frontal_ok=meta.get("frontal_ok"),
+        )
+        proba = float(self._pad.predict_proba(feats))
+        self.last_pad_score = proba
+        ok = proba >= self._pad_threshold
+        self.last_pad_reject = not ok
+        return ok, proba
 
     def embed_bgr(self, frame_bgr: np.ndarray) -> np.ndarray | None:
         if self._session is None or frame_bgr is None:
@@ -224,12 +298,29 @@ class FaceMatcher:
                 return ModalityResult(
                     score=None, confident=False, quality=0.2, available=False
                 )
+            pad_ok, pad_p = self._run_pad(crop)
+            if not pad_ok:
+                lat = (time.perf_counter() - t0) * 1000
+                return ModalityResult(
+                    score=None,
+                    confident=False,
+                    latency_ms=lat,
+                    quality=float(pad_p),
+                    available=True,
+                )
             emb = self._embed_crop_bgr(crop)
             if emb is None or self._emb is None:
                 return ModalityResult(score=None, confident=False, available=False)
             sim = float(np.clip(float(np.dot(self._emb, emb)), 0.0, 1.0))
+            score = sim
+            if self._calibrator is not None:
+                feats = np.array(
+                    [sim, pad_p, float((self._last_meta or {}).get("face_frac") or 1.0)],
+                    dtype=np.float32,
+                )
+                score = float(np.clip(self._calibrator.predict_proba(feats), 0.0, 1.0))
             lat = (time.perf_counter() - t0) * 1000
-            return ModalityResult(sim, True, latency_ms=lat, embedding=emb)
+            return ModalityResult(score, True, latency_ms=lat, embedding=emb)
         except Exception as exc:
             logger.error("FaceMatcher.capture_and_score: %s", exc)
             return ModalityResult(score=None, confident=False, available=False)
@@ -284,12 +375,29 @@ class FaceMatcher:
             bgr = meta.get("bgr")
             if bgr is None:
                 return ModalityResult(score=None, confident=False, available=False)
+            pad_ok, pad_p = self._run_pad(bgr)
+            if not pad_ok:
+                lat = (time.perf_counter() - t0) * 1000
+                return ModalityResult(
+                    score=None,
+                    confident=False,
+                    latency_ms=lat,
+                    quality=float(pad_p),
+                    available=True,
+                )
             emb = self._embed_crop_bgr(bgr)
             if emb is None or self._emb is None:
                 return ModalityResult(score=None, confident=False, available=False)
             sim = float(np.clip(float(np.dot(self._emb, emb)), 0.0, 1.0))
+            score = sim
+            if self._calibrator is not None:
+                feats = np.array(
+                    [sim, pad_p, float(meta.get("face_frac") or 1.0)],
+                    dtype=np.float32,
+                )
+                score = float(np.clip(self._calibrator.predict_proba(feats), 0.0, 1.0))
             lat = (time.perf_counter() - t0) * 1000
-            return ModalityResult(sim, True, latency_ms=lat, embedding=emb)
+            return ModalityResult(score, True, latency_ms=lat, embedding=emb)
         except Exception as exc:
             logger.error("FaceMatcher.score_frame: %s", exc)
             return ModalityResult(score=None, confident=False, available=False)

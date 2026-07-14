@@ -174,7 +174,7 @@ python scripts/phase2a_demo.py --store ./driveauth_store_phase2a --bench 20
 | Voice | Enrollment, genuine, replay, synthetic voice, noisy cabin, highway, tunnel, silent audio |
 | Face | Day, night, IR, sunglasses, mask, blur, side pose, replay attack |
 | Fingerprint | Genuine, wrong finger, partial, wet, dry, spoof |
-| Behavioral | CAN logs — steering, brake, throttle, speed, acceleration |
+| Behavioral | CAN/IMU — steering angle+rate, throttle, brake pedal, long/lat accel, yaw, speed |
 | Transaction | Amount, beneficiary, time, GPS, fraud labels |
 | OOD | Unknown speakers, unknown faces, unknown fingerprints, strange lighting, audio attacks |
 
@@ -215,7 +215,7 @@ python scripts/phase2a_demo.py --store ./driveauth_store_phase2a --bench 20
 ---
 
 ## Phase 6 — Benchmarking
-**Priority: ⭐⭐⭐⭐**
+**Priority: ⭐⭐⭐⭐** · **Status: ✅ Done (2026-07-15)** — see `phases/phase6.md`
 
 | Category | Metrics |
 |---|---|
@@ -226,6 +226,8 @@ python scripts/phase2a_demo.py --store ./driveauth_store_phase2a --bench 20
 | Whole system | End-to-end latency, throughput, CPU, GPU, memory, power |
 
 **Compare against:** OTP-only, face-only, voice-only, finger-only, static MFA, and the adaptive staged pipeline itself — the right set; it's what turns "staged escalation" from an architectural claim into an empirical result.
+
+**Artifacts:** `scripts/phase6_benchmark.py` → `phases/phase6_sprint6.json` + `phases/phase6.md`.
 
 ---
 

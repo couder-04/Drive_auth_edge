@@ -33,6 +33,17 @@ trust:
     face: ${DRIVEAUTH_TRUST_W_FACE:0.40}
     finger: ${DRIVEAUTH_TRUST_W_FINGER:0.30}
 
+# Biometric ladder: high modality score → ACCEPT; else escalate; final miss → REJECT.
+# Per-modality bars from phases/phase2b_calibration.json (2026-07-15):
+#   voice 0.72 — lowest thr with FAR=0 on enroll/genuine vs attack (0.70 leaked 1/12 replay)
+#   face  0.70 — keep strict; genuine/attack fully overlap (EER≈0.40); no safe lower bar
+#   finger 0.70 — last-resort match OK (mock until FingerNet + HW); same bar as face
+ladder:
+  accept: ${DRIVEAUTH_LADDER_ACCEPT:0.70}
+  accept_voice: ${DRIVEAUTH_LADDER_ACCEPT_VOICE:0.72}
+  accept_face: ${DRIVEAUTH_LADDER_ACCEPT_FACE:0.70}
+  accept_finger: ${DRIVEAUTH_LADDER_ACCEPT_FINGER:0.70}
+
 confidence:
   floor: ${DRIVEAUTH_CONF_FLOOR:0.55}
   # ConfidenceScorer internals (fusion.py)
@@ -100,6 +111,7 @@ hardware:
   finger_socket: ${DRIVEAUTH_FINGER_SOCKET:/tmp/driveauth_finger.sock}
 
 escalation:
+  # Voice → Face → Finger ladder (Accept on high score; Reject if ladder exhausted).
   enabled: ${DRIVEAUTH_ESCALATION_ENABLED:1}
   constant_time_ms: ${DRIVEAUTH_ESCALATION_CONSTANT_TIME_MS:0.0}
 

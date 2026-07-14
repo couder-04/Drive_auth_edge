@@ -17,7 +17,7 @@ voice = ["torch>=2.0", "speechbrain>=1.0"]
 face = ["opencv-python>=4.8", "onnxruntime>=1.17"]
 orchestrator = ["onnxruntime>=1.17", "llama-cpp-python>=0.2"]
 dev = ["pytest>=8.0", "ruff>=0.15"]
-dashboard = ["fastapi>=0.115", "uvicorn[standard]>=0.32"]
+dashboard = ["fastapi>=0.115", "uvicorn[standard]>=0.32", "python-multipart>=0.0.9"]
 all = ["driveauth-edge[onnx,voice,face,orchestrator,dev,dashboard,train]"]
 
 [project.scripts]

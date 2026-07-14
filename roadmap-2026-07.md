@@ -12,13 +12,13 @@ to do next.
 |---|---|---|
 | 0. Architecture & software | ✅ done | +10 pipeline fixes; geo API live; dashboard Nova I/O contract |
 | 1. Edge deployment (Thor) | ✅ **done** | Mac 1a + Thor 1b mock; p95 ≤ 10 ms; see `phases/phase1.md` |
-| 2a. Off-the-shelf model swap-ins | 🟡 **3 of 6** | risk ✅ · voice ECAPA enrolled ✅ · face MobileFaceNet enrolled ✅ · finger / behavioral / trust-fusion still mock |
+| 2a. Off-the-shelf model swap-ins | 🟡 **5 of 6 software** | risk ✅ · voice ✅ · face ✅ · behavioral synth ✅ · trust fusion **static (locked)** · real OOD voice+face ✅ · finger still HW |
 | 2b. Fine-tuned models | ⏳ gated | voice+face data exists; prefer same-person face before fine-tune |
 | 3. Dataset collection | 🟡 **synth/min sets done** | txns 50k ✅ · voice ✅ · face (RDJ) ✅ · finger/beh/ood synth ✅ · real HW + own-face pending |
 | 4. Training | 🟡 partial | risk head trained (val AUC 0.9955); bio thresholds calibrated (not applied) |
-| 5. Testing & validation | 🟡 partial | ~98 tests; overfit audit; score_provider; timing + OOD-drift ✅ |
+| 5. Testing & validation | ✅ done | **155** tests; timing + OOD + real-model failures; re-baseline guards |
 | 6. Benchmarking | ⏳ not started | unchanged |
-| 7. GitHub & documentation | 🟡 partial | README + demo GIF ✅; security assumptions / posts open |
+| 7. GitHub & documentation | ✅ done | README + demo GIF + security assumptions + [`docs/public-posts.md`](docs/public-posts.md) drafts ✅; publish URLs open |
 | 8. Publications & demo | ⏳ not started | unchanged |
 
 ## What was actually shipped
@@ -38,8 +38,9 @@ manually until telematics is integrated.
 | Voice ECAPA-TDNN (SpeechBrain) | ✅ pretrained loaded; enrolled from `data/driver1/voice` |
 | Face MobileFaceNet ONNX | ✅ pretrained loaded; enrolled from RDJ face set |
 | Finger | ⏳ mock + `ManualScores` until sensor SDK |
-| Behavioral | ⏳ mock + CAN synth CSVs until recorder |
-| Trust fusion | ⏳ static weights (logreg is Phase 2b/4) |
+| Behavioral | ✅ synth bake-off (LSTM ≥ GRU/GBM) → `behavioral_model.onnx`; **re-bake on real CAN** |
+| Trust fusion | ✅ **static locked for Stage 1** (logreg is Stage 2 / Phase 2b–4) |
+| OOD negatives | ✅ voice TTS + face other-id evaluated (`phases/phase2a_ood_eval.json`); finger OOD synth |
 
 Enrollment / demo:
 
@@ -71,14 +72,17 @@ accept bars until own-face re-enroll).
 - Manual column covers biometric scores, GPS, speed/ignition/tunnel
 - Contract also documented in `docs/integration.md`
 
-### Phase 5 — testing (partial)
+### Phase 5 — testing (complete)
 
-- ✅ Unit/integration suite (~98) including fail-closed + cache invalidation
+- ✅ Unit/integration suite (**155**) including fail-closed + cache invalidation
 - ✅ Overfit audit for risk head
 - ✅ `tests/test_score_provider.py`
 - ✅ Timing side-channel test (`tests/test_security_sprint1.py`)
 - ✅ OOD-drift attack simulation (`tests/test_security_sprint1.py`)
-- ⏳ Real-model failure-mode extensions
+- ✅ Real-model failure modes (`tests/test_phase5_failure_modes.py`)
+- ✅ Threshold re-baseline vs real-model distributions
+  (`tests/test_phase5_thresholds.py` · `phases/phase5.md`)
+  — shipped policy stays conservative; do not apply `phase2b_suggested.env`
 
 ### Phase 1 — Edge (complete)
 
@@ -158,15 +162,17 @@ benchmarks → docs → paper. See tables below; triggers stay the same.
 | Behavioral bake-off | real CAN (synth is stand-in only) |
 | Trust fusion logreg | labeled auth outcomes |
 
-#### Sprint 5 — testing + calibration
+#### Sprint 5 — testing + calibration ✅
 
 Threshold re-baselining on real-model distributions; real-model failure
-modes; fuller integration suite. Target 150+ tests.
+modes; fuller integration suite. **155 tests** — see `phases/phase5.md`.
 
-#### Sprint 6 — benchmarking
+#### Sprint 6 — benchmarking ✅
 
 FAR/FRR/EER, PAD, risk metrics, latency; vs OTP-only / static MFA /
-single-modality / staged pipeline.
+single-modality / staged pipeline. **Exit met** —
+`phases/phase6_sprint6.json` + `phases/phase6.md`
+(`scripts/phase6_benchmark.py`).
 
 #### Sprint 7–8 — docs & publications
 
@@ -204,12 +210,31 @@ identity changes (e.g. RDJ → self).
 | 2b. Fine-tuned models | Domain fine-tunes improve FAR/FRR vs 2a baseline |
 | 3. Dataset collection | Same-person enroll+genuine+≥1 attack per modality; HW replaces synth where possible |
 | 4. Training | Models ONNX-exported; overfit audits pass |
-| 5. Testing | 150+ tests; timing + OOD-drift + real-model failures covered |
-| 6. Benchmarking | Sprint 6 table populated + ablations |
-| 7. Documentation | Public README + contract docs + demo GIF + posts |
+| 5. Testing | ✅ **155** tests; timing + OOD-drift + real-model failures (`phases/phase5.md`) |
+| 6. Benchmarking | ✅ Sprint 6 table + ablations (`phases/phase6.md`) |
+| 7. Documentation | Public README + contract docs + demo GIF + security assumptions + public-posts drafts ✅; publish URLs open |
 | 8. Publications | Paper submitted; demo video published |
 
 ## Changelog
+
+**July 2026 (Stage 6 / Phase 7)** — Security assumptions writeup
+(`docs/security-assumptions.md`): threat model, architectural invariants,
+non-claims (synth CAN / mock finger / opt-in timing pad), integrator
+checklist; README docs index + status row linked. Public posts still open.
+
+**July 2026 (Stage 4 / Phase 6)** — Sprint 6 benchmarking: FAR/FRR/EER/ROC,
+PAD APCER/BPCER, risk P/R/F1/AUC, latency (Mac+Thor), vs OTP / static MFA /
+single-modality / staged + early-stop ablations → `phases/phase6.md`.
+
+**July 2026 (Stage 3 / Phase 5)** — Testing exit: **155** tests; threshold
+re-baseline guards vs `phase2b_calibration.json`; real-model failure modes
+(timeout/crash/missing sensors) with `DecisionEngine` probe timeout + crash
+fail-closed; record in `phases/phase5.md`.
+
+**July 2026 (mid++ / Stage 1)** — Phase 2a software close-out: own-face
+enrolled; real OOD voice (TTS) + face other-id set scored via
+`scripts/eval_ood_negatives.py` → `phases/phase2a_ood_eval.json`; trust
+fusion stays static; finger + real CAN remain HW-gated.
 
 **July 2026 (mid+)** — Phase 1 closed: Mac 1a + Thor 1b mock profiles,
 `phases/phase1.md` latency budget (p95 ≤ 10 ms), checklist restored in

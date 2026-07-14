@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 import numpy as np
 
 from driveauth import config
+from driveauth.matchers.onnx_head import OnnxLogitHead
 from driveauth.types import ModalityResult, QualityFlags, clip01
 
 logger = logging.getLogger("driveauth.fusion")
@@ -17,12 +19,51 @@ _STATIC_W = {
     "finger": config.TRUST_W_FINGER,
 }
 
+TRUST_FUSION_FEATURE_KEYS = (
+    "voice_score",
+    "face_score",
+    "finger_score",
+    "voice_q",
+    "face_q",
+    "finger_q",
+    "voice_avail",
+    "face_avail",
+    "finger_avail",
+)
+
 
 class TrustFusion:
-    """Biometric-only weighted fusion → Trust Score in [0, 1]."""
+    """Biometric Trust Score in [0, 1].
 
-    def __init__(self, orchestrator=None):
+    Stage 2: prefer ``trust_fusion.onnx`` (logreg) when present; otherwise
+    static policy weights (Phase 2a / Stage 1 path).
+    """
+
+    def __init__(
+        self,
+        orchestrator=None,
+        logreg: OnnxLogitHead | None = None,
+    ):
         self._orch = orchestrator
+        self._logreg = logreg
+        self.last_mode: str = "static"
+
+    @classmethod
+    def load(
+        cls,
+        store_dir: str | Path | None = None,
+        orchestrator=None,
+    ) -> TrustFusion:
+        logreg = None
+        if store_dir is not None:
+            logreg = OnnxLogitHead.load(Path(store_dir) / "trust_fusion.onnx")
+            if logreg is not None:
+                logger.info("TrustFusion: Stage-2 logreg ONNX loaded")
+        return cls(orchestrator=orchestrator, logreg=logreg)
+
+    @property
+    def mode(self) -> str:
+        return "logreg" if self._logreg is not None else "static"
 
     def _weights(self, ctx=None) -> dict[str, float]:
         if self._orch is not None and ctx is not None:
@@ -42,13 +83,14 @@ class TrustFusion:
                 )
         return dict(_STATIC_W)
 
-    def fuse(
+    def _fuse_static(
         self,
         voice: ModalityResult,
         face: ModalityResult,
         finger: ModalityResult,
         orch_ctx=None,
     ) -> tuple[float, dict[str, float]]:
+        self.last_mode = "static"
         base_w = self._weights(orch_ctx)
         candidates: dict[str, tuple[float, float]] = {}
 
@@ -75,6 +117,70 @@ class TrustFusion:
             eff[name] = ew
             fused += ew * score
         return clip01(fused), eff
+
+    def _fuse_logreg(
+        self,
+        voice: ModalityResult,
+        face: ModalityResult,
+        finger: ModalityResult,
+    ) -> tuple[float, dict[str, float]]:
+        assert self._logreg is not None
+        self.last_mode = "logreg"
+
+        def _pack(res: ModalityResult) -> tuple[float, float, float]:
+            avail = (
+                1.0
+                if (
+                    res.score is not None
+                    and res.confident
+                    and res.available
+                )
+                else 0.0
+            )
+            score = float(res.score) if avail else 0.0
+            q = float(res.quality) if avail else 0.0
+            return score, q, avail
+
+        vs, vq, va = _pack(voice)
+        fs, fq, fa = _pack(face)
+        fis, fiq, fia = _pack(finger)
+        if va + fa + fia <= 0:
+            return 0.0, {}
+
+        feats = np.array(
+            [vs, fs, fis, vq, fq, fiq, va, fa, fia], dtype=np.float32
+        )
+        trust = clip01(self._logreg.predict_proba(feats))
+        # Effective weights: relative contribution of available modalities
+        # (audit-friendly; not logreg coefficients).
+        present = {
+            k: s
+            for k, s, a in (
+                ("voice", vs, va),
+                ("face", fs, fa),
+                ("finger", fis, fia),
+            )
+            if a > 0
+        }
+        total = sum(present.values()) or 1.0
+        eff = {k: v / total for k, v in present.items()}
+        return trust, eff
+
+    def fuse(
+        self,
+        voice: ModalityResult,
+        face: ModalityResult,
+        finger: ModalityResult,
+        orch_ctx=None,
+    ) -> tuple[float, dict[str, float]]:
+        if self._logreg is not None:
+            try:
+                return self._fuse_logreg(voice, face, finger)
+            except Exception as exc:
+                logger.warning(
+                    "TrustFusion: logreg failed (%s) — static fallback", exc
+                )
+        return self._fuse_static(voice, face, finger, orch_ctx)
 
 
 class ConfidenceScorer:
