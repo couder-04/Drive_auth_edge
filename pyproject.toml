@@ -15,7 +15,7 @@ onnx = ["onnxruntime>=1.17"]
 train = ["lightgbm>=4.0", "onnxmltools>=1.12", "onnx>=1.15", "scikit-learn>=1.4", "skl2onnx>=1.16"]
 voice = ["torch>=2.0", "speechbrain>=1.0"]
 face = ["opencv-python>=4.8", "onnxruntime>=1.17"]
-orchestrator = ["onnxruntime>=1.17", "llama-cpp-python>=0.2"]
+orchestrator = ["onnxruntime>=1.17"]
 dev = ["pytest>=8.0", "ruff>=0.15"]
 dashboard = [
     "fastapi>=0.115",

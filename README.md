@@ -14,7 +14,7 @@ Trust/Risk-separated biometric authorization for in-vehicle payments and sensiti
 > | Face | OpenCV + ONNX Runtime (MobileFaceNet / ArcFace) |
 > | Finger / behavior | ONNX (FingerNet-lite, behavioral LSTM) |
 > | Risk / fusion / PAD | LightGBM → ONNX · scikit-learn / logreg → ONNX |
-> | Orchestrator | optional llama-cpp-python + PolicyMLP ONNX |
+> | Orchestrator | PolicyMLP ONNX (static trust weights if absent) |
 > | Train / export | LightGBM, scikit-learn, onnxmltools, skl2onnx, onnx |
 > | Dev | pytest, ruff |
 >

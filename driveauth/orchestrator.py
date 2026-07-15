@@ -1,4 +1,4 @@
-"""Optional dynamic trust-weight orchestrator (PolicyMLP + SmolLM2)."""
+"""Optional dynamic trust-weight orchestrator (PolicyMLP ONNX)."""
 
 from __future__ import annotations
 
