@@ -300,6 +300,7 @@ def list_registered_drivers(
                 "home_set": st["home_set"],
                 "home_lat": st["home_lat"],
                 "home_lon": st["home_lon"],
+                "locked": st["locked"],
             }
         )
     return rows
@@ -329,6 +330,11 @@ def enrollment_status(
     samples_ready = (
         len(images) >= MIN_FACE_ENROLL and len(wavs) >= MIN_VOICE_ENROLL
     )
+    templates = {
+        "voice": (store / "voices" / f"{driver_id}.enc").exists(),
+        "face": (store / "faces" / f"{driver_id}.enc").exists(),
+    }
+    locked = bool(templates["voice"] and templates["face"])
     return {
         "driver_id": driver_id,
         "data_dir": str(root),
@@ -344,13 +350,12 @@ def enrollment_status(
         "home_lon": home_lon,
         "home_n": home_n,
         "home_set": home_set,
-        "ready_to_register": samples_ready and home_set,
+        # Enrolled drivers cannot be re-captured / cleared from /register.
+        "locked": locked,
+        "ready_to_register": (not locked) and samples_ready and home_set,
         "face_model_present": face_model,
         "voice_model_present": voice_model,
-        "templates": {
-            "voice": (store / "voices" / f"{driver_id}.enc").exists(),
-            "face": (store / "faces" / f"{driver_id}.enc").exists(),
-        },
+        "templates": templates,
     }
 
 

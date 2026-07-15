@@ -496,17 +496,35 @@ def register_status(driver_id: str = "driver2") -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _assert_register_writable(driver_id: str) -> None:
+    """Block mutate APIs once voice+face templates are enrolled."""
+    st = enrollment_status(_data_root(), _register_store(), driver_id)
+    if st.get("locked"):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"{driver_id} is enrolled and locked — start a new Driver ID "
+                "or continue a capturing (not enrolled) driver"
+            ),
+        )
+
+
 @app.post("/api/register/init")
 def register_init(req: RegisterDriverRequest) -> dict[str, Any]:
     try:
-        root = ensure_driver_layout(_data_root(), req.driver_id)
+        driver_id = validate_driver_id(req.driver_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _assert_register_writable(driver_id)
+    try:
+        root = ensure_driver_layout(_data_root(), driver_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
         "status": "ok",
-        "driver_id": validate_driver_id(req.driver_id),
+        "driver_id": driver_id,
         "data_dir": str(root),
-        **enrollment_status(_data_root(), _register_store(), req.driver_id),
+        **enrollment_status(_data_root(), _register_store(), driver_id),
     }
 
 
@@ -516,9 +534,10 @@ async def register_face(
     file: UploadFile = File(...),
 ) -> dict[str, Any]:
     try:
-        validate_driver_id(driver_id)
+        driver_id = validate_driver_id(driver_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _assert_register_writable(driver_id)
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="empty image upload")
@@ -538,9 +557,10 @@ async def register_voice(
     file: UploadFile = File(...),
 ) -> dict[str, Any]:
     try:
-        validate_driver_id(driver_id)
+        driver_id = validate_driver_id(driver_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _assert_register_writable(driver_id)
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="empty audio upload")
@@ -563,6 +583,7 @@ def register_complete(req: RegisterDriverRequest) -> dict[str, Any]:
         driver_id = validate_driver_id(req.driver_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _assert_register_writable(driver_id)
     profile = _profile_for(driver_id)
     home_lat, home_lon, _ = profile.home_coords()
     if home_lat is None or home_lon is None:
@@ -587,6 +608,7 @@ def register_clear(req: RegisterDriverRequest) -> dict[str, Any]:
         driver_id = validate_driver_id(req.driver_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _assert_register_writable(driver_id)
     data_dir = _data_root() / driver_id
     for path in list_enroll_images(data_dir) + list_enroll_wavs(data_dir):
         path.unlink(missing_ok=True)
@@ -648,6 +670,7 @@ def register_home(req: HomeRequest) -> dict[str, Any]:
         driver_id = validate_driver_id(req.driver_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _assert_register_writable(driver_id)
     if not (-90.0 <= req.lat <= 90.0 and -180.0 <= req.lon <= 180.0):
         raise HTTPException(status_code=400, detail="lat/lon out of range")
     profile = _profile_for(driver_id)

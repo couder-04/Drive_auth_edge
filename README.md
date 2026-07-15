@@ -4,6 +4,22 @@ Trust/Risk-separated biometric authorization for in-vehicle payments and sensiti
 
 **Requires Python 3.11+**
 
+> **Tech stack**
+>
+> | Layer | Stack |
+> |-------|--------|
+> | Core | Python 3.11+, NumPy, PyYAML, cryptography · Hatchling |
+> | API / UI | FastAPI, Uvicorn · demo capture: Pillow, Playwright |
+> | Voice | PyTorch + SpeechBrain (ECAPA-TDNN / VoxCeleb) |
+> | Face | OpenCV + ONNX Runtime (MobileFaceNet / ArcFace) |
+> | Finger / behavior | ONNX (FingerNet-lite, behavioral LSTM) |
+> | Risk / fusion / PAD | LightGBM → ONNX · scikit-learn / logreg → ONNX |
+> | Orchestrator | optional llama-cpp-python + PolicyMLP ONNX |
+> | Train / export | LightGBM, scikit-learn, onnxmltools, skl2onnx, onnx |
+> | Dev | pytest, ruff |
+>
+> Policy is deterministic YAML rules (not another ML head). Extras: `.[dashboard]`, `.[voice,face,onnx]`, `.[standalone]`, `.[all]`.
+
 ## Demo
 
 Dashboard presets: **Micro payment → ACCEPT**, **Low voice → Face ACCEPT**, **Low biometrics → REJECT** (Voice → Face → Finger ladder).

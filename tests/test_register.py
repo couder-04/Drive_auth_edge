@@ -115,6 +115,44 @@ def test_register_complete_rejects_without_home(tmp_path: Path, monkeypatch) -> 
     assert "home" in r.json()["detail"].lower()
 
 
+def test_enrolled_driver_is_locked_from_mutation(tmp_path: Path, monkeypatch) -> None:
+    import dashboard.app as app_mod
+    from driveauth.template_store import ensure_key
+
+    store = tmp_path / "store"
+    store.mkdir()
+    ensure_key(store)
+    (store / "faces").mkdir()
+    (store / "voices").mkdir()
+    (store / "faces" / "driverLock.enc").write_bytes(b"x")
+    (store / "voices" / "driverLock.enc").write_bytes(b"x")
+    monkeypatch.setattr(app_mod, "_data_root", lambda: tmp_path)
+    monkeypatch.setattr(app_mod, "_register_store", lambda: store)
+    monkeypatch.setattr(app_mod, "_unified_store", lambda: store)
+
+    client = TestClient(app)
+    st = client.get("/api/register/status", params={"driver_id": "driverLock"})
+    assert st.status_code == 200
+    assert st.json()["locked"] is True
+
+    r = client.post(
+        "/api/register/face",
+        data={"driver_id": "driverLock"},
+        files={"file": ("a.jpg", _tiny_jpeg_bytes(), "image/jpeg")},
+    )
+    assert r.status_code == 403
+    assert "locked" in r.json()["detail"].lower()
+
+    r = client.post("/api/register/clear", json={"driver_id": "driverLock"})
+    assert r.status_code == 403
+
+    r = client.post(
+        "/api/register/home",
+        json={"driver_id": "driverLock", "lat": 12.9, "lon": 77.5},
+    )
+    assert r.status_code == 403
+
+
 def test_register_api_init_and_uploads(tmp_path: Path, monkeypatch) -> None:
     import dashboard.app as app_mod
 

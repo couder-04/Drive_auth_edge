@@ -274,6 +274,45 @@ def render_register() -> str:
       white-space: nowrap;
     }
     .driver-row .status.enrolled { color: var(--ok); border-color: #166534; }
+    .driver-row.locked-row {
+      opacity: 0.78;
+      border-style: dashed;
+    }
+    .driver-row .btn-pick.locked-pick {
+      background: transparent;
+      color: var(--muted);
+    }
+    .panel.edit-locked {
+      position: relative;
+    }
+    .panel.edit-locked::after {
+      content: attr(data-lock);
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 1rem;
+      font-size: 0.85rem;
+      font-weight: 650;
+      color: var(--warn);
+      background: rgba(15, 20, 25, 0.72);
+      border-radius: 12px;
+      pointer-events: none;
+    }
+    #lock_banner {
+      display: none;
+      margin-top: 0.65rem;
+      padding: 0.55rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid #92400e;
+      background: rgba(245, 158, 11, 0.1);
+      color: var(--warn);
+      font-size: 0.85rem;
+    }
+    #lock_banner.on { display: block; }
     .driver-row .status.ready_to_enroll { color: var(--accent); border-color: #1e3a5f; }
     .driver-row .status.need_home,
     .driver-row .status.capturing,
@@ -307,7 +346,8 @@ def render_register() -> str:
     <section class="panel">
       <h3>Registered drivers</h3>
       <p style="color:var(--muted);font-size:0.85rem;margin-bottom:0.35rem">
-        Everyone with samples or templates in the store. Click <strong>Select</strong> to continue enrollment.
+        Enrolled drivers are <strong>locked</strong> (view only). Continue a capturing
+        driver, or use the next default ID below to register someone new.
       </p>
       <div class="driver-list" id="driver_list">Loading…</div>
       <div class="row" style="margin-top:0.65rem">
@@ -320,17 +360,18 @@ def render_register() -> str:
       <div class="row">
         <div>
           <label for="driver_id">Driver ID</label>
-          <input id="driver_id" type="text" value="driver2" autocomplete="off" />
+          <input id="driver_id" type="text" value="" placeholder="driver1" autocomplete="off" />
         </div>
         <button id="btn_init" type="button">Create folders</button>
         <button id="btn_refresh" class="secondary" type="button">Refresh status</button>
       </div>
       <div class="status-line" id="chips"></div>
+      <div id="lock_banner">This driver is enrolled and locked. Switch to a capturing driver or create a new one.</div>
       <div class="meter" aria-hidden="true"><span id="progress"></span></div>
     </section>
 
     <section class="grid2">
-      <div class="panel">
+      <div class="panel" id="panel_face">
         <h3>2 · Face (need 5)</h3>
         <video id="cam" class="preview" autoplay playsinline muted></video>
         <div class="row" style="margin-top:0.75rem">
@@ -340,7 +381,7 @@ def render_register() -> str:
         <div class="thumbs" id="face_thumbs"></div>
       </div>
 
-      <div class="panel">
+      <div class="panel" id="panel_voice">
         <h3>3 · Voice (need 5)</h3>
         <p class="phrase" id="phrase">Say: “pay Mom fifty”</p>
         <div class="row">
@@ -351,7 +392,7 @@ def render_register() -> str:
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="panel_home">
       <h3>4 · Home (required)</h3>
       <p style="color:var(--muted);font-size:0.85rem;margin-bottom:0.5rem">
         Pin this driver’s home on the map before enroll. Linked to the driver
@@ -365,7 +406,7 @@ def render_register() -> str:
       <div class="home-meta" id="home_meta">No pin yet — select home on the map to unlock enroll</div>
     </section>
 
-    <section class="panel">
+    <section class="panel" id="panel_register">
       <h3>5 · Register</h3>
       <div class="row">
         <button id="btn_enroll" type="button" disabled>Enroll into store</button>
@@ -394,6 +435,10 @@ def render_register() -> str:
       audioCtx: null,
       micStream: null,
       recording: false,
+      driverIdTouched: false,
+      locked: false,
+      camReady: false,
+      micReady: false,
     };
     const homeState = { map: null, marker: null, lat: null, lon: null, ready: false, saving: false };
 
@@ -407,6 +452,31 @@ def render_register() -> str:
     function driverId() {
       return ($("driver_id").value || "").trim();
     }
+
+    /** Next default id: driver&lt;max numeric suffix in list + 1&gt;. Empty → driver1. */
+    function nextDriverId(rows) {
+      let maxN = 0;
+      for (const d of rows || []) {
+        const id = String(d.driver_id || d.name || "");
+        const m = /^driver(\\d+)$/i.exec(id);
+        if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+      }
+      return `driver${maxN + 1}`;
+    }
+
+    function setDefaultDriverId(rows, { force = false } = {}) {
+      const suggested = nextDriverId(rows);
+      const input = $("driver_id");
+      if (force || !state.driverIdTouched || !input.value.trim()) {
+        input.value = suggested;
+        state.driverIdTouched = false;
+      }
+      return suggested;
+    }
+
+    $("driver_id").addEventListener("input", () => {
+      state.driverIdTouched = true;
+    });
 
     function encodeWav(float32, sampleRate) {
       const buffer = new ArrayBuffer(44 + float32.length * 2);
@@ -445,16 +515,50 @@ def render_register() -> str:
       return data;
     }
 
+    function applyEditLock(locked, driverLabel) {
+      state.locked = !!locked;
+      const lockMsg = locked
+        ? `${driverLabel || "Driver"} is enrolled · locked (view only)`
+        : "";
+      ["panel_face", "panel_voice", "panel_home", "panel_register"].forEach((id) => {
+        const el = $(id);
+        if (!el) return;
+        el.classList.toggle("edit-locked", !!locked);
+        if (locked) el.setAttribute("data-lock", lockMsg);
+        else el.removeAttribute("data-lock");
+      });
+      const banner = $("lock_banner");
+      if (banner) {
+        banner.classList.toggle("on", !!locked);
+        if (locked) {
+          banner.textContent =
+            `${driverLabel || "This driver"} is enrolled and locked. ` +
+            "Continue a capturing driver, or create a new Driver ID.";
+        }
+      }
+      $("btn_init").disabled = !!locked;
+      $("btn_enroll").disabled = true; // re-enabled below when unlocked + ready
+      $("btn_clear").disabled = !!locked;
+      $("btn_home_save").disabled = !!locked || homeState.lat == null;
+      $("btn_home_geo").disabled = !!locked;
+      $("btn_cam").disabled = !!locked;
+      $("btn_snap").disabled = !!locked || !state.camReady;
+      $("btn_mic").disabled = !!locked;
+      $("btn_rec").disabled = !!locked || !state.micReady;
+    }
+
     function renderStatus(s) {
       const chips = $("chips");
       const faceOk = s.face_count >= s.min_face;
       const voiceOk = s.voice_count >= s.min_voice;
       const homeOk = !!s.home_set;
+      const locked = !!s.locked || !!(s.templates && s.templates.face && s.templates.voice);
       chips.innerHTML = [
         `<span class="chip">data: ${s.data_dir}</span>`,
         `<span class="chip ${faceOk ? "ok" : "warn"}">face ${s.face_count}/${s.min_face}</span>`,
         `<span class="chip ${voiceOk ? "ok" : "warn"}">voice ${s.voice_count}/${s.min_voice}</span>`,
         `<span class="chip ${homeOk ? "ok" : "warn"}">home ${homeOk ? "set" : "required"}</span>`,
+        `<span class="chip ${locked ? "ok" : ""}">${locked ? "🔒 enrolled · locked" : "editable"}</span>`,
         `<span class="chip ${s.face_model_present ? "ok" : "bad"}">face model</span>`,
         `<span class="chip ${s.voice_model_present ? "ok" : "bad"}">voice model</span>`,
         `<span class="chip ${s.templates.face && s.templates.voice ? "ok" : ""}">templates ${
@@ -465,14 +569,22 @@ def render_register() -> str:
       const total = s.min_face + s.min_voice;
       const done = Math.min(s.face_count, s.min_face) + Math.min(s.voice_count, s.min_voice);
       $("progress").style.width = `${Math.round((100 * done) / total)}%`;
-      $("btn_enroll").disabled = !s.ready_to_register;
+
+      applyEditLock(locked, s.driver_id);
+
       const hint = $("enroll_hint");
-      if (!homeOk) {
+      if (locked) {
+        hint.innerHTML =
+          "Enrolled drivers cannot be modified. Use the next Driver ID or continue a capturing row.";
+      } else if (!homeOk) {
         hint.innerHTML = "Pin and <strong>save home</strong> on the map before enroll is enabled.";
       } else if (!(faceOk && voiceOk)) {
         hint.innerHTML = "Needs 5 face + 5 voice samples. Models: <code>python scripts/phase2a_setup.py</code>.";
       } else {
         hint.innerHTML = "Ready — enroll writes templates into the Phase 2a store.";
+      }
+      if (!locked) {
+        $("btn_enroll").disabled = !s.ready_to_register;
       }
 
       if (homeOk && s.home_lat != null && s.home_lon != null) {
@@ -480,7 +592,7 @@ def render_register() -> str:
         homeState.lon = s.home_lon;
         $("home_meta").textContent =
           `Saved home: ${Number(s.home_lat).toFixed(5)}, ${Number(s.home_lon).toFixed(5)}`;
-        $("btn_home_save").disabled = false;
+        if (!locked) $("btn_home_save").disabled = false;
         if (homeState.map && window.google) {
           setHomePin(s.home_lat, s.home_lon, { skipMeta: true });
         }
@@ -494,7 +606,9 @@ def render_register() -> str:
         .join("") || "<div>No clips yet</div>";
 
       const nextPhrase = PHRASES[Math.min(s.voice_count, PHRASES.length - 1)];
-      $("phrase").textContent = `Say: “${nextPhrase}”`;
+      $("phrase").textContent = locked
+        ? "Enrolled · face / voice locked"
+        : `Say: “${nextPhrase}”`;
     }
 
     async function refresh() {
@@ -506,6 +620,10 @@ def render_register() -> str:
     }
 
     $("btn_init").onclick = async () => {
+      if (state.locked) {
+        log("Enrolled driver is locked — create a new Driver ID instead");
+        return;
+      }
       try {
         const id = driverId();
         await api("/api/register/init", {
@@ -523,6 +641,7 @@ def render_register() -> str:
     $("btn_refresh").onclick = () => refresh().catch((e) => log(e.message));
 
     $("btn_cam").onclick = async () => {
+      if (state.locked) return;
       try {
         if (state.stream) {
           state.stream.getTracks().forEach((t) => t.stop());
@@ -533,6 +652,7 @@ def render_register() -> str:
           audio: false,
         });
         $("cam").srcObject = state.stream;
+        state.camReady = true;
         $("btn_snap").disabled = false;
         log("Camera ready");
       } catch (e) {
@@ -541,6 +661,7 @@ def render_register() -> str:
     };
 
     $("btn_snap").onclick = async () => {
+      if (state.locked) return;
       try {
         const video = $("cam");
         const canvas = document.createElement("canvas");
@@ -561,6 +682,7 @@ def render_register() -> str:
     };
 
     $("btn_mic").onclick = async () => {
+      if (state.locked) return;
       try {
         state.micStream = await navigator.mediaDevices.getUserMedia({
           audio: {
@@ -572,6 +694,7 @@ def render_register() -> str:
         state.audioCtx = new (window.AudioContext || window.webkitAudioContext)({
           sampleRate: 16000,
         });
+        state.micReady = true;
         $("btn_rec").disabled = false;
         log("Microphone ready");
       } catch (e) {
@@ -580,6 +703,7 @@ def render_register() -> str:
     };
 
     async function recordClip(seconds = 2.5) {
+      if (state.locked) throw new Error("enrolled driver is locked");
       if (!state.micStream || !state.audioCtx) throw new Error("Enable mic first");
       if (state.recording) return;
       state.recording = true;
@@ -643,6 +767,10 @@ def render_register() -> str:
     };
 
     $("btn_enroll").onclick = async () => {
+      if (state.locked) {
+        log("Enrolled driver is locked");
+        return;
+      }
       $("btn_enroll").disabled = true;
       log("Enrolling… this may take a minute on first ECAPA load");
       try {
@@ -656,8 +784,11 @@ def render_register() -> str:
             `  → ${res.store_dir}/${res.voice_template}\\n` +
             `  → ${res.store_dir}/${res.face_template}`
         );
+        state.driverIdTouched = false;
+        const rows = await loadDrivers({ suggestId: false });
+        setDefaultDriverId(rows, { force: true });
+        log("Next default Driver ID: " + $("driver_id").value);
         await refresh();
-        await loadDrivers();
       } catch (e) {
         log("Enroll failed: " + e.message);
         $("btn_enroll").disabled = false;
@@ -665,6 +796,10 @@ def render_register() -> str:
     };
 
     $("btn_clear").onclick = async () => {
+      if (state.locked) {
+        log("Enrolled driver is locked — cannot clear samples");
+        return;
+      }
       if (!confirm("Delete enroll face/voice files for this driver?")) return;
       try {
         await api("/api/register/clear", {
@@ -707,6 +842,10 @@ def render_register() -> str:
     }
 
     async function saveHomePin() {
+      if (state.locked) {
+        log("Enrolled driver is locked — home cannot be changed");
+        return;
+      }
       if (homeState.lat == null || homeState.lon == null) return;
       if (homeState.saving) return;
       const id = driverId();
@@ -780,47 +919,66 @@ def render_register() -> str:
       saveHomePin().catch((e) => log("Home save failed: " + e.message));
     };
 
-    async function loadDrivers() {
+    async function loadDrivers({ suggestId = true } = {}) {
       const el = $("driver_list");
       try {
         const rows = await api("/api/register/drivers");
         if (!rows.length) {
           el.innerHTML = `<div class="chip warn">No drivers yet — create a Driver ID below.</div>`;
-          return;
+          if (suggestId) setDefaultDriverId([], { force: !state.driverIdTouched });
+          return rows;
         }
         el.innerHTML = rows.map((d) => {
           const faceT = d.templates && d.templates.face;
           const voiceT = d.templates && d.templates.voice;
+          const locked = !!d.locked || (faceT && voiceT);
+          const action = locked ? "View" : (d.status === "capturing" || d.status === "need_home" || d.status === "ready_to_enroll" || d.status === "partial_templates" ? "Continue" : "Select");
           return `
-            <div class="driver-row" data-id="${d.driver_id}">
+            <div class="driver-row ${locked ? "locked-row" : ""}" data-id="${d.driver_id}">
               <div>
-                <div class="name">${d.name || d.driver_id}</div>
+                <div class="name">${d.name || d.driver_id}${locked ? " 🔒" : ""}</div>
                 <div class="meta">
                   face ${d.face_count}/${d.min_face} · voice ${d.voice_count}/${d.min_voice}
                   · home ${d.home_set ? "✓" : "–"}
                   · templates: voice ${voiceT ? "✓" : "–"} / face ${faceT ? "✓" : "–"}
                 </div>
               </div>
-              <span class="status ${d.status}">${d.status_label || d.status}</span>
-              <button type="button" class="secondary btn-pick" data-id="${d.driver_id}">Select</button>
+              <span class="status ${d.status}">${locked ? "Locked · enrolled" : (d.status_label || d.status)}</span>
+              <button type="button" class="secondary btn-pick ${locked ? "locked-pick" : ""}" data-id="${d.driver_id}" data-locked="${locked ? "1" : "0"}">${action}</button>
             </div>`;
         }).join("");
         el.querySelectorAll(".btn-pick").forEach((btn) => {
           btn.onclick = () => {
+            state.driverIdTouched = true;
             $("driver_id").value = btn.dataset.id;
             refresh().catch((e) => log(e.message));
-            log("Selected driver " + btn.dataset.id);
+            log(
+              btn.dataset.locked === "1"
+                ? "Viewing locked enrolled driver " + btn.dataset.id
+                : "Selected driver " + btn.dataset.id
+            );
           };
         });
+        if (suggestId) setDefaultDriverId(rows);
+        return rows;
       } catch (e) {
         el.textContent = "Failed to load drivers: " + e.message;
+        if (suggestId && !$("driver_id").value.trim()) {
+          setDefaultDriverId([], { force: true });
+        }
+        return [];
       }
     }
 
-    $("btn_drivers_refresh").onclick = () => loadDrivers();
+    $("btn_drivers_refresh").onclick = () =>
+      loadDrivers({ suggestId: !state.driverIdTouched });
 
-    refresh().catch((e) => log(e.message));
-    loadDrivers().catch((e) => log(e.message));
+    // Suggest next id from the table first; avoid refresh() on a blank id.
+    loadDrivers({ suggestId: true })
+      .then(() => {
+        if (driverId()) return refresh();
+      })
+      .catch((e) => log(e.message));
     initHomeMap().catch((e) => {
       $("home_meta").textContent = "Maps unavailable: " + e.message;
       log("Maps: " + e.message);
