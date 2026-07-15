@@ -275,6 +275,7 @@ def render_register() -> str:
     }
     .driver-row .status.enrolled { color: var(--ok); border-color: #166534; }
     .driver-row .status.ready_to_enroll { color: var(--accent); border-color: #1e3a5f; }
+    .driver-row .status.need_home,
     .driver-row .status.capturing,
     .driver-row .status.partial_templates { color: var(--warn); border-color: #92400e; }
     .driver-row .status.empty { color: var(--muted); }
@@ -351,17 +352,17 @@ def render_register() -> str:
     </section>
 
     <section class="panel">
-      <h3>4 · Home (Google Maps)</h3>
+      <h3>4 · Home (required)</h3>
       <p style="color:var(--muted);font-size:0.85rem;margin-bottom:0.5rem">
-        Click the map to pin this driver’s home. Used for
-        <code>dist_from_home_km</code> during standalone pay.
+        Pin this driver’s home on the map before enroll. Linked to the driver
+        profile and used as <code>dist_from_home_km</code> during authorization.
       </p>
       <div class="row">
         <button id="btn_home_geo" class="secondary" type="button">Use my location</button>
         <button id="btn_home_save" type="button" disabled>Save home pin</button>
       </div>
       <div id="home-map"></div>
-      <div class="home-meta" id="home_meta">No pin yet — set GOOGLE_MAPS_API_KEY in secrets.env</div>
+      <div class="home-meta" id="home_meta">No pin yet — select home on the map to unlock enroll</div>
     </section>
 
     <section class="panel">
@@ -370,9 +371,9 @@ def render_register() -> str:
         <button id="btn_enroll" type="button" disabled>Enroll into store</button>
         <button id="btn_clear" class="secondary danger" type="button">Clear enroll samples</button>
       </div>
-      <p style="margin-top:0.75rem;color:var(--muted);font-size:0.85rem">
-        Requires pretrained models in the store
-        (<code>python scripts/phase2a_setup.py</code>).
+      <p style="margin-top:0.75rem;color:var(--muted);font-size:0.85rem" id="enroll_hint">
+        Needs 5 face + 5 voice samples <strong>and</strong> a saved home pin.
+        Models: <code>python scripts/phase2a_setup.py</code>.
       </p>
       <div class="log" id="log" style="margin-top:0.75rem">Ready.</div>
     </section>
@@ -394,6 +395,7 @@ def render_register() -> str:
       micStream: null,
       recording: false,
     };
+    const homeState = { map: null, marker: null, lat: null, lon: null, ready: false, saving: false };
 
     const $ = (id) => document.getElementById(id);
     const log = (msg) => {
@@ -447,10 +449,12 @@ def render_register() -> str:
       const chips = $("chips");
       const faceOk = s.face_count >= s.min_face;
       const voiceOk = s.voice_count >= s.min_voice;
+      const homeOk = !!s.home_set;
       chips.innerHTML = [
         `<span class="chip">data: ${s.data_dir}</span>`,
         `<span class="chip ${faceOk ? "ok" : "warn"}">face ${s.face_count}/${s.min_face}</span>`,
         `<span class="chip ${voiceOk ? "ok" : "warn"}">voice ${s.voice_count}/${s.min_voice}</span>`,
+        `<span class="chip ${homeOk ? "ok" : "warn"}">home ${homeOk ? "set" : "required"}</span>`,
         `<span class="chip ${s.face_model_present ? "ok" : "bad"}">face model</span>`,
         `<span class="chip ${s.voice_model_present ? "ok" : "bad"}">voice model</span>`,
         `<span class="chip ${s.templates.face && s.templates.voice ? "ok" : ""}">templates ${
@@ -462,6 +466,25 @@ def render_register() -> str:
       const done = Math.min(s.face_count, s.min_face) + Math.min(s.voice_count, s.min_voice);
       $("progress").style.width = `${Math.round((100 * done) / total)}%`;
       $("btn_enroll").disabled = !s.ready_to_register;
+      const hint = $("enroll_hint");
+      if (!homeOk) {
+        hint.innerHTML = "Pin and <strong>save home</strong> on the map before enroll is enabled.";
+      } else if (!(faceOk && voiceOk)) {
+        hint.innerHTML = "Needs 5 face + 5 voice samples. Models: <code>python scripts/phase2a_setup.py</code>.";
+      } else {
+        hint.innerHTML = "Ready — enroll writes templates into the Phase 2a store.";
+      }
+
+      if (homeOk && s.home_lat != null && s.home_lon != null) {
+        homeState.lat = s.home_lat;
+        homeState.lon = s.home_lon;
+        $("home_meta").textContent =
+          `Saved home: ${Number(s.home_lat).toFixed(5)}, ${Number(s.home_lon).toFixed(5)}`;
+        $("btn_home_save").disabled = false;
+        if (homeState.map && window.google) {
+          setHomePin(s.home_lat, s.home_lon, { skipMeta: true });
+        }
+      }
 
       $("face_thumbs").innerHTML = (s.face_files || [])
         .map((name) => `<img src="/api/register/preview/face/${encodeURIComponent(s.driver_id)}/${encodeURIComponent(name)}" alt="${name}" title="${name}" />`)
@@ -657,12 +680,12 @@ def render_register() -> str:
     };
 
     /* ── Home Maps picker ─────────────────────────────────────────── */
-    const homeState = { map: null, marker: null, lat: null, lon: null, ready: false };
-
-    function setHomePin(lat, lon) {
+    function setHomePin(lat, lon, opts = {}) {
       homeState.lat = lat;
       homeState.lon = lon;
-      $("home_meta").textContent = `Pin: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+      if (!opts.skipMeta) {
+        $("home_meta").textContent = `Pin: ${lat.toFixed(5)}, ${lon.toFixed(5)} — saving…`;
+      }
       $("btn_home_save").disabled = false;
       if (homeState.map && window.google) {
         const pos = { lat, lng: lon };
@@ -677,6 +700,38 @@ def render_register() -> str:
           homeState.marker.setPosition(pos);
         }
         homeState.map.panTo(pos);
+      }
+      if (!opts.skipSave && !opts.skipMeta) {
+        saveHomePin().catch((e) => log("Home save failed: " + e.message));
+      }
+    }
+
+    async function saveHomePin() {
+      if (homeState.lat == null || homeState.lon == null) return;
+      if (homeState.saving) return;
+      const id = driverId();
+      if (!id) {
+        log("Set a Driver ID before saving home");
+        return;
+      }
+      homeState.saving = true;
+      try {
+        const res = await api("/api/register/home", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            driver_id: id,
+            lat: homeState.lat,
+            lon: homeState.lon,
+          }),
+        });
+        log(`Home saved for ${res.driver_id}: ${res.home_lat}, ${res.home_lon}`);
+        $("home_meta").textContent =
+          `Saved home: ${Number(res.home_lat).toFixed(5)}, ${Number(res.home_lon).toFixed(5)}`;
+        await refresh();
+        await loadDrivers();
+      } finally {
+        homeState.saving = false;
       }
     }
 
@@ -721,24 +776,8 @@ def render_register() -> str:
       );
     };
 
-    $("btn_home_save").onclick = async () => {
-      if (homeState.lat == null || homeState.lon == null) return;
-      try {
-        const res = await api("/api/register/home", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            driver_id: driverId(),
-            lat: homeState.lat,
-            lon: homeState.lon,
-          }),
-        });
-        log(`Home saved for ${res.driver_id}: ${res.home_lat}, ${res.home_lon}`);
-        $("home_meta").textContent =
-          `Saved home: ${Number(res.home_lat).toFixed(5)}, ${Number(res.home_lon).toFixed(5)}`;
-      } catch (e) {
-        log("Home save failed: " + e.message);
-      }
+    $("btn_home_save").onclick = () => {
+      saveHomePin().catch((e) => log("Home save failed: " + e.message));
     };
 
     async function loadDrivers() {
@@ -758,6 +797,7 @@ def render_register() -> str:
                 <div class="name">${d.name || d.driver_id}</div>
                 <div class="meta">
                   face ${d.face_count}/${d.min_face} · voice ${d.voice_count}/${d.min_voice}
+                  · home ${d.home_set ? "✓" : "–"}
                   · templates: voice ${voiceT ? "✓" : "–"} / face ${faceT ? "✓" : "–"}
                 </div>
               </div>

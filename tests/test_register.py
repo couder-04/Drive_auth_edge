@@ -71,7 +71,48 @@ def test_save_samples_into_driver_folder(tmp_path: Path) -> None:
     st = enrollment_status(tmp_path, tmp_path / "store", "driverX")
     assert st["face_count"] == 1
     assert st["voice_count"] == 1
+    assert st["home_set"] is False
     assert st["ready_to_register"] is False
+
+
+def test_ready_to_register_requires_home(tmp_path: Path) -> None:
+    from driveauth.enrollment import MIN_FACE_ENROLL, MIN_VOICE_ENROLL
+    from driveauth.profile_store import ProfileStore
+
+    store = tmp_path / "store"
+    store.mkdir()
+    ensure_driver_layout(tmp_path, "driverHome")
+    for _ in range(MIN_FACE_ENROLL):
+        save_face_jpeg(tmp_path, "driverHome", _tiny_jpeg_bytes())
+    for _ in range(MIN_VOICE_ENROLL):
+        save_voice_wav_bytes(tmp_path, "driverHome", _tiny_wav_bytes())
+    st = enrollment_status(tmp_path, store, "driverHome")
+    assert st["samples_ready"] is True
+    assert st["home_set"] is False
+    assert st["ready_to_register"] is False
+
+    ProfileStore(store / "profiles" / "driverHome.json", "driverHome").set_home(
+        12.97, 77.59
+    )
+    st2 = enrollment_status(tmp_path, store, "driverHome")
+    assert st2["home_set"] is True
+    assert st2["ready_to_register"] is True
+
+
+def test_register_complete_rejects_without_home(tmp_path: Path, monkeypatch) -> None:
+    import dashboard.app as app_mod
+
+    store = tmp_path / "store"
+    store.mkdir()
+    monkeypatch.setattr(app_mod, "_data_root", lambda: tmp_path)
+    monkeypatch.setattr(app_mod, "_register_store", lambda: store)
+    monkeypatch.setattr(app_mod, "_unified_store", lambda: store)
+
+    client = TestClient(app)
+    client.post("/api/register/init", json={"driver_id": "noHome"})
+    r = client.post("/api/register/complete", json={"driver_id": "noHome"})
+    assert r.status_code == 400
+    assert "home" in r.json()["detail"].lower()
 
 
 def test_register_api_init_and_uploads(tmp_path: Path, monkeypatch) -> None:
@@ -121,3 +162,37 @@ def test_register_api_init_and_uploads(tmp_path: Path, monkeypatch) -> None:
     assert r.status_code == 200
     assert "mode-standalone" in r.text
     assert "Pay · standalone" in r.text
+    assert "Face locked" in r.text
+    assert "Location (required)" in r.text
+
+
+def test_pipeline_next_unlock_voice_only(tmp_path: Path, monkeypatch) -> None:
+    """Voice miss with face locked should advertise next_unlock=face."""
+    from driveauth.types import Decision, DriveAuthResult
+
+    import dashboard.app as app_mod
+
+    result = DriveAuthResult(
+        decision=Decision.REJECT,
+        trust_score=0.4,
+        risk_score=0.1,
+        confidence_score=0.8,
+        tier="standard",
+        explanations=[
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_escalate_after_voice_score_0.400",
+            "probed_voice",
+            "ladder_exhausted_reject",
+        ],
+        modality_scores={"voice": {"score": 0.4, "available": True}},
+        amount=50.0,
+        currency="INR",
+        beneficiary="Mom",
+        action="pay",
+    )
+    pipe = app_mod._pipeline_trace(result)
+    assert pipe["probed"] == ["voice"]
+    assert pipe["next_unlock"] == "face"
+    face_rung = next(r for r in pipe["stages"][3]["rungs"] if r["id"] == "face")
+    assert face_rung["status"] == "locked"

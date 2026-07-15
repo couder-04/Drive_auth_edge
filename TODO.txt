@@ -99,7 +99,7 @@
 - [x] LinkedIn / Medium posts — drafts in [`docs/public-posts.md`](docs/public-posts.md)
       (publish URLs still open; tick table in that file after posting)
 
-## Standalone product (OpenRouter + Railway)
+## Standalone product (OpenRouter + Cloudflare + Railway)
 - [x] secrets.env.example · OpenRouter STT/TTS/LLM · intent slot-fill
 - [x] Robust `INTENT_SYSTEM_PROMPT` · `ask_field` column TTS follow-ups
 - [x] Live `/api/standalone/auth` (ECAPA/face; finger manual) · unified store
@@ -109,10 +109,22 @@
 - [x] Register **Registered drivers** list (`/api/register/drivers`)
 - [x] Dockerfile · railway.toml · [`docs/standalone.md`](docs/standalone.md)
 - [x] Local `secrets.env` filled (OpenRouter + Maps) — **do not commit**
+- [x] Cloudflare quick tunnel (`cloudflared tunnel --url http://127.0.0.1:8765`)
+      → public trycloudflare.com URL; Mac + dashboard must stay up
+      → add `*.trycloudflare.com` to Maps API HTTP referrers
 - [ ] Deploy Railway volume at `/data` (always-on; Mac can sleep)
+      ## Still open — tunnel is demo-only, not always-on host
 
 ## Phase 8 — Publications
-- [ ] IV/ITSC or CCS/NDSS · demo video
+- [x] Venue locked → **IEEE IV 2027** (deadline **15 Nov 2026**); ITSC 2026 missed;
+      CCS/NDSS only if security-led reframing — [`phases/phase8.md`](phases/phase8.md)
+- [x] White paper → [`docs/paper/whitepaper.md`](docs/paper/whitepaper.md)
+- [x] Conference draft → [`docs/paper/iv2027-draft.md`](docs/paper/iv2027-draft.md)
+- [x] Demo storyboard + VO → [`docs/paper/demo-video.md`](docs/paper/demo-video.md)
+- [ ] Authors · white-paper PDF/arXiv · IEEE template port · figures · non-claims review
+- [ ] Record dashboard (+ optional Thor) · edit 5–8 min · publish URL
+- [ ] Submit IV portal · paste submission ID in `phases/phase8.md`
+- [ ] Done when: paper submitted + demo video published
 
 ## Explicit non-goals
 - Retrain risk on real txns before ~5k labels

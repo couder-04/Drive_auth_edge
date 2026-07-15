@@ -699,6 +699,12 @@ def render_dashboard(*, mode: str = "manual") -> str:
       border-style: dashed;
       box-shadow: none;
     }
+    .stair-step.locked {
+      opacity: 0.28;
+      border-style: dashed;
+      box-shadow: none;
+      filter: grayscale(0.5);
+    }
     @keyframes stair-pulse {
       0%, 100% { filter: brightness(1); }
       50% { filter: brightness(1.18); }
@@ -746,6 +752,7 @@ def render_dashboard(*, mode: str = "manual") -> str:
     .stair-step.escalate .s-badge { color: var(--stepup); }
     .stair-step.reject .s-badge { color: var(--reject); }
     .stair-step.skipped .s-badge { color: var(--faint); }
+    .stair-step.locked .s-badge { color: var(--faint); }
     .stair-step .s-score {
       font-family: var(--mono);
       font-size: 1.1rem;
@@ -1445,10 +1452,10 @@ def render_dashboard(*, mode: str = "manual") -> str:
             : "");
       }
 
-      // Live climb in actual probe order, then settle final status on each tread.
+      // Live climb in actual probe order only — locked / skipped rungs stay dark.
       const byId = {};
       rungs.forEach(r => { byId[r.id] = r; });
-      const order = probed.length ? probed : ["voice", "face", "finger"];
+      const order = probed.length ? probed : [];
 
       for (let i = 0; i < order.length; i++) {
         const id = order[i];
@@ -1478,15 +1485,19 @@ def render_dashboard(*, mode: str = "manual") -> str:
         await sleep(180);
       }
 
-      // Mark remaining treads (skipped / idle) that were never probed.
+      // Leave non-probed treads dark — locked for this call (not lit).
       for (const rung of rungs) {
         if (order.includes(rung.id)) continue;
         const rEl = document.querySelector(`.stair-step[data-rung="${rung.id}"]`);
         if (!rEl) continue;
-        rEl.className = "stair-step on " + (rung.status || "skipped");
+        const status = rung.status === "skipped" ? "skipped" : "locked";
+        rEl.className = "stair-step " + status;
         const badge = document.getElementById("stair-" + rung.id + "-badge");
-        if (badge) badge.textContent = rung.status || "skipped";
-        document.getElementById("rung-" + rung.id + "-detail").textContent = rung.detail || "";
+        if (badge) badge.textContent = status;
+        document.getElementById("rung-" + rung.id + "-detail").textContent =
+          rung.detail || (status === "locked" ? "locked · not in this call" : "");
+        document.getElementById("rung-" + rung.id + "-score").textContent = "—";
+        document.getElementById("rung-" + rung.id + "-bar").style.width = "0%";
       }
 
       if (foot) {

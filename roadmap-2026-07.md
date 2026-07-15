@@ -19,7 +19,7 @@ to do next.
 | 5. Testing & validation | ✅ done | **155** tests; timing + OOD + real-model failures; re-baseline guards |
 | 6. Benchmarking | ⏳ not started | unchanged |
 | 7. GitHub & documentation | ✅ done | README + demo GIF + security assumptions + [`docs/public-posts.md`](docs/public-posts.md) drafts ✅; publish URLs open |
-| 8. Publications & demo | ⏳ not started | unchanged |
+| 8. Publications & demo | 🟡 **IV 2027 draft + demo script** | venue locked; see `phases/phase8.md` |
 
 ## What was actually shipped
 

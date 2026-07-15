@@ -1,4 +1,4 @@
-# Standalone DriveAuth (OpenRouter + Railway)
+# Standalone DriveAuth (OpenRouter + Cloudflare + Railway)
 
 Run DriveAuth as a product without Nova: cloud STT/TTS, robust intent
 slot-fill, live ECAPA + face, Maps home/GPS, finger still manual.
@@ -50,16 +50,21 @@ python scripts/phase2a_enroll.py --store ./driveauth_store_phase2a --data ./data
 driveauth-dashboard --host 127.0.0.1 --port 8765
 ```
 
-1. Open `/register` → check **Registered drivers** → capture / enroll → pin home  
-2. Open `/standalone` → talk → slot fill (TTS if a column is missing) → pin GPS → authorize  
-3. Staircase (Voice → Face → Finger) + Result + Audit update live  
-4. `/manual` still works for slider demos without cloud keys  
+1. Open `/register` → check **Registered drivers** → capture face/voice → **pin home** → enroll  
+2. Open `/standalone` → talk → slot fill (TTS if a column is missing) → **pin GPS** → authorize (voice first)  
+3. If voice misses the bar → face unlocks; if face steps up → finger unlocks; re-authorize  
+4. Staircase only lights unlocked rungs for that call · Result + Audit update live  
+5. `/manual` still works for slider demos without cloud keys  
 
-Quick tunnel (Mac must stay awake):
+### Cloudflare quick tunnel (done for demo; Mac must stay awake)
+
+Dashboard must already be on `:8765`. Prefer HTTP/2 if QUIC is blocked on your network:
 
 ```bash
-cloudflared tunnel --url http://127.0.0.1:8765
+cloudflared tunnel --protocol http2 --url http://127.0.0.1:8765
 ```
+
+Cloudflared prints a `https://*.trycloudflare.com` URL. Restrict Google Maps key referrers to that host (and `localhost`). This is **not** always-on hosting — use Railway below when the Mac can sleep.
 
 ## 3. API sketch
 
@@ -95,9 +100,15 @@ Health check: `GET /api/standalone/config`.
 ```text
 mic → OpenRouter STT → regex + LLM columns
      → (ambiguous/missing) TTS names ask_field column → mic
-     → Maps GPS → dist_from_home via ProfileStore.set_home / location_context
-     → ECAPA voice (± face JPEG) · finger slider
-     → Policy + staircase UI
+     → Maps GPS (required) → dist_from_home via ProfileStore home pin
+     → Authorize #1: voice only (face + finger locked)
+         · voice ≥ bar → ACCEPT (staircase lights Voice only)
+         · voice below bar → unlock Face → snap → Authorize #2
+         · face below bar / STEP_UP → unlock Finger slider → Authorize #3
+     → Each run’s staircase only lights rungs unlocked for that call
 ```
+
+Register (`/register`) requires a saved home pin **before** enroll is enabled;
+home is stored on the driver profile and feeds `dist_from_home_km` at pay time.
 
 Nova integration stays available via `DriveAuth.intercept()` — this product path is optional.

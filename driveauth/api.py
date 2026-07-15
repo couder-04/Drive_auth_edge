@@ -293,6 +293,7 @@ class DriveAuth:
         is_guest: bool = False,
         is_payment: bool = True,
         voice_expected: bool | None = None,
+        face_expected: bool | None = None,
         session_id: str | None = None,
         audit: bool = True,
         event: str = "authenticate",
@@ -311,6 +312,7 @@ class DriveAuth:
             is_guest=is_guest,
             session_id=sid,
             voice_expected=voice_expected,
+            face_expected=face_expected,
         )
         res.is_payment = is_payment
         res.session_id = sid

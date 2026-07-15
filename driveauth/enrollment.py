@@ -12,6 +12,7 @@ import numpy as np
 from driveauth.matchers.face import FaceMatcher
 from driveauth.matchers.voice import VoiceMatcher
 from driveauth.ood_detector import OODDetector
+from driveauth.profile_store import ProfileStore
 from driveauth.template_store import ensure_key, save_embedding
 
 logger = logging.getLogger("driveauth.enrollment")
@@ -269,9 +270,12 @@ def list_registered_drivers(
             if face_t:
                 parts.append("face")
             status_label = "Partial templates · " + " + ".join(parts)
+        elif st["samples_ready"] and not st["home_set"]:
+            status = "need_home"
+            status_label = "Samples ready · pin home to enroll"
         elif st["ready_to_register"]:
             status = "ready_to_enroll"
-            status_label = "Samples ready · not enrolled"
+            status_label = "Ready to enroll · home set"
         elif st["face_count"] or st["voice_count"]:
             status = "capturing"
             status_label = (
@@ -293,6 +297,9 @@ def list_registered_drivers(
                 "min_voice": st["min_voice"],
                 "templates": st["templates"],
                 "ready_to_register": st["ready_to_register"],
+                "home_set": st["home_set"],
+                "home_lat": st["home_lat"],
+                "home_lon": st["home_lon"],
             }
         )
     return rows
@@ -316,6 +323,12 @@ def enrollment_status(
     voice_model = (store / "models" / "ecapa_voxceleb").is_dir() or (
         store / "enroll" / "pretrained_models" / "ecapa_voxceleb"
     ).is_dir()
+    profile = ProfileStore(store / "profiles" / f"{driver_id}.json", driver_id)
+    home_lat, home_lon, home_n = profile.home_coords()
+    home_set = home_lat is not None and home_lon is not None and home_n >= 1
+    samples_ready = (
+        len(images) >= MIN_FACE_ENROLL and len(wavs) >= MIN_VOICE_ENROLL
+    )
     return {
         "driver_id": driver_id,
         "data_dir": str(root),
@@ -326,8 +339,12 @@ def enrollment_status(
         "voice_files": [p.name for p in wavs],
         "min_face": MIN_FACE_ENROLL,
         "min_voice": MIN_VOICE_ENROLL,
-        "ready_to_register": len(images) >= MIN_FACE_ENROLL
-        and len(wavs) >= MIN_VOICE_ENROLL,
+        "samples_ready": samples_ready,
+        "home_lat": home_lat,
+        "home_lon": home_lon,
+        "home_n": home_n,
+        "home_set": home_set,
+        "ready_to_register": samples_ready and home_set,
         "face_model_present": face_model,
         "voice_model_present": voice_model,
         "templates": {

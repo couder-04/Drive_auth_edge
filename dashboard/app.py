@@ -273,10 +273,18 @@ def _pipeline_trace(result) -> dict[str, Any]:
         elif accept_mod is not None:
             status, detail = "skipped", "not needed"
         else:
-            status, detail = "idle", "not reached"
+            status, detail = "locked", "locked · not in this call"
         ladder_stages.append(
             {"id": mod, "label": mod.title(), "status": status, "score": score, "detail": detail}
         )
+
+    # Progressive unlock hint for standalone: next modality the UI should open.
+    next_unlock: str | None = None
+    if accept_mod is None:
+        if "voice" in probed and "face" not in probed:
+            next_unlock = "face"
+        elif "face" in probed and "finger" not in probed:
+            next_unlock = "finger"
 
     hard_gate = None
     for key, label in (
@@ -356,6 +364,7 @@ def _pipeline_trace(result) -> dict[str, Any]:
         "stages": stages,
         "probed": probed,
         "accept_modality": accept_mod,
+        "next_unlock": next_unlock,
         "hard_gate": hard_gate,
         "path_summary": (
             hard_gate
@@ -520,6 +529,13 @@ def register_complete(req: RegisterDriverRequest) -> dict[str, Any]:
         driver_id = validate_driver_id(req.driver_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    profile = _profile_for(driver_id)
+    home_lat, home_lon, _ = profile.home_coords()
+    if home_lat is None or home_lon is None:
+        raise HTTPException(
+            status_code=400,
+            detail="home location required — pin home on the map before enrolling",
+        )
     data_dir = _data_root() / driver_id
     store = _register_store()
     try:
@@ -528,7 +544,7 @@ def register_complete(req: RegisterDriverRequest) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return {"status": "ok", **result}
+    return {"status": "ok", "home_lat": home_lat, "home_lon": home_lon, **result}
 
 
 @app.post("/api/register/clear")
@@ -706,7 +722,7 @@ async def standalone_auth(
     currency: str = Form("INR"),
     beneficiary_known: bool = Form(True),
     is_guest: bool = Form(False),
-    finger: float | None = Form(0.85),
+    finger: float | None = Form(None),
     behavioral: float = Form(0.95),
     gps_lat: float | None = Form(None),
     gps_lon: float | None = Form(None),
@@ -717,7 +733,7 @@ async def standalone_auth(
     audio: UploadFile = File(...),
     face: UploadFile | None = File(None),
 ) -> dict[str, Any]:
-    """Live voice (+ optional face) auth; finger score stays manual."""
+    """Live voice (+ optional face) auth; finger score stays manual when unlocked."""
     try:
         did = validate_driver_id(driver_id or _default_driver())
     except ValueError as exc:
@@ -745,6 +761,7 @@ async def standalone_auth(
             detail=f"failed to load live matchers for {did}: {exc}",
         ) from exc
 
+    # Progressive unlock: finger only when the client sends a score.
     _apply_finger_manual(auth, finger)
     auth._engine._m.behavioral = MockBehavioralMonitor(score=behavioral)
 
@@ -780,6 +797,8 @@ async def standalone_auth(
         beneficiary_known=beneficiary_known,
         is_guest=is_guest,
         event="standalone_auth",
+        # Face locked until the client supplies a JPEG (after voice escalates).
+        face_expected=face_bgr is not None,
     )
     payload = _result_payload(result)
     if gps_lat is not None and gps_lon is not None:

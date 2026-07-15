@@ -244,6 +244,7 @@ class DecisionEngine:
         is_guest: bool = False,
         session_id: str = "",
         voice_expected: bool | None = None,
+        face_expected: bool | None = None,
     ) -> DriveAuthResult:
         t_start = time.monotonic()
         explanations: list[str] = []
@@ -277,16 +278,19 @@ class DecisionEngine:
         expect_voice = (
             audio_np is not None if voice_expected is None else voice_expected
         )
+        # None → legacy behavior (face always on the ladder). False locks face
+        # out (standalone voice-first unlock). True forces a face probe attempt.
+        expect_face = True if face_expected is None else bool(face_expected)
         qflags = self._q.evaluate(voice_audio=audio_np if expect_voice else None)
 
         results: dict[str, ModalityResult] = {
             "voice": ModalityResult(None, False, available=False),
-            "face": ModalityResult(None, False),
-            "finger": ModalityResult(None, False),
+            "face": ModalityResult(None, False, available=False),
+            "finger": ModalityResult(None, False, available=False),
         }
         available = {
             "voice": expect_voice and audio_np is not None,
-            "face": True,
+            "face": expect_face,
             "finger": self._m.fingerprint_available,
         }
 

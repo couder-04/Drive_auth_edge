@@ -179,7 +179,7 @@ driveauth-dashboard
 
 Presets in the dashboard: micro payment → ACCEPT; low voice → face ACCEPT; low biometrics → REJECT.
 
-We’re aiming at IV/ITSC for the automotive systems story; CCS/NDSS-style venues only if the paper leads with timing, OOD-drift, and the security-floor analysis.
+Primary submission target: **IEEE IV 2027** (paper deadline 15 Nov 2026) — draft in [`docs/paper/iv2027-draft.md`](paper/iv2027-draft.md). CCS/NDSS-style venues only if the paper leads with timing, OOD-drift, and the security-floor analysis.
 
 If you work on cabin UX, payment risk, or edge biometrics — open an issue or reach out. The interesting problems left are mostly **hardware and honesty**: real finger, real CAN, live GPS, and fleet-tuned bars that still fail closed.
 

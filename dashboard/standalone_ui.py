@@ -165,6 +165,48 @@ def panel_css() -> str:
     }
     .pay-badge.on { color: var(--cyan); border-color: rgba(45,212,191,0.45); }
     .pay-badge.warn { color: var(--stepup); border-color: rgba(251,191,36,0.45); }
+    .pay-card.locked {
+      position: relative;
+      opacity: 0.55;
+      pointer-events: none;
+    }
+    .pay-card.locked::after,
+    .pay-face-body.locked::after {
+      content: attr(data-lock);
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 1rem;
+      font-size: 0.78rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      color: var(--stepup);
+      background: rgba(6, 10, 16, 0.72);
+      border-radius: 12px;
+      pointer-events: none;
+    }
+    .pay-face-body {
+      position: relative;
+      border-radius: 10px;
+    }
+    .pay-face-body.locked {
+      opacity: 0.7;
+      pointer-events: none;
+      min-height: 140px;
+    }
+    .pay-card .lock-note {
+      font-size: 0.7rem;
+      color: var(--faint);
+      margin-top: 0.35rem;
+    }
+    .finger-wrap { margin-top: 0.65rem; }
+    .finger-wrap.locked-inline {
+      opacity: 0.45;
+      pointer-events: none;
+    }
     """
 
 
@@ -175,7 +217,7 @@ def panel_html() -> str:
         <div>
           <h2>Pay · standalone</h2>
           <div class="sub">
-            OpenRouter STT → intent slots → TTS re-prompt → live ECAPA / face · finger manual · Maps GPS
+            Voice + location first → face unlocks on threshold miss → finger unlocks on step-up
           </div>
         </div>
         <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap">
@@ -203,31 +245,36 @@ def panel_html() -> str:
           <audio id="pay-tts" style="display:none"></audio>
         </div>
         <div class="pay-card">
-          <h3>2 · Location</h3>
+          <h3>2 · Location (required)</h3>
           <div id="pay-map"></div>
-          <div id="pay-dist">No GPS yet — pin map or use browser location</div>
+          <div id="pay-dist">Pin location on the map before authorize</div>
           <div class="pay-actions">
             <button type="button" class="secondary" id="pay-geo">Browser GPS</button>
             <button type="button" class="secondary" id="pay-clear-gps">Clear pin</button>
           </div>
-          <label style="display:block;margin-top:0.65rem;font-size:0.72rem;color:var(--muted)">
-            Finger (manual until HW) <span id="pay-finger-val">0.85</span>
-          </label>
-          <input id="pay-finger" type="range" min="0" max="1" step="0.01" value="0.85" style="width:100%" />
+          <div class="finger-wrap locked-inline" id="pay-finger-wrap" data-lock="Finger locked">
+            <label style="display:block;font-size:0.72rem;color:var(--muted)">
+              Finger (manual until HW) <span id="pay-finger-val">—</span>
+            </label>
+            <input id="pay-finger" type="range" min="0" max="1" step="0.01" value="0.85" style="width:100%" disabled />
+            <div class="lock-note" id="pay-finger-note">Unlocks after face also fails the accept bar.</div>
+          </div>
         </div>
-        <div class="pay-card">
-          <h3>3 · Face (if escalated)</h3>
-          <video id="pay-cam" autoplay playsinline muted></video>
-          <div class="pay-actions">
-            <button type="button" class="secondary" id="pay-cam-start">Start camera</button>
-            <button type="button" class="secondary" id="pay-cam-snap">Snap face</button>
+        <div class="pay-card" id="pay-face-card" data-lock="Face locked · authorize with voice + location first">
+          <h3>3 · Face (escalation)</h3>
+          <div id="pay-face-lock" class="pay-face-body locked" data-lock="Face locked · authorize with voice + location first">
+            <video id="pay-cam" autoplay playsinline muted></video>
+            <div class="pay-actions">
+              <button type="button" class="secondary" id="pay-cam-start" disabled>Start camera</button>
+              <button type="button" class="secondary" id="pay-cam-snap" disabled>Snap face</button>
+            </div>
           </div>
           <canvas id="pay-face-canvas" style="display:none"></canvas>
           <div class="pay-actions" style="margin-top:0.75rem">
             <button type="button" id="pay-run" disabled>Authorize payment</button>
           </div>
-          <p style="margin:0.5rem 0 0;font-size:0.7rem;color:var(--faint)">
-            Uses live voice WAV (+ face JPEG). Result feeds the staircase below.
+          <p style="margin:0.5rem 0 0;font-size:0.7rem;color:var(--faint)" id="pay-auth-hint">
+            First run: voice + location only. Ladder lights only unlocked rungs.
           </p>
         </div>
       </div>
@@ -250,6 +297,7 @@ def panel_script() -> str:
       recording: false,
       audioCtx: null,
       micStream: null,
+      unlock: { face: false, finger: false },
     };
 
     function encodeWavPay(float32, sampleRate) {
@@ -295,11 +343,67 @@ def panel_script() -> str:
       updatePayReady();
     }
 
+    function resetPayUnlock() {
+      pay.unlock = { face: false, finger: false };
+      pay.faceBlob = null;
+      const prompt = document.getElementById("pay-prompt");
+      if (prompt) prompt.dataset.needFace = "0";
+      applyPayUnlockUI();
+    }
+
+    function applyPayUnlockUI() {
+      const faceBody = document.getElementById("pay-face-lock");
+      const camStart = document.getElementById("pay-cam-start");
+      const camSnap = document.getElementById("pay-cam-snap");
+      if (pay.unlock.face) {
+        faceBody.classList.remove("locked");
+        faceBody.removeAttribute("data-lock");
+        camStart.disabled = false;
+        camSnap.disabled = false;
+      } else {
+        faceBody.classList.add("locked");
+        faceBody.setAttribute("data-lock", "Face locked · authorize with voice + location first");
+        camStart.disabled = true;
+        camSnap.disabled = true;
+      }
+
+      const fingerWrap = document.getElementById("pay-finger-wrap");
+      const finger = document.getElementById("pay-finger");
+      const fingerNote = document.getElementById("pay-finger-note");
+      if (pay.unlock.finger) {
+        fingerWrap.classList.remove("locked-inline");
+        finger.disabled = false;
+        document.getElementById("pay-finger-val").textContent = finger.value;
+        fingerNote.textContent = "Set a mock fingerprint score, then authorize again.";
+      } else {
+        fingerWrap.classList.add("locked-inline");
+        finger.disabled = true;
+        document.getElementById("pay-finger-val").textContent = "—";
+        fingerNote.textContent = "Unlocks after face also fails the accept bar.";
+      }
+      updatePayReady();
+    }
+
     function updatePayReady() {
       const amt = Number(document.getElementById("pay-amount").value || 0);
       const ben = (document.getElementById("pay-beneficiary").value || "").trim();
-      const ok = amt > 0 && ben && pay.wavBlob;
+      const hasGps = pay.gps.lat != null && pay.gps.lon != null;
+      const prompt = document.getElementById("pay-prompt");
+      let ok = amt > 0 && !!ben && !!pay.wavBlob && hasGps;
+      if (pay.unlock.face && !pay.faceBlob && prompt && prompt.dataset.needFace === "1") {
+        ok = false;
+      }
       document.getElementById("pay-run").disabled = !ok;
+      const hint = document.getElementById("pay-auth-hint");
+      if (!hasGps) {
+        hint.textContent = "Pin a location (vs enrolled home) before authorize.";
+      } else if (pay.unlock.face && !pay.faceBlob) {
+        hint.textContent = "Voice below bar — snap a face, then authorize again.";
+      } else if (pay.unlock.finger) {
+        hint.textContent = "Face stepped up — set finger score, then authorize again.";
+      } else {
+        hint.textContent = "First run: voice + location only. Ladder lights only unlocked rungs.";
+      }
     }
 
     async function playTts(b64, mime) {
@@ -313,7 +417,7 @@ def panel_script() -> str:
       pay.gps.lat = lat;
       pay.gps.lon = lon;
       document.getElementById("pay-dist").textContent =
-        `GPS ${lat.toFixed(5)}, ${lon.toFixed(5)} — distance filled server-side vs home`;
+        `GPS ${lat.toFixed(5)}, ${lon.toFixed(5)} — distance vs driver home on authorize`;
       if (pay.map && window.google) {
         const pos = { lat, lng: lon };
         if (!pay.marker) {
@@ -324,6 +428,7 @@ def panel_script() -> str:
         }
         pay.map.panTo(pos);
       }
+      updatePayReady();
     }
 
     async function ensurePayMap() {
@@ -374,7 +479,7 @@ def panel_script() -> str:
         promptEl.textContent = "TTS" + col + ": " + (data.prompt || "Need more info");
         await playTts(data.tts_audio_b64, data.tts_mime);
       } else if (data.status === "ready") {
-        promptEl.textContent = "Slots ready — authorize when you are set.";
+        promptEl.textContent = "Slots ready — pin location, then authorize.";
       } else if (data.status === "not_payment") {
         promptEl.textContent = "Not a payment utterance — try “pay Mom 50”.";
       } else if (data.status === "error") {
@@ -388,6 +493,7 @@ def panel_script() -> str:
     async function recordPayClip(seconds = 3.5) {
       if (pay.recording) return;
       pay.recording = true;
+      resetPayUnlock();
       const btn = document.getElementById("pay-rec");
       btn.classList.add("recording");
       btn.textContent = "Listening…";
@@ -444,6 +550,32 @@ def panel_script() -> str:
       }
     }
 
+    function applyEscalationUnlock(data) {
+      const pipe = data.pipeline || {};
+      const next = pipe.next_unlock;
+      const prompt = document.getElementById("pay-prompt");
+      prompt.dataset.needFace = "0";
+      if (next === "face") {
+        pay.unlock.face = true;
+        prompt.dataset.needFace = "1";
+        prompt.textContent =
+          "Voice below threshold — unlock face, snap, then authorize again.";
+      } else if (next === "finger") {
+        pay.unlock.face = true;
+        pay.unlock.finger = true;
+        prompt.textContent =
+          "Face stepped up — set a manual fingerprint score, then authorize again.";
+      } else if (data.decision === "ACCEPT") {
+        prompt.textContent = "Accepted.";
+      } else if (data.decision === "STEP_UP_REQUIRED") {
+        pay.unlock.face = true;
+        pay.unlock.finger = true;
+        prompt.textContent =
+          "Step-up required — set fingerprint and re-authorize.";
+      }
+      applyPayUnlockUI();
+    }
+
     async function runStandaloneAuth() {
       const amt = Number(document.getElementById("pay-amount").value || 0);
       const ben = (document.getElementById("pay-beneficiary").value || "").trim();
@@ -452,12 +584,18 @@ def panel_script() -> str:
         return;
       }
       if (pay.gps.lat == null || pay.gps.lon == null) {
-        const go = confirm("No GPS pin — continue without location context?");
-        if (!go) return;
+        document.getElementById("pay-prompt").textContent =
+          "Location required — pin the map or use browser GPS.";
+        return;
+      }
+      if (pay.unlock.face && !pay.faceBlob) {
+        document.getElementById("pay-prompt").textContent =
+          "Face unlocked — snap a face before re-authorizing.";
+        return;
       }
       resetPipelineVisual();
       setLivePill("running", "Standalone auth");
-      document.getElementById("path-summary").textContent = "Live ECAPA / face authorize…";
+      document.getElementById("path-summary").textContent = "Live ECAPA authorize…";
       const fd = new FormData();
       fd.append("driver_id", document.getElementById("pay-driver").value || "driver1");
       fd.append("amount", String(amt));
@@ -465,14 +603,14 @@ def panel_script() -> str:
       fd.append("action", document.getElementById("pay-action").value || "pay");
       fd.append("currency", document.getElementById("pay-currency").value || "INR");
       fd.append("beneficiary_known", "true");
-      fd.append("finger", document.getElementById("pay-finger").value || "0.85");
       fd.append("audio", pay.wavBlob, "pay.wav");
-      if (pay.faceBlob) fd.append("face", pay.faceBlob, "face.jpg");
-      if (pay.gps.lat != null && pay.gps.lon != null) {
-        fd.append("gps_lat", String(pay.gps.lat));
-        fd.append("gps_lon", String(pay.gps.lon));
-        fd.append("gps_accuracy_m", "25");
+      if (pay.unlock.face && pay.faceBlob) fd.append("face", pay.faceBlob, "face.jpg");
+      if (pay.unlock.finger) {
+        fd.append("finger", document.getElementById("pay-finger").value || "0.85");
       }
+      fd.append("gps_lat", String(pay.gps.lat));
+      fd.append("gps_lon", String(pay.gps.lon));
+      fd.append("gps_accuracy_m", "25");
       const res = await fetch("/api/standalone/auth", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) {
@@ -490,12 +628,7 @@ def panel_script() -> str:
       highlightSourcesFromResult(data, {});
       loadAudit();
       loadStatus();
-      const needFace = (data.pipeline && data.pipeline.probed || []).includes("face")
-        && !pay.faceBlob;
-      if (needFace) {
-        document.getElementById("pay-prompt").textContent =
-          "Ladder probed face — snap a face and authorize again if STEP_UP/REJECT.";
-      }
+      applyEscalationUnlock(data);
     }
 
     async function initStandalonePay() {
@@ -530,6 +663,7 @@ def panel_script() -> str:
         .map(d => `<option value="${d.driver_id}">${d.driver_id}${d.home_set ? " · home" : ""}</option>`)
         .join("");
       if (pay.cfg.default_driver) sel.value = pay.cfg.default_driver;
+      sel.addEventListener("change", () => resetPayUnlock());
 
       document.getElementById("pay-finger").oninput = (e) => {
         document.getElementById("pay-finger-val").textContent = e.target.value;
@@ -564,8 +698,9 @@ def panel_script() -> str:
       };
       document.getElementById("pay-clear-gps").onclick = () => {
         pay.gps = { lat: null, lon: null };
-        document.getElementById("pay-dist").textContent = "GPS cleared";
+        document.getElementById("pay-dist").textContent = "GPS cleared — pin required";
         if (pay.marker) { pay.marker.setMap(null); pay.marker = null; }
+        updatePayReady();
       };
       document.getElementById("pay-cam-start").onclick = async () => {
         pay.camStream = await navigator.mediaDevices.getUserMedia({
@@ -582,10 +717,13 @@ def panel_script() -> str:
         canvas.getContext("2d").drawImage(video, 0, 0);
         canvas.toBlob((blob) => {
           pay.faceBlob = blob;
-          document.getElementById("pay-prompt").textContent = "Face snap captured.";
+          document.getElementById("pay-prompt").dataset.needFace = "0";
+          document.getElementById("pay-prompt").textContent = "Face snap captured — authorize again.";
+          updatePayReady();
         }, "image/jpeg", 0.92);
       };
       document.getElementById("pay-run").onclick = () => runStandaloneAuth();
+      applyPayUnlockUI();
       updatePayReady();
     }
     """
