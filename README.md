@@ -20,7 +20,7 @@ Regen: `driveauth-dashboard` + `python scripts/capture_dashboard_demo_gif.py` (n
 
 **Confidence** answers: *"Can we trust our own scores this time?"* (quality, OOD, modality agreement)
 
-These three scores feed a **deterministic Policy Engine** — not another ML head — so compliance teams can audit and change rules without retraining models.
+These three scores feed a **deterministic Policy Engine** — not another ML head — so compliance teams can audit and change rules without retraining models. Architecture, policy bands, and the fraud ladder are **shipping**.
 
 See [architecture/trust-risk-separation.md](architecture/trust-risk-separation.md) for score definitions, policy bands, and transaction tiers.
 
@@ -321,10 +321,10 @@ flowchart TB
 | Block | Algorithm | Module / artifact | Why this model | Status today |
 |-------|-----------|-------------------|----------------|--------------|
 | Voice | **ECAPA-TDNN** | `matchers/voice.py` · SpeechBrain `spkrec-ecapa-voxceleb` | Speaker embedding; cosine vs enrolled voiceprint | Blue — Phase 2a pretrained + enrolled (`DRIVEAUTH_USE_MOCK=0`) |
-| Face | **ArcFace-MobileFaceNet** | `matchers/face.py` · `mobilefacenet*.onnx` | Face embedding match on IR/RGB crop | Blue — Phase 2a pretrained + enrolled (replace RDJ faces with own later) |
-| Finger | **FingerNet-lite** | `matchers/finger.py` · `fingernet_lite_int8.onnx` | Fingerprint embedding / match | Green mock / `ManualScores` until sensor + weights |
-| Behavioral | **LSTM** (or GRU / windowed GBM bake-off) | `matchers/behavioral.py` · `behavioral_lstm_int8.onnx` | Driving-style anomaly → **Risk only**, never Trust | Green mock / synth CAN until recorder + weights |
-| Risk | **LightGBM** → ONNX | `risk_model.py` · `risk_gbt.onnx` | Tabular txn/GPS/CAN features; audit-friendly attributions | Blue — trained (50k rows, val AUC 0.9955); additive heuristic if ONNX missing |
+| Face | **ArcFace-MobileFaceNet** | `matchers/face.py` · `mobilefacenet*.onnx` | Face embedding match on IR/RGB crop | Blue — Phase 2a pretrained + enrolled (own-face) |
+| Finger | **FingerNet-lite** | `matchers/finger.py` · `fingernet_lite_int8.onnx` | Fingerprint embedding / match | Green mock / `ManualScores` until sensor HW + vendor SDK |
+| Behavioral | **LSTM** (or GRU / windowed GBM bake-off) | `matchers/behavioral.py` · `behavioral_lstm_int8.onnx` | Driving-style anomaly → **Risk only**, never Trust | LSTM wired from **synth** bake-off — re-bake on real CAN before citing FAR/FRR |
+| Risk | **LightGBM** → ONNX | `risk_model.py` · `risk_gbt.onnx` | Tabular txn/GPS/CAN features; audit-friendly attributions | Blue — trained on 50k txns (val AUC ≈ 0.9955); additive heuristic if ONNX missing |
 | Trust weights | **PolicyMLP** | `orchestrator.py` · `orchestrator_mlp.onnx` | Context-adaptive voice/face/finger weights + uncertainty | Red — optional ONNX; yellow static weights if absent |
 | Trust fusion | **Logistic regression** | `fusion.py` · `trust_fusion.onnx` | Learned Trust from labeled multimodal scores; static weights if ONNX missing | Blue — Stage 2 / Phase 4 trained |
 | OOD | Stats (z / cosine) | `ood_detector.py` | Fail-closed when baselines missing | Yellow — no neural net; optional AE later |
@@ -341,6 +341,8 @@ flowchart TB
 | Trust fusion logreg | `trust_fusion.onnx` | `scripts/train_trust_fusion.py` |
 | FAR/FRR eval | `phases/phase2b_bio_eval.json` | `scripts/eval_bio_far_frr.py` |
 | Sprint 6 bench | `phases/phase6_sprint6.json` · `phase6.md` | `scripts/phase6_benchmark.py` |
+
+Phase 2a latency profiles: [`phases/phase2a-mac.txt`](phases/phase2a-mac.txt) · [`phases/phase2a-thor.txt`](phases/phase2a-thor.txt) (Thor: ECAPA+face **CUDA**, micro/high p95 ≈ 7.7 / 9.2 ms). Phase 1 mock edge profiles: [`phases/mac.txt`](phases/mac.txt) · [`phases/thor.txt`](phases/thor.txt) ([`phases/phase1.md`](phases/phase1.md)).
 
 Set `DRIVEAUTH_STAGE2_RAW=1` to force frozen 2a cosine-only scoring (no PAD/calibrators).
 
@@ -411,7 +413,9 @@ Optional: `--store ./demo_store` for a persistent store, `--reload` for dev auto
 
 **Register:** open `/register`, pick or create a driver id, capture ≥5 face stills + ≥5 voice clips (`data/<id>/{face,voice}/enroll/`), mark **home** on Maps, then **Enroll into store**. The page lists every known driver with enrollment status. Needs Phase 2a models (`python scripts/phase2a_setup.py`). Paths: `DRIVEAUTH_REGISTER_STORE` / `DRIVEAUTH_DATA_ROOT` / `secrets.env`.
 
-Standalone details: [`docs/standalone.md`](docs/standalone.md). Public demo: `cloudflared tunnel --url http://127.0.0.1:8765` (Mac awake). Railway always-on `/data` volume still open for sleep-safe hosting.
+**Standalone product** (shipping): OpenRouter STT/TTS/intent, live ECAPA/face, Maps GPS, and the three pages above — details in [`docs/standalone.md`](docs/standalone.md).
+
+**Public demo:** `cloudflared tunnel --url http://127.0.0.1:8765` (Mac must stay awake). Always-on Railway `/data` volume is still open (see [What's left](#whats-left)).
 
 ### Phase 2a real voice/face (hybrid)
 
@@ -454,13 +458,14 @@ Decisions: `ACCEPT`, `REJECT` from the biometric ladder; `STEP_UP_REQUIRED` rema
 
 ## Phase 3 data
 
-See [`data/README.md`](data/README.md). Minimum layouts under `data/driver1/`:
+Min sets are in place: voice · face (own-face) · synth finger/CAN/OOD · 50k txns. See [`data/README.md`](data/README.md). Layout under `data/driver1/`:
 
 | Path | Contents |
 |------|----------|
 | `voice/` | enroll · genuine · noisy · attack_* |
 | `face/` | enroll · genuine · attack_blur / side / replay_screen |
 | `finger/` · `behavioral/` · `ood/` | Synth via `scripts/generate_phase3_synth.py` until HW |
+| `transaction/` | 50k txn rows for the Risk head |
 
 ```bash
 python scripts/generate_phase3_synth.py
@@ -486,21 +491,28 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Includes fail-closed paths, cache invalidation, geo/home learning, score provider,
-Sprint 1 security (constant-time pad + OOD-refresh gate), Phase 5 coverage
-(threshold re-baseline + real-model timeout/crash modes), and Phase 6 / Sprint 6
-benchmarks — **162** tests; see [`phases/phase5.md`](phases/phase5.md) ·
-[`phases/phase6.md`](phases/phase6.md).
+**160+** tests cover fail-closed paths, cache invalidation, geo/home learning, score
+provider, Sprint 1 security (constant-time pad + OOD-refresh gate), Phase 5
+(threshold re-baseline + real-model timeout/crash), Phase 6 / Sprint 6 benchmarks
+(FAR/FRR/EER/ROC · PAD · risk · latency · vs OTP/MFA/staged), and the standalone
+session — see [`phases/phase5.md`](phases/phase5.md) · [`phases/phase6.md`](phases/phase6.md).
 
 ## Documentation
+
+Phase 7 docs are in place: this README, demo GIF, security assumptions, and
+LinkedIn/Medium drafts ([`docs/public-posts.md`](docs/public-posts.md); publish
+URLs still open). Phase 8 drafts live under [`docs/paper/`](docs/paper/) — see
+[What's left](#whats-left).
 
 | Doc | Contents |
 |-----|----------|
 | [architecture/overview.md](architecture/overview.md) | Pipeline diagram and module map |
 | [architecture/trust-risk-separation.md](architecture/trust-risk-separation.md) | Trust, Risk, Confidence scores and policy tiers |
 | [docs/security-assumptions.md](docs/security-assumptions.md) | **Threat model, invariants, non-claims, integrator checklist** |
+| [docs/public-posts.md](docs/public-posts.md) | LinkedIn / Medium drafts (Phase 7) |
+| [phases/phase8.md](phases/phase8.md) · [docs/paper/](docs/paper/) | White paper · IV 2027 draft · demo storyboard |
 | [roadmap-2026-07.md](roadmap-2026-07.md) | Current roadmap — phases, sprints, non-goals |
-| [TODO.txt](TODO.txt) | Working checklist (deferred face/Nova GPS called out) |
+| [TODO.txt](TODO.txt) | Working checklist (deferred HW / Nova GPS / publish called out) |
 | [docs/standalone.md](docs/standalone.md) | Standalone product: OpenRouter STT/TTS, Maps, Cloudflare tunnel, Railway |
 | [docs/pipeline-fixes-2026-07.md](docs/pipeline-fixes-2026-07.md) | Risk-pipeline fix bundle details |
 | [docs/configuration.md](docs/configuration.md) | `policy.yaml` placeholders and `DRIVEAUTH_*` overrides |
@@ -556,7 +568,7 @@ Or install editable: `pip install -e /path/to/staged_driveauth-edge`
 
 Set `DRIVEAUTH_STORE_DIR` and `DRIVEAUTH_ENROLL_DIR`. Env vars use `DRIVEAUTH_*` (`NOVA_*` aliases supported).
 
-**Inputs / outputs** (payment path): see the dashboard contract panel and [docs/integration.md](docs/integration.md). Until Nova wires telematics, call or set manually:
+**Inputs / outputs** (payment path): see the dashboard contract panel and [docs/integration.md](docs/integration.md). **Nova live GPS is deferred** — Maps / dashboard GPS until Nova telematics calls `update_vehicle_context` each auth:
 
 ```python
 auth.update_vehicle_context(gps_lat=…, gps_lon=…, gps_accuracy_m=…, speed_kmh=…, ignition_on=…)
@@ -574,27 +586,23 @@ auth.update_vehicle_context(gps_lat=…, gps_lon=…, gps_accuracy_m=…, speed_
 | `dev` | pytest + ruff |
 | `all` | All of the above |
 
+## What's left
+
+Shipped work is woven into the sections above (architecture, Phase 2a models +
+latency, Phase 3 data, standalone dashboard, tests, Sprint 6, Phase 7 docs).
+Full checklist: [`TODO.txt`](TODO.txt) · plan: [`roadmap-2026-07.md`](roadmap-2026-07.md).
+
+| Gap | Required to complete |
+|-----|----------------------|
+| Finger sensor path | Vendor SDK + real captures → drop `ManualScores` / mock finger |
+| Behavioral on real CAN | Recorder dumps under `data/*/behavioral/{genuine,attack}/` → re-run `scripts/train_behavioral_bakeoff.py` → re-enroll |
+| Nova live GPS | Wire telematics → `update_vehicle_context` each auth (Maps/dashboard stand-in until then) |
+| Always-on public demo | Railway (or similar) with persistent `/data` volume — Cloudflare quick tunnel needs Mac awake |
+| Policy bar refresh | Re-check bars after Stage 2; do **not** apply `phases/phase2b_suggested.env` until face overlap is acceptable |
+| Phase 7 publish | Post LinkedIn/Medium from [`docs/public-posts.md`](docs/public-posts.md); paste URLs in that file |
+| Phase 8 publications | Authors · IEEE template · figures · record demo video · submit **IV 2027** by **15 Nov 2026** ([`phases/phase8.md`](phases/phase8.md)) |
+| Risk on live labels | Retrain Risk head only after ~5k real txn labels (explicit non-goal before then) |
+
 ## License
 
 Same lineage as Nova AI — see parent repository for license terms.
-
-## Status (July 2026)
-
-| Area | State |
-|------|--------|
-| Architecture / policy / fraud ladder | ✅ Shipping |
-| Phase 1 Edge (Mac + Thor mock) | ✅ Profiles in `phases/mac.txt` · `phases/thor.txt` ([`phases/phase1.md`](phases/phase1.md)) |
-| Phase 2a latency (Mac + Thor) | ✅ `phases/phase2a-mac.txt` · `phases/phase2a-thor.txt` (Thor: ECAPA+face **CUDA**) |
-| Risk head (LightGBM → ONNX) | ✅ Trained on 50k txns, val AUC ≈ 0.9955 |
-| Voice (ECAPA-TDNN) + face (MobileFaceNet) | ✅ Pretrained wired + enrolled (Phase 2a) |
-| Finger / behavioral | Finger ⏳ mock until HW · Behavioral ✅ LSTM (synth bake-off; re-bake on real CAN) |
-| Phase 3 datasets | ✅ Voice · face · synth finger/CAN/OOD · 50k txns |
-| Nova live GPS | ⏳ Deferred — Maps / dashboard GPS until Nova telematics |
-| Standalone product | ✅ OpenRouter STT/TTS/intent · live ECAPA/face · Maps · `/manual` + `/standalone` · `/register` ([`docs/standalone.md`](docs/standalone.md)) |
-| Public demo (Cloudflare) | ✅ Quick tunnel via `cloudflared` (Mac must stay awake) · ⏳ Railway always-on `/data` volume still open |
-| Tests | ✅ 160+ incl. timing pad + OOD-drift + Phase 5/6 + standalone session |
-| Phase 6 / Sprint 6 benchmarks | ✅ FAR/FRR/EER/ROC · PAD · risk · latency · vs OTP/MFA/staged ([`phases/phase6.md`](phases/phase6.md)) |
-| Phase 7 docs | ✅ README · demo GIF · [`docs/security-assumptions.md`](docs/security-assumptions.md) · [`docs/public-posts.md`](docs/public-posts.md) (publish URLs open) |
-| Phase 8 publications | 🟡 White paper + IV 2027 draft + demo storyboard ([`phases/phase8.md`](phases/phase8.md) · [`docs/paper/`](docs/paper/)) — IV deadline **15 Nov 2026** |
-
-Full plan: [`roadmap-2026-07.md`](roadmap-2026-07.md) · checklist: [`TODO.txt`](TODO.txt)

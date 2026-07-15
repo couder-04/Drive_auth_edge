@@ -255,6 +255,14 @@ def _pipeline_trace(result) -> dict[str, Any]:
     last_probed = probed[-1] if probed else None
     decided_reject = result.decision.value == "REJECT"
 
+    # Progressive unlock: more ladder rungs remain locked in this call.
+    next_unlock: str | None = None
+    if accept_mod is None:
+        if "voice" in probed and "face" not in probed:
+            next_unlock = "face"
+        elif "face" in probed and "finger" not in probed:
+            next_unlock = "finger"
+
     for mod in order:
         score = _mod_score(mod)
         idx = order.index(mod)
@@ -264,6 +272,14 @@ def _pipeline_trace(result) -> dict[str, Any]:
             if accept_mod == mod:
                 status = "accept"
                 detail = f"≥ bar · {score:.3f}" if score is not None else "accepted"
+            elif next_unlock and mod == last_probed:
+                # Soft escalate — next modality still locked; do not mark reject.
+                status = "escalate"
+                detail = (
+                    f"below bar · unlock {next_unlock}"
+                    if score is not None
+                    else f"no score · unlock {next_unlock}"
+                )
             elif decided_reject and mod == last_probed:
                 status = "reject"
                 detail = f"exhausted · {score:.3f}" if score is not None else "exhausted"
@@ -278,14 +294,6 @@ def _pipeline_trace(result) -> dict[str, Any]:
             {"id": mod, "label": mod.title(), "status": status, "score": score, "detail": detail}
         )
 
-    # Progressive unlock hint for standalone: next modality the UI should open.
-    next_unlock: str | None = None
-    if accept_mod is None:
-        if "voice" in probed and "face" not in probed:
-            next_unlock = "face"
-        elif "face" in probed and "finger" not in probed:
-            next_unlock = "finger"
-
     hard_gate = None
     for key, label in (
         ("fraud_locked", "Fraud lock"),
@@ -296,7 +304,62 @@ def _pipeline_trace(result) -> dict[str, Any]:
             hard_gate = label
             break
 
+    # Hard gates cancel progressive unlock (no soft escalate pause).
+    if hard_gate:
+        next_unlock = None
+        for rung in ladder_stages:
+            if rung["id"] == last_probed and rung["status"] == "escalate":
+                score = rung.get("score")
+                rung["status"] = "reject"
+                rung["detail"] = (
+                    f"exhausted · {score:.3f}" if score is not None else "exhausted"
+                )
+
     decision = result.decision.value
+    if next_unlock:
+        ladder_status = "stepup"
+        ladder_detail = (
+            f"{' → '.join(probed) if probed else '—'} · escalate · "
+            f"unlock {next_unlock}"
+        )
+        policy_status, policy_detail = "hold", f"paused · capture {next_unlock}"
+        decision_status, decision_detail = "hold", f"ESCALATE · {next_unlock}"
+        path_summary = (
+            f"{' → '.join(m.title() for m in probed)} → escalate · "
+            f"unlock {next_unlock}"
+            if probed
+            else f"escalate · unlock {next_unlock}"
+        )
+    else:
+        ladder_status = (
+            "block"
+            if decision == "REJECT" and hard_gate is None
+            else "accept"
+            if decision == "ACCEPT"
+            else "stepup"
+            if decision == "STEP_UP_REQUIRED"
+            else "done"
+        )
+        ladder_detail = (
+            f"probed {' → '.join(probed) if probed else '—'}"
+            + (f" · early-stop {accept_mod}" if accept_mod else "")
+        )
+        policy_status = (
+            "accept"
+            if decision == "ACCEPT"
+            else "stepup"
+            if decision == "STEP_UP_REQUIRED"
+            else "block"
+        )
+        policy_detail = result.policy_rule or "—"
+        decision_status = policy_status
+        decision_detail = decision
+        path_summary = hard_gate or (
+            f"{' → '.join(m.title() for m in probed)} → {decision}"
+            if probed
+            else decision
+        )
+
     stages = [
         {
             "id": "intent",
@@ -319,44 +382,21 @@ def _pipeline_trace(result) -> dict[str, Any]:
         {
             "id": "ladder",
             "label": "Bio ladder",
-            "status": (
-                "block"
-                if decision == "REJECT" and hard_gate is None
-                else "accept"
-                if decision == "ACCEPT"
-                else "stepup"
-                if decision == "STEP_UP_REQUIRED"
-                else "done"
-            ),
-            "detail": (
-                f"probed {' → '.join(probed) if probed else '—'}"
-                + (f" · early-stop {accept_mod}" if accept_mod else "")
-            ),
+            "status": ladder_status,
+            "detail": ladder_detail,
             "rungs": ladder_stages,
         },
         {
             "id": "policy",
             "label": "Policy",
-            "status": (
-                "accept"
-                if decision == "ACCEPT"
-                else "stepup"
-                if decision == "STEP_UP_REQUIRED"
-                else "block"
-            ),
-            "detail": result.policy_rule or "—",
+            "status": policy_status,
+            "detail": policy_detail,
         },
         {
             "id": "decision",
             "label": "Decision",
-            "status": (
-                "accept"
-                if decision == "ACCEPT"
-                else "stepup"
-                if decision == "STEP_UP_REQUIRED"
-                else "block"
-            ),
-            "detail": decision,
+            "status": decision_status,
+            "detail": decision_detail,
         },
     ]
 
@@ -365,15 +405,9 @@ def _pipeline_trace(result) -> dict[str, Any]:
         "probed": probed,
         "accept_modality": accept_mod,
         "next_unlock": next_unlock,
+        "pause_after": "ladder" if next_unlock else None,
         "hard_gate": hard_gate,
-        "path_summary": (
-            hard_gate
-            or (
-                f"{' → '.join(m.title() for m in probed)} → {decision}"
-                if probed
-                else decision
-            )
-        ),
+        "path_summary": path_summary,
     }
 
 

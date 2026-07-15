@@ -543,6 +543,7 @@ def render_dashboard(*, mode: str = "manual") -> str:
     }
     .flow-stage.accept .flow-node { border-color: var(--accept); background: var(--accept); box-shadow: 0 0 16px rgba(52,211,153,0.55); }
     .flow-stage.stepup .flow-node { border-color: var(--stepup); background: var(--stepup); box-shadow: 0 0 16px rgba(251,191,36,0.5); }
+    .flow-stage.hold .flow-node { border-color: var(--stepup); background: transparent; box-shadow: none; opacity: 0.55; }
     .flow-stage.block .flow-node,
     .flow-stage.reject .flow-node { border-color: var(--reject); background: var(--reject); box-shadow: 0 0 16px rgba(248,113,113,0.5); }
     .flow-line {
@@ -568,6 +569,7 @@ def render_dashboard(*, mode: str = "manual") -> str:
     }
     .flow-stage.accept .flow-card { border-color: rgba(52,211,153,0.45); background: rgba(52,211,153,0.08); }
     .flow-stage.stepup .flow-card { border-color: rgba(251,191,36,0.45); background: rgba(251,191,36,0.08); }
+    .flow-stage.hold .flow-card { border-color: rgba(251,191,36,0.25); background: transparent; opacity: 0.55; }
     .flow-stage.block .flow-card,
     .flow-stage.reject .flow-card { border-color: rgba(248,113,113,0.45); background: rgba(248,113,113,0.08); }
     .flow-card .fc-title {
@@ -589,6 +591,7 @@ def render_dashboard(*, mode: str = "manual") -> str:
     .flow-stage.active .fc-status { color: var(--cyan); }
     .flow-stage.accept .fc-status { color: var(--accept); }
     .flow-stage.stepup .fc-status { color: var(--stepup); }
+    .flow-stage.hold .fc-status { color: var(--faint); }
     .flow-stage.block .fc-status,
     .flow-stage.reject .fc-status { color: var(--reject); }
     .flow-card .fc-detail {
@@ -1423,6 +1426,9 @@ def render_dashboard(*, mode: str = "manual") -> str:
         stageEls[el.dataset.stage] = el;
       });
 
+      // Progressive unlock: stop after Bio ladder — don't light Policy/Decision yet.
+      const pauseAfter = pipeline.pause_after || (pipeline.next_unlock ? "ladder" : null);
+
       for (const stage of pipeline.stages) {
         const el = stageEls[stage.id];
         if (!el) continue;
@@ -1435,8 +1441,9 @@ def render_dashboard(*, mode: str = "manual") -> str:
           await animateStaircase(stage.rungs, pipeline);
         }
         await sleep(140);
+        if (pauseAfter && stage.id === pauseAfter) break;
       }
-      setLivePill("on", "Live");
+      setLivePill("on", pipeline.next_unlock ? "Escalate" : "Live");
     }
 
     async function animateStaircase(rungs, pipeline) {
@@ -1449,13 +1456,16 @@ def render_dashboard(*, mode: str = "manual") -> str:
         foot.textContent = `Climbing: ${climb}` +
           (pipeline.accept_modality
             ? ` · early-stop @ ${pipeline.accept_modality}`
-            : "");
+            : pipeline.next_unlock
+              ? ` · escalate · unlock ${pipeline.next_unlock}`
+              : "");
       }
 
-      // Live climb in actual probe order only — locked / skipped rungs stay dark.
+      // Live climb in actual probe order only — locked rungs stay dark.
       const byId = {};
       rungs.forEach(r => { byId[r.id] = r; });
       const order = probed.length ? probed : [];
+      const ladderOrder = ["voice", "face", "finger"];
 
       for (let i = 0; i < order.length; i++) {
         const id = order[i];
@@ -1478,9 +1488,14 @@ def render_dashboard(*, mode: str = "manual") -> str:
         rEl.className = "stair-step on " + (rung.status || "");
         if (badge) badge.textContent = rung.status || "done";
 
+        // Only light the escalate riser when the *next* rung was also probed
+        // this call — never preview a still-locked face/finger tread.
         if (rung.status === "escalate") {
-          const riser = document.querySelector(`.stair-riser[data-after="${id}"]`);
-          if (riser) riser.classList.add("on");
+          const nextMod = ladderOrder[ladderOrder.indexOf(id) + 1];
+          if (nextMod && probed.includes(nextMod)) {
+            const riser = document.querySelector(`.stair-riser[data-after="${id}"]`);
+            if (riser) riser.classList.add("on");
+          }
         }
         await sleep(180);
       }
@@ -1501,8 +1516,13 @@ def render_dashboard(*, mode: str = "manual") -> str:
       }
 
       if (foot) {
-        foot.textContent = `Path: ${climb}` +
-          (pipeline && pipeline.path_summary ? ` · ${pipeline.path_summary}` : "");
+        let msg = `Path: ${climb}`;
+        if (pipeline && pipeline.next_unlock) {
+          msg += ` · escalate · capture ${pipeline.next_unlock}`;
+        } else if (pipeline && pipeline.path_summary) {
+          msg += ` · ${pipeline.path_summary}`;
+        }
+        foot.textContent = msg;
       }
     }
 
@@ -1526,8 +1546,14 @@ def render_dashboard(*, mode: str = "manual") -> str:
 
     function showResult(r) {
       const banner = document.getElementById("decision-banner");
-      banner.textContent = r.decision;
-      banner.className = "decision-banner decision-" + r.decision;
+      const next = r.pipeline && r.pipeline.next_unlock;
+      if (next) {
+        banner.textContent = "ESCALATE · " + String(next).toUpperCase();
+        banner.className = "decision-banner decision-STEP_UP_REQUIRED";
+      } else {
+        banner.textContent = r.decision;
+        banner.className = "decision-banner decision-" + r.decision;
+      }
 
       function setScore(id, barId, val) {
         const pct = Math.round((val || 0) * 100);
@@ -1539,8 +1565,10 @@ def render_dashboard(*, mode: str = "manual") -> str:
       setScore("conf-val", "conf-bar", r.confidence_score);
 
       document.getElementById("tier").textContent = r.tier;
-      document.getElementById("policy").textContent = r.policy_rule;
-      document.getElementById("stepup").textContent = r.step_up_method || "—";
+      document.getElementById("policy").textContent =
+        next ? (`paused · unlock ${next}`) : r.policy_rule;
+      document.getElementById("stepup").textContent =
+        next ? next : (r.step_up_method || "—");
       document.getElementById("legacy").textContent = r.legacy_decision || "—";
 
       const tags = document.getElementById("explanations");

@@ -167,7 +167,7 @@ def test_register_api_init_and_uploads(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_pipeline_next_unlock_voice_only(tmp_path: Path, monkeypatch) -> None:
-    """Voice miss with face locked should advertise next_unlock=face."""
+    """Voice miss with face locked should pause at escalate — not light face."""
     from driveauth.types import Decision, DriveAuthResult
 
     import dashboard.app as app_mod
@@ -194,5 +194,50 @@ def test_pipeline_next_unlock_voice_only(tmp_path: Path, monkeypatch) -> None:
     pipe = app_mod._pipeline_trace(result)
     assert pipe["probed"] == ["voice"]
     assert pipe["next_unlock"] == "face"
+    assert pipe["pause_after"] == "ladder"
+    voice_rung = next(r for r in pipe["stages"][3]["rungs"] if r["id"] == "voice")
     face_rung = next(r for r in pipe["stages"][3]["rungs"] if r["id"] == "face")
+    finger_rung = next(r for r in pipe["stages"][3]["rungs"] if r["id"] == "finger")
+    assert voice_rung["status"] == "escalate"
     assert face_rung["status"] == "locked"
+    assert finger_rung["status"] == "locked"
+    assert pipe["stages"][3]["status"] == "stepup"
+    assert pipe["stages"][4]["status"] == "hold"  # policy paused
+    assert pipe["stages"][5]["status"] == "hold"  # decision paused
+
+
+def test_pipeline_next_unlock_face_stops_before_finger() -> None:
+    from driveauth.types import Decision, DriveAuthResult
+
+    import dashboard.app as app_mod
+
+    result = DriveAuthResult(
+        decision=Decision.REJECT,
+        trust_score=0.3,
+        risk_score=0.1,
+        confidence_score=0.7,
+        tier="standard",
+        explanations=[
+            "escalation_voice_face_finger_ladder",
+            "ladder_escalate_after_voice_score_0.400",
+            "ladder_escalate_after_face_score_0.350",
+            "probed_voice+face",
+            "ladder_exhausted_reject",
+        ],
+        modality_scores={
+            "voice": {"score": 0.4, "available": True},
+            "face": {"score": 0.35, "available": True},
+        },
+        amount=50.0,
+        currency="INR",
+        beneficiary="Mom",
+        action="pay",
+    )
+    pipe = app_mod._pipeline_trace(result)
+    assert pipe["probed"] == ["voice", "face"]
+    assert pipe["next_unlock"] == "finger"
+    assert pipe["pause_after"] == "ladder"
+    rungs = {r["id"]: r for r in pipe["stages"][3]["rungs"]}
+    assert rungs["voice"]["status"] == "escalate"
+    assert rungs["face"]["status"] == "escalate"
+    assert rungs["finger"]["status"] == "locked"

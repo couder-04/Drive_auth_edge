@@ -197,15 +197,44 @@ def panel_css() -> str:
       pointer-events: none;
       min-height: 140px;
     }
+    .pay-face-body.locked #pay-cam-start,
+    .pay-face-body.locked #pay-cam-snap,
+    .finger-wrap.locked-inline #pay-finger {
+      opacity: 0.35;
+      cursor: not-allowed !important;
+    }
     .pay-card .lock-note {
       font-size: 0.7rem;
       color: var(--faint);
       margin-top: 0.35rem;
     }
-    .finger-wrap { margin-top: 0.65rem; }
+    .finger-wrap {
+      position: relative;
+      margin-top: 0.65rem;
+      border-radius: 10px;
+      min-height: 64px;
+    }
     .finger-wrap.locked-inline {
-      opacity: 0.45;
+      opacity: 0.85;
       pointer-events: none;
+    }
+    .finger-wrap.locked-inline::after {
+      content: attr(data-lock);
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 0.5rem;
+      font-size: 0.72rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      color: var(--stepup);
+      background: rgba(6, 10, 16, 0.78);
+      border-radius: 10px;
+      pointer-events: none;
+      z-index: 2;
     }
     """
 
@@ -252,12 +281,12 @@ def panel_html() -> str:
             <button type="button" class="secondary" id="pay-geo">Browser GPS</button>
             <button type="button" class="secondary" id="pay-clear-gps">Clear pin</button>
           </div>
-          <div class="finger-wrap locked-inline" id="pay-finger-wrap" data-lock="Finger locked">
+          <div class="finger-wrap locked-inline" id="pay-finger-wrap" data-lock="Fingerprint locked · wait for face escalate">
             <label style="display:block;font-size:0.72rem;color:var(--muted)">
               Finger (manual until HW) <span id="pay-finger-val">—</span>
             </label>
-            <input id="pay-finger" type="range" min="0" max="1" step="0.01" value="0.85" style="width:100%" disabled />
-            <div class="lock-note" id="pay-finger-note">Unlocks after face also fails the accept bar.</div>
+            <input id="pay-finger" type="range" min="0" max="1" step="0.01" value="0.85" style="width:100%" disabled aria-disabled="true" />
+            <div class="lock-note" id="pay-finger-note">Locked until face also fails the accept bar.</div>
           </div>
         </div>
         <div class="pay-card" id="pay-face-card" data-lock="Face locked · authorize with voice + location first">
@@ -265,8 +294,8 @@ def panel_html() -> str:
           <div id="pay-face-lock" class="pay-face-body locked" data-lock="Face locked · authorize with voice + location first">
             <video id="pay-cam" autoplay playsinline muted></video>
             <div class="pay-actions">
-              <button type="button" class="secondary" id="pay-cam-start" disabled>Start camera</button>
-              <button type="button" class="secondary" id="pay-cam-snap" disabled>Snap face</button>
+              <button type="button" class="secondary" id="pay-cam-start" disabled aria-disabled="true">Start camera · locked</button>
+              <button type="button" class="secondary" id="pay-cam-snap" disabled aria-disabled="true">Snap face · locked</button>
             </div>
           </div>
           <canvas id="pay-face-canvas" style="display:none"></canvas>
@@ -360,11 +389,27 @@ def panel_script() -> str:
         faceBody.removeAttribute("data-lock");
         camStart.disabled = false;
         camSnap.disabled = false;
+        camStart.setAttribute("aria-disabled", "false");
+        camSnap.setAttribute("aria-disabled", "false");
+        camStart.textContent = "Start camera";
+        camSnap.textContent = "Snap face";
       } else {
         faceBody.classList.add("locked");
-        faceBody.setAttribute("data-lock", "Face locked · authorize with voice + location first");
+        faceBody.setAttribute("data-lock", "Camera locked · unlocks when voice escalates");
         camStart.disabled = true;
         camSnap.disabled = true;
+        camStart.setAttribute("aria-disabled", "true");
+        camSnap.setAttribute("aria-disabled", "true");
+        camStart.textContent = "Start camera · locked";
+        camSnap.textContent = "Snap face · locked";
+        // Drop any prior capture if face is locked again.
+        pay.faceBlob = null;
+        if (pay.camStream) {
+          try { pay.camStream.getTracks().forEach((t) => t.stop()); } catch (_) {}
+          pay.camStream = null;
+          const cam = document.getElementById("pay-cam");
+          if (cam) cam.srcObject = null;
+        }
       }
 
       const fingerWrap = document.getElementById("pay-finger-wrap");
@@ -372,14 +417,19 @@ def panel_script() -> str:
       const fingerNote = document.getElementById("pay-finger-note");
       if (pay.unlock.finger) {
         fingerWrap.classList.remove("locked-inline");
+        fingerWrap.removeAttribute("data-lock");
         finger.disabled = false;
+        finger.setAttribute("aria-disabled", "false");
         document.getElementById("pay-finger-val").textContent = finger.value;
         fingerNote.textContent = "Set a mock fingerprint score, then authorize again.";
       } else {
         fingerWrap.classList.add("locked-inline");
+        fingerWrap.setAttribute("data-lock", "Fingerprint locked · wait for face escalate");
         finger.disabled = true;
+        finger.setAttribute("aria-disabled", "true");
+        finger.value = "0.85";
         document.getElementById("pay-finger-val").textContent = "—";
-        fingerNote.textContent = "Unlocks after face also fails the accept bar.";
+        fingerNote.textContent = "Locked until face also fails the accept bar.";
       }
       updatePayReady();
     }
@@ -556,22 +606,26 @@ def panel_script() -> str:
       const prompt = document.getElementById("pay-prompt");
       prompt.dataset.needFace = "0";
       if (next === "face") {
+        // Camera unlocks here; fingerprint stays locked until face escalates.
         pay.unlock.face = true;
+        pay.unlock.finger = false;
         prompt.dataset.needFace = "1";
         prompt.textContent =
-          "Voice below threshold — unlock face, snap, then authorize again.";
+          "Escalated at Voice — Start camera is unlocked. Snap face, then Authorize again. Fingerprint stays locked.";
       } else if (next === "finger") {
         pay.unlock.face = true;
         pay.unlock.finger = true;
         prompt.textContent =
-          "Face stepped up — set a manual fingerprint score, then authorize again.";
+          "Escalated at Face — fingerprint slider unlocked. Set a score, then Authorize again.";
       } else if (data.decision === "ACCEPT") {
         prompt.textContent = "Accepted.";
       } else if (data.decision === "STEP_UP_REQUIRED") {
         pay.unlock.face = true;
         pay.unlock.finger = true;
         prompt.textContent =
-          "Step-up required — set fingerprint and re-authorize.";
+          "Step-up required — fingerprint slider unlocked. Set a score and re-authorize.";
+      } else if (data.decision === "REJECT") {
+        prompt.textContent = "Rejected — ladder exhausted.";
       }
       applyPayUnlockUI();
     }
@@ -665,9 +719,6 @@ def panel_script() -> str:
       if (pay.cfg.default_driver) sel.value = pay.cfg.default_driver;
       sel.addEventListener("change", () => resetPayUnlock());
 
-      document.getElementById("pay-finger").oninput = (e) => {
-        document.getElementById("pay-finger-val").textContent = e.target.value;
-      };
       ["pay-amount", "pay-beneficiary"].forEach(id => {
         document.getElementById(id).addEventListener("input", updatePayReady);
       });
@@ -703,12 +754,14 @@ def panel_script() -> str:
         updatePayReady();
       };
       document.getElementById("pay-cam-start").onclick = async () => {
+        if (!pay.unlock.face) return;
         pay.camStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "user" }, audio: false,
         });
         document.getElementById("pay-cam").srcObject = pay.camStream;
       };
       document.getElementById("pay-cam-snap").onclick = () => {
+        if (!pay.unlock.face) return;
         const video = document.getElementById("pay-cam");
         const canvas = document.getElementById("pay-face-canvas");
         if (!video.videoWidth) return;
@@ -721,6 +774,13 @@ def panel_script() -> str:
           document.getElementById("pay-prompt").textContent = "Face snap captured — authorize again.";
           updatePayReady();
         }, "image/jpeg", 0.92);
+      };
+      document.getElementById("pay-finger").oninput = (e) => {
+        if (!pay.unlock.finger) {
+          e.target.value = "0.85";
+          return;
+        }
+        document.getElementById("pay-finger-val").textContent = e.target.value;
       };
       document.getElementById("pay-run").onclick = () => runStandaloneAuth();
       applyPayUnlockUI();
