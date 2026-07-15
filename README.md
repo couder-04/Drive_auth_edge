@@ -26,7 +26,7 @@ Dashboard presets: **Micro payment → ACCEPT**, **Low voice → Face ACCEPT**, 
 
 ![DriveAuth dashboard: Voice → Face → Finger ladder → ACCEPT or REJECT](docs/demo.gif)
 
-Regen: `driveauth-dashboard` + `python scripts/capture_dashboard_demo_gif.py` (needs `pillow` + `playwright`).
+Regen: `driveauth-dashboard` + `python scripts/capture_dashboard_demo_gif.py` (needs `pillow` + `playwright`). Captures the three presets above with live staircase frames.
 
 ## Design principle
 
