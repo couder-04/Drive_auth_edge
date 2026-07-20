@@ -188,19 +188,41 @@ class AuditLog:
                 continue
         return out
 
-    def read_all_entries(self) -> list[dict]:
+    def read_all_entries(self, *, strict: bool = False) -> list[dict]:
+        """Load every audit line.
+
+        Lenient (default): skip blank / unparseable lines — used by UI log
+        viewers that should still show intact neighbors after a partial write.
+
+        Strict: any non-blank line that fails ``json.loads`` raises
+        ``ValueError`` so :meth:`verify_chain` can treat it as tamper evidence
+        instead of a vacuous “that entry never existed” pass.
+        """
         if not self._path.exists():
             return []
         out: list[dict] = []
+        # Index counts non-blank lines (entries), matching verify_chain's entry[i].
+        entry_idx = 0
         for line in self._path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line:
                 continue
             try:
                 out.append(json.loads(line))
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as exc:
+                if strict:
+                    raise ValueError(
+                        f"entry[{entry_idx}] unparseable — file corrupted"
+                    ) from exc
+                # Lenient path: drop the bad line and keep scanning.
+                entry_idx += 1
                 continue
+            entry_idx += 1
         return out
 
     def verify_chain(self) -> tuple[bool, str]:
-        return verify_chain(self.read_all_entries())
+        try:
+            entries = self.read_all_entries(strict=True)
+        except ValueError as exc:
+            return False, str(exc)
+        return verify_chain(entries)

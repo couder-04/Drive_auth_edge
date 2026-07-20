@@ -174,7 +174,11 @@ class VoiceMatcher:
         t0 = time.perf_counter()
         if not self.ready:
             return ModalityResult(score=None, confident=False, available=False)
-        if len(audio_f32) < sample_rate:
+        # Same floor as embed() (0.5s). A stricter 1.0s gate here used to
+        # silently drop valid short attacks (e.g. 0.88s other_speaker clips)
+        # even though ECAPA could embed them.
+        min_samples = sample_rate // 2
+        if audio_f32 is None or len(audio_f32) < min_samples:
             return ModalityResult(score=None, confident=False)
 
         try:

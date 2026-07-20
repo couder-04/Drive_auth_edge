@@ -285,8 +285,18 @@ class FaceMatcher:
             frame = self._read_camera_bgr()
             if frame is None:
                 return ModalityResult(score=None, confident=False, available=False)
-            crop = self._extract_face_crop(frame, cv2)
-            if crop is None and self._inject_bgr is not None:
+            # Must populate _last_meta the same way as capture_frame / train_face_pad
+            # (_load_meta_for). _extract_face_crop alone drops face_frac/frontal_ok;
+            # PAD then defaults face_frac→1.0 and attacks pass the gate.
+            meta = self._extract_face_meta(frame, cv2)
+            if meta is not None:
+                crop, face_frac, frontal_ok = meta
+                self._last_meta = {
+                    "face_frac": face_frac,
+                    "frontal_ok": frontal_ok,
+                    "bgr": crop,
+                }
+            elif self._inject_bgr is not None:
                 crop = self._center_crop(frame)
                 self._last_meta = {
                     "face_frac": 1.0,
@@ -294,6 +304,8 @@ class FaceMatcher:
                     "bgr": crop,
                     "inject_fallback": True,
                 }
+            else:
+                crop = None
             if crop is None:
                 return ModalityResult(
                     score=None, confident=False, quality=0.2, available=False
@@ -311,6 +323,11 @@ class FaceMatcher:
             emb = self._embed_crop_bgr(crop)
             if emb is None or self._emb is None:
                 return ModalityResult(score=None, confident=False, available=False)
+            # Cosine in [0,1] after L2-norm; higher = closer to enrolled identity.
+            # Raw attack>genuine on driver1 stills is NOT a sign bug: many genuine
+            # frames miss Haar and fall back to a loose center-crop (lower sim),
+            # while same-identity PA attacks (blur/screen) get a tight face crop
+            # and therefore score higher. PAD + calibrator are what separate them.
             sim = float(np.clip(float(np.dot(self._emb, emb)), 0.0, 1.0))
             score = sim
             if self._calibrator is not None:

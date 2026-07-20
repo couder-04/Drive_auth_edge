@@ -1,28 +1,28 @@
 {
   "tag": "phase2b",
-  "store": "/Users/par_04/Desktop/staged_driveauth-edge/driveauth_store_phase2a",
+  "store": "driveauth_store_phase2a",
   "raw": false,
   "voice": {
     "genuine": {
       "n": 20,
-      "mean": 0.6106,
-      "p10": 0.5625,
-      "p50": 0.6159,
-      "p90": 0.6475,
-      "min": 0.5086,
-      "max": 0.6592
+      "mean": 0.6233,
+      "p10": 0.5751,
+      "p50": 0.6286,
+      "p90": 0.6602,
+      "min": 0.5207,
+      "max": 0.6719
     },
     "attack": {
       "n": 13,
-      "mean": 0.3595,
-      "p10": 0.1763,
-      "p50": 0.3256,
-      "p90": 0.615,
-      "min": 0.0,
-      "max": 0.6292
+      "mean": 0.3767,
+      "p10": 0.1654,
+      "p50": 0.3289,
+      "p90": 0.628,
+      "min": 0.1621,
+      "max": 0.6419
     },
     "metrics": {
-      "eer_thr": 0.58,
+      "eer_thr": 0.593,
       "eer": 0.2154,
       "eer_far": 0.2308,
       "eer_frr": 0.2
@@ -31,15 +31,15 @@
       "attack_replay": {
         "scores": {
           "n": 5,
-          "mean": 0.5686,
-          "p10": 0.493,
-          "p50": 0.584,
-          "p90": 0.6266,
-          "min": 0.4506,
-          "max": 0.6292
+          "mean": 0.581,
+          "p10": 0.5046,
+          "p50": 0.5967,
+          "p90": 0.6395,
+          "min": 0.4616,
+          "max": 0.6419
         },
         "metrics": {
-          "eer_thr": 0.613,
+          "eer_thr": 0.626,
           "eer": 0.4,
           "eer_far": 0.4,
           "eer_frr": 0.4
@@ -49,15 +49,15 @@
       "attack_silent": {
         "scores": {
           "n": 3,
-          "mean": 0.178,
-          "p10": 0.1763,
-          "p50": 0.1791,
-          "p90": 0.1792,
-          "min": 0.1756,
-          "max": 0.1793
+          "mean": 0.1643,
+          "p10": 0.1627,
+          "p50": 0.1653,
+          "p90": 0.1655,
+          "min": 0.1621,
+          "max": 0.1655
         },
         "metrics": {
-          "eer_thr": 0.18,
+          "eer_thr": 0.166,
           "eer": 0.0,
           "eer_far": 0.0,
           "eer_frr": 0.0
@@ -67,15 +67,15 @@
       "attack_other_speaker": {
         "scores": {
           "n": 5,
-          "mean": 0.2592,
-          "p10": 0.1219,
-          "p50": 0.308,
-          "p90": 0.3448,
-          "min": 0.0,
-          "max": 0.3575
+          "mean": 0.2997,
+          "p10": 0.2332,
+          "p50": 0.3132,
+          "p90": 0.3502,
+          "min": 0.1818,
+          "max": 0.3645
         },
         "metrics": {
-          "eer_thr": 0.358,
+          "eer_thr": 0.365,
           "eer": 0.0,
           "eer_far": 0.0,
           "eer_frr": 0.0
@@ -87,27 +87,27 @@
   "face": {
     "genuine": {
       "n": 20,
-      "mean": 0.5012,
-      "p10": 0.5007,
-      "p50": 0.501,
-      "p90": 0.5019,
-      "min": 0.4997,
-      "max": 0.5027
+      "mean": 0.4871,
+      "p10": 0.0,
+      "p50": 0.5543,
+      "p90": 0.6162,
+      "min": 0.0,
+      "max": 0.657
     },
     "attack": {
       "n": 23,
-      "mean": 0.1763,
+      "mean": 0.1002,
       "p10": 0.0,
       "p50": 0.0,
-      "p90": 0.5071,
+      "p90": 0.5666,
       "min": 0.0,
-      "max": 0.5073
+      "max": 0.5891
     },
     "metrics": {
-      "eer_thr": 0.501,
-      "eer": 0.3989,
-      "eer_far": 0.3478,
-      "eer_frr": 0.45
+      "eer_thr": 0.001,
+      "eer": 0.162,
+      "eer_far": 0.1739,
+      "eer_frr": 0.15
     },
     "by_class": {
       "attack_blur": {
@@ -122,29 +122,29 @@
         },
         "metrics": {
           "eer_thr": 0.001,
-          "eer": 0.0,
+          "eer": 0.075,
           "eer_far": 0.0,
-          "eer_frr": 0.0
+          "eer_frr": 0.15
         },
         "far_at_eer_thr": 0.0
       },
       "attack_side": {
         "scores": {
           "n": 8,
-          "mean": 0.5068,
-          "p10": 0.5064,
-          "p50": 0.5068,
-          "p90": 0.5072,
-          "min": 0.5064,
-          "max": 0.5073
+          "mean": 0.288,
+          "p10": 0.0,
+          "p50": 0.282,
+          "p90": 0.5853,
+          "min": 0.0,
+          "max": 0.5891
         },
         "metrics": {
-          "eer_thr": 0.503,
-          "eer": 1.0,
-          "eer_far": 1.0,
-          "eer_frr": 1.0
+          "eer_thr": 0.553,
+          "eer": 0.5,
+          "eer_far": 0.5,
+          "eer_frr": 0.5
         },
-        "far_at_eer_thr": 1.0
+        "far_at_eer_thr": 0.5
       },
       "attack_replay_screen": {
         "scores": {
@@ -158,15 +158,15 @@
         },
         "metrics": {
           "eer_thr": 0.001,
-          "eer": 0.0,
+          "eer": 0.075,
           "eer_far": 0.0,
-          "eer_frr": 0.0
+          "eer_frr": 0.15
         },
         "far_at_eer_thr": 0.0
       }
     },
-    "pad_attack_reject_rate": 0.6522,
-    "pad_genuine_reject_rate": 0.0,
+    "pad_attack_reject_rate": 0.8261,
+    "pad_genuine_reject_rate": 0.15,
     "n_scored_attack": 23,
     "n_scored_genuine": 20
   },
@@ -182,12 +182,12 @@
       "beats": false
     },
     "face": {
-      "baseline_eer": 0.3957,
-      "current_eer": 0.3989,
-      "improved_eer": false,
+      "baseline_eer": 0.838,
+      "current_eer": 0.162,
+      "improved_eer": true,
       "improved_far_at_eer": true,
       "improved_attack_mean": true,
-      "pad_attack_reject_rate": 0.6522,
+      "pad_attack_reject_rate": 0.8261,
       "beats": true
     },
     "beats_2a": true

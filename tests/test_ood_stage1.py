@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 
 import numpy as np
@@ -14,6 +15,11 @@ from driveauth.types import ModalityResult
 ROOT = Path(__file__).resolve().parents[1]
 STORE = ROOT / "driveauth_store_phase2a"
 DATA = ROOT / "data" / "driver1"
+
+
+def _has_mod(name: str) -> bool:
+    return importlib.util.find_spec(name) is not None
+
 
 
 def test_trust_fusion_stays_static_weighted_average():
@@ -64,8 +70,9 @@ def test_ood_voice_files_are_nontrivial():
 
 @pytest.mark.skipif(
     not (STORE / "faces" / "driver1.enc").exists()
-    or not (DATA / "ood" / "face").exists(),
-    reason="Phase 2a store or OOD face set missing",
+    or not (DATA / "ood" / "face").exists()
+    or not _has_mod("cv2"),
+    reason="Phase 2a store / OOD face set / OpenCV ([face] extra) missing",
 )
 def test_ood_face_negatives_reject_against_enrolled_template():
     """Real other-identity faces should not match enrolled driver1 strongly."""

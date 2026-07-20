@@ -96,6 +96,22 @@ def test_audit_chain_detects_removed_entry(tmp_path: Path):
     assert ok is False
 
 
+def test_audit_chain_detects_unparseable_line(tmp_path: Path):
+    """Malformed JSON must fail verify_chain — not be silently dropped (vacuous ok)."""
+    path = tmp_path / "a.jsonl"
+    log = AuditLog(path)
+    log.log_decision(event="auth", driver_id="d1", result=_result())
+    # Append a corrupted non-JSON line (simulates mid-file byte flip).
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write("{not valid json at all\n")
+    ok, reason = AuditLog(path).verify_chain()
+    assert ok is False
+    assert "unparseable" in reason
+    # Lenient read still returns the intact entry only.
+    entries = AuditLog(path).read_all_entries(strict=False)
+    assert len(entries) == 1
+
+
 def test_audit_remote_sink_mocked(tmp_path: Path):
     shipped: list[bytes] = []
 

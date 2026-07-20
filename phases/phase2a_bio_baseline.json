@@ -1,6 +1,6 @@
 {
   "tag": "baseline",
-  "store": "/Users/par_04/Desktop/staged_driveauth-edge/driveauth_store_phase2a",
+  "store": "driveauth_store_phase2a",
   "raw": true,
   "voice": {
     "genuine": {
@@ -87,41 +87,41 @@
   "face": {
     "genuine": {
       "n": 20,
-      "mean": 0.4982,
-      "p10": 0.4086,
-      "p50": 0.4934,
-      "p90": 0.5877,
-      "min": 0.3358,
-      "max": 0.6116
+      "mean": 0.3952,
+      "p10": 0.2361,
+      "p50": 0.3845,
+      "p90": 0.6198,
+      "min": 0.1324,
+      "max": 0.7678
     },
     "attack": {
       "n": 23,
-      "mean": 0.4975,
-      "p10": 0.3582,
-      "p50": 0.4621,
-      "p90": 0.6615,
-      "min": 0.3448,
-      "max": 0.6665
+      "mean": 0.6258,
+      "p10": 0.3461,
+      "p50": 0.6416,
+      "p90": 0.8455,
+      "min": 0.2913,
+      "max": 0.8664
     },
     "metrics": {
-      "eer_thr": 0.48,
-      "eer": 0.3957,
-      "eer_far": 0.3913,
-      "eer_frr": 0.4
+      "eer_thr": 0.438,
+      "eer": 0.838,
+      "eer_far": 0.8261,
+      "eer_frr": 0.85
     },
     "by_class": {
       "attack_blur": {
         "scores": {
           "n": 8,
-          "mean": 0.6364,
-          "p10": 0.6002,
-          "p50": 0.6461,
-          "p90": 0.6646,
-          "min": 0.571,
-          "max": 0.6665
+          "mean": 0.6504,
+          "p10": 0.583,
+          "p50": 0.6513,
+          "p90": 0.7118,
+          "min": 0.5797,
+          "max": 0.7381
         },
         "metrics": {
-          "eer_thr": 0.585,
+          "eer_thr": 0.58,
           "eer": 0.8625,
           "eer_far": 0.875,
           "eer_frr": 0.85
@@ -131,38 +131,38 @@
       "attack_side": {
         "scores": {
           "n": 8,
-          "mean": 0.4357,
-          "p10": 0.4027,
-          "p50": 0.4328,
-          "p90": 0.4674,
-          "min": 0.3844,
-          "max": 0.4796
+          "mean": 0.4171,
+          "p10": 0.3005,
+          "p50": 0.4004,
+          "p90": 0.5356,
+          "min": 0.2913,
+          "max": 0.6208
         },
         "metrics": {
-          "eer_thr": 0.453,
-          "eer": 0.3625,
-          "eer_far": 0.375,
-          "eer_frr": 0.35
+          "eer_thr": 0.382,
+          "eer": 0.5,
+          "eer_far": 0.5,
+          "eer_frr": 0.5
         },
-        "far_at_eer_thr": 0.0
+        "far_at_eer_thr": 0.5
       },
       "attack_replay_screen": {
         "scores": {
           "n": 7,
-          "mean": 0.4093,
-          "p10": 0.3448,
-          "p50": 0.3864,
-          "p90": 0.5108,
-          "min": 0.3448,
-          "max": 0.5615
+          "mean": 0.8363,
+          "p10": 0.8073,
+          "p50": 0.8388,
+          "p90": 0.8635,
+          "min": 0.792,
+          "max": 0.8664
         },
         "metrics": {
-          "eer_thr": 0.452,
-          "eer": 0.2679,
-          "eer_far": 0.2857,
-          "eer_frr": 0.25
+          "eer_thr": 0.768,
+          "eer": 1.0,
+          "eer_far": 1.0,
+          "eer_frr": 1.0
         },
-        "far_at_eer_thr": 0.1429
+        "far_at_eer_thr": 1.0
       }
     },
     "pad_attack_reject_rate": 0.0,

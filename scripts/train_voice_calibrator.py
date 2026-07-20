@@ -59,6 +59,13 @@ def main() -> None:
         audio = load_wav(path)
         r = vm.score(audio)
         if r.score is None:
+            dur = float(audio.size / 16_000) if audio is not None else 0.0
+            print(
+                f"WARNING: excluding {path.relative_to(args.data)} "
+                f"(VoiceMatcher.score returned None; dur={dur:.3f}s, "
+                f"n_samples={0 if audio is None else len(audio)})",
+                flush=True,
+            )
             return
         ok, q, _ = score_voice(audio)
         duration = float(audio.size / 16_000)

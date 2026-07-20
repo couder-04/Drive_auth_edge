@@ -470,18 +470,17 @@ def _pipeline_trace(result) -> dict[str, Any]:
                 "available": available,
             }
         )
-        # Also keep flat rungs for animation of probed stage-3 lanes.
-        if lane in probed or status in ("unavailable", "accept", "not_attempted", "escalate", "reject"):
-            ladder_stages.append(
-                {
-                    "id": lane,
-                    "label": label,
-                    "status": status,
-                    "score": score,
-                    "detail": detail,
-                    "stage3": True,
-                }
-            )
+        # Always expose finger + otp as addressable rungs (UI OR-lanes + tests).
+        ladder_stages.append(
+            {
+                "id": lane,
+                "label": label,
+                "status": status,
+                "score": score,
+                "detail": detail,
+                "stage3": True,
+            }
+        )
 
     hard_gate = None
     for key, label in (
@@ -1255,9 +1254,23 @@ def audit_demo_tamper() -> dict[str, Any]:
     if not path.is_file() or path.stat().st_size < 2:
         raise HTTPException(status_code=400, detail="audit log empty — run authenticate first")
     raw = bytearray(path.read_bytes())
-    # Flip a mid-file byte so the last entry_hash no longer matches.
-    idx = max(0, len(raw) // 2)
-    raw[idx] = (raw[idx] + 1) % 256
+    # Prefer flipping a hex nibble inside entry_hash so the line often remains
+    # parseable JSON but fails the hash check; fall back to midpoint flip
+    # (strict verify_chain still treats unparseable lines as tamper).
+    text = raw.decode("utf-8", errors="replace")
+    marker = '"entry_hash": "'
+    idx = text.find(marker)
+    if idx >= 0:
+        # First hex char of the hash value.
+        idx = idx + len(marker)
+        if idx < len(raw) and chr(raw[idx]) in "0123456789abcdef":
+            raw[idx] = ord("0") if raw[idx] != ord("0") else ord("1")
+        else:
+            idx = max(0, len(raw) // 2)
+            raw[idx] = (raw[idx] + 1) % 256
+    else:
+        idx = max(0, len(raw) // 2)
+        raw[idx] = (raw[idx] + 1) % 256
     path.write_bytes(bytes(raw))
     ok, reason = auth._audit.verify_chain()
     return {
