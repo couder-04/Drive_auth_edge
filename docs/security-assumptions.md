@@ -48,7 +48,7 @@ These are **design invariants**, not optional heuristics.
 |-----------|--------|-------|
 | Voice / face matchers | Mock or ONNX | Unchanged default |
 | Finger capture daemon (`hardware/finger_daemon.py`) | **Real protocol** | Unix `SCAN\\n` → 256×256 bytes; UART via `PyFingerprintAdapter` (optional extra) or `ManualFingerSensor` |
-| Finger match / templates | Partial | `FingerMatcher` decrypts Fernet `fingers/*.enc`; **Fernet-only at rest remains a known gap** (no TEE / wrapped keys) |
+| Finger match / templates | Partial | `FingerMatcher` decrypts Fernet `fingers/*.enc`; optional `KeyProtector` (default `SoftwareKeyProtector` = Fernet key on disk). `TPMKeyProtector` seals that key when a TPM 2.0 + `tpm2-pytss` is present — **off by default; gap not closed without the chip** |
 | `ManualScores(finger=…)` dashboard path | Mock stand-in | Still works; does not require the daemon |
 | Payment `otp_mobile` HTTP OTP | Real HTTP client | Unchanged (`HTTPProviderDelivery`) |
 | Ladder Bluetooth OTP (MAP) | Stubbed BlueZ path | Unit-tested with injected `map_send`; real MAP needs head-unit OBEX agent |
@@ -59,6 +59,23 @@ These are **design invariants**, not optional heuristics.
 | Hailo face (`hardware/hailo_face.py`) | Optional | `DRIVEAUTH_FACE_BACKEND=hailo` + `.hef`; fail-closed without device; IR liveness stays on CPU |
 | Actuation (`hardware/actuation.py`) | **Real API** | Relay defaults open; closes only on fresh ACCEPT; optional `RPi.GPIO` |
 | GPS/CAN ingest (`hardware/telematics.py`) | **Real API** | Sanitizes then calls `update_vehicle_context`; malformed frames skipped |
+| CAN/GPS logger (`hardware/can_logger.py`) | **Harness** | Writes txn + behavioral CSVs matching synthetic schemas; needs a live bus / pilot fleet — does not invent real data |
+
+### Phase 7 note — secure-element key protection (optional, off by default)
+
+`driveauth/key_protection.py` adds a `KeyProtector` layer around the Fernet
+template key (`.bio_key`). Default `SoftwareKeyProtector` is identity
+wrap/unwrap — **today's behaviour, zero change**. `TPMKeyProtector` (tpm2-pytss)
+seals that key so the on-disk blob is unusable without the chip.
+**Not solved:** deployments without a TPM/ATECC-class element still store a
+usable Fernet key on disk; this is an upgrade path, not a closed TEE gap.
+
+### Phase 10 note — real data collection harness (synthetic gap still open)
+
+`can_logger.py` + `--real-data-dir` on the risk/behavioral trainers make real
+logs drop-in usable. **Still open:** models remain trained only on synthetic
+data until a pilot fleet produces logs and a bakeoff/train run reports
+`n_real > 0`. See [`data-collection.md`](data-collection.md).
 
 ### Phase 0 note — `dist_from_home` retired as a risk feature
 
@@ -163,7 +180,7 @@ From [review-fixes.md](review-fixes.md) and roadmap deferred items:
 2. **Bootstrap duration** — `BOOTSTRAP_MIN_TXNS` / days are defaults, not fleet-tuned.
 3. **Certification path growth** — staged probes widen the state space; set `DRIVEAUTH_ESCALATION_ENABLED=0` for static parallel probes if required.
 4. **Nova GPS wiring** — until live, Risk underestimates location/speed anomalies.
-5. **Store encryption / TEE** — enrollment at rest protection is an integrator concern beyond this repo’s demo store.
+5. **Store encryption / secure element** — default remains Fernet key on disk (`SoftwareKeyProtector`). Optional `TPMKeyProtector` is an upgrade path; the at-rest gap stays open until hardware-backed protection is enabled on a real SE.
 
 ---
 

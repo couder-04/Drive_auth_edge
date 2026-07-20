@@ -14,6 +14,7 @@ from hardware.bluetooth_otp import (
     BLE_GATT_SERVICE_UUID,
     BluetoothOTPDelivery,
 )
+from hardware.can_logger import CanLogger, TXN_CSV_COLUMNS
 from hardware.finger_daemon import FingerDaemon
 from hardware.finger_uart import FingerSensorAdapter, ManualFingerSensor, PyFingerprintAdapter
 from hardware.hailo_face import HailoFaceMatcher
@@ -27,6 +28,7 @@ __all__ = [
     "BLE_GATT_CHAR_UUID",
     "BLE_GATT_SERVICE_UUID",
     "BluetoothOTPDelivery",
+    "CanLogger",
     "FingerDaemon",
     "FingerSensorAdapter",
     "GPIORelay",
@@ -42,6 +44,7 @@ __all__ = [
     "NullSpeaker",
     "PyFingerprintAdapter",
     "RGBCameraCapture",
+    "TXN_CSV_COLUMNS",
     "TelematicsIngest",
     "sanitize_vehicle_fields",
 ]

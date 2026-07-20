@@ -14,7 +14,7 @@ from driveauth.matchers.voice import VoiceMatcher
 from driveauth.ood_detector import OODDetector
 from driveauth.profile_store import ProfileStore
 from driveauth.key_protection import KeyProtector, SoftwareKeyProtector
-from driveauth.template_store import TemplateStore, ensure_key, save_embedding
+from driveauth.template_store import TemplateStore, save_embedding
 
 logger = logging.getLogger("driveauth.enrollment")
 

@@ -155,21 +155,37 @@ def _driver_amount_stats(
 def load_csv(
     path: Path, min_legit_per_driver: int = 5
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
-    """Return (X, y, driver_id_ints, meta). driver_id_ints is a stable integer
-    encoding used only for GroupKFold-friendly holdouts if the caller wants
-    one -- we do a stratified random split by default."""
+    """Return (X, y, driver_id_ints, meta)."""
+    X, y, driver_ids, meta, _weights = load_csv_with_weights(
+        path, min_legit_per_driver=min_legit_per_driver
+    )
+    return X, y, driver_ids, meta
+
+
+def load_csv_with_weights(
+    path: Path,
+    min_legit_per_driver: int = 5,
+    *,
+    extra_rows: list[dict] | None = None,
+    real_row_count: int = 0,
+    real_weight: float = 3.0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, dict, np.ndarray]:
+    """Like ``load_csv`` but returns sample weights (real rows weighted higher)."""
     with path.open(newline="") as f:
         rows = list(csv.DictReader(f))
+    if extra_rows:
+        rows = list(rows) + list(extra_rows)
     if not rows:
         raise SystemExit(f"no rows in {path}")
 
+    n_synth = len(rows) - int(real_row_count)
     global_mean, global_std, per_driver = _driver_amount_stats(
         rows, min_legit=min_legit_per_driver
     )
 
     driver_to_int: dict[str, int] = {}
-    X, y, driver_ids = [], [], []
-    for r in rows:
+    X, y, driver_ids, weights = [], [], [], []
+    for i, r in enumerate(rows):
         did = r.get("driver_id", "_global_")
         drv_mean, drv_std = per_driver.get(did, (global_mean, global_std))
         feats = _row_to_features(r, drv_mean, drv_std)
@@ -179,6 +195,8 @@ def load_csv(
         if did not in driver_to_int:
             driver_to_int[did] = len(driver_to_int)
         driver_ids.append(driver_to_int[did])
+        is_real = i >= n_synth
+        weights.append(float(real_weight) if is_real else 1.0)
 
     sample = rows[0]
     optional_present = {
@@ -193,6 +211,9 @@ def load_csv(
         "n": len(rows),
         "n_suspicious": int(sum(y)),
         "n_legit": int(len(y) - sum(y)),
+        "n_real": int(real_row_count),
+        "n_synth": int(n_synth),
+        "real_weight": float(real_weight) if real_row_count else 1.0,
         "feature_order": list(FEATURE_ORDER),
         "optional_columns_present": optional_present,
         "per_driver_amount_stats": {
@@ -206,12 +227,48 @@ def load_csv(
         np.asarray(y, dtype=np.int32),
         np.asarray(driver_ids, dtype=np.int64),
         meta,
+        np.asarray(weights, dtype=np.float64),
     )
+
+
+def _load_real_txn_rows(real_data_dir: Path) -> list[dict]:
+    """Collect txn CSVs under a pilot dump (txns_real.csv or any *.csv with label)."""
+    rows: list[dict] = []
+    if not real_data_dir.is_dir():
+        return rows
+    candidates = sorted(real_data_dir.rglob("txns_real.csv")) + sorted(
+        real_data_dir.rglob("txns.csv")
+    )
+    seen: set[Path] = set()
+    for path in candidates:
+        if path in seen:
+            continue
+        seen.add(path)
+        with path.open(newline="") as f:
+            part = list(csv.DictReader(f))
+        if part and "amount" in part[0] and "label" in part[0]:
+            rows.extend(part)
+    return rows
+
+
+def _warn_zero_real_samples(n_real: int, *, context: str) -> None:
+    if n_real > 0:
+        return
+    banner = (
+        "\n"
+        "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+        f"! WARNING: {context} used ZERO real samples.\n"
+        "! Metrics remain synthetic-only — not production-ready.\n"
+        "! Collect fleet logs via hardware/can_logger.py and pass\n"
+        "! --real-data-dir before trusting AUC / bake-off winners.\n"
+        "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+    )
+    print(banner, flush=True)
 
 
 # ── training ────────────────────────────────────────────────────────────────
 
-def train_lightgbm(X_tr, y_tr, X_va, y_va, seed: int):
+def train_lightgbm(X_tr, y_tr, X_va, y_va, seed: int, sample_weight=None):
     import lightgbm as lgb
 
     # Review fix #7: all DriveAuth features are designed so that "higher value
@@ -232,16 +289,20 @@ def train_lightgbm(X_tr, y_tr, X_va, y_va, seed: int):
         verbosity=-1,
         monotone_constraints=monotone,
     )
+    fit_kw = {}
+    if sample_weight is not None:
+        fit_kw["sample_weight"] = sample_weight
     model.fit(
         X_tr,
         y_tr,
         eval_set=[(X_va, y_va)],
         callbacks=[lgb.early_stopping(30, verbose=False)],
+        **fit_kw,
     )
     return model, "lightgbm"
 
 
-def train_sklearn(X_tr, y_tr, X_va, y_va, seed: int):
+def train_sklearn(X_tr, y_tr, X_va, y_va, seed: int, sample_weight=None):
     from sklearn.ensemble import HistGradientBoostingClassifier
 
     monotone = [1] * len(FEATURE_ORDER)
@@ -255,7 +316,11 @@ def train_sklearn(X_tr, y_tr, X_va, y_va, seed: int):
         early_stopping=True,
         monotonic_cst=monotone,
     )
-    model.fit(X_tr, y_tr)
+    # HistGradientBoostingClassifier supports sample_weight in fit.
+    if sample_weight is not None:
+        model.fit(X_tr, y_tr, sample_weight=sample_weight)
+    else:
+        model.fit(X_tr, y_tr)
     return model, "sklearn_hist_gbt"
 
 
@@ -415,12 +480,29 @@ def main() -> None:
     parser.add_argument("--val-frac", type=float, default=0.2)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--min-legit-per-driver", type=int, default=5)
+    parser.add_argument(
+        "--real-data-dir",
+        type=str,
+        default="",
+        help="Directory of real txn CSVs (txns_real.csv) to merge; weighted higher",
+    )
+    parser.add_argument("--real-weight", type=float, default=3.0)
     args = parser.parse_args()
 
-    X, y, driver_ids, meta = load_csv(
-        Path(args.csv), min_legit_per_driver=args.min_legit_per_driver
+    real_rows: list[dict] = []
+    if args.real_data_dir:
+        real_rows = _load_real_txn_rows(Path(args.real_data_dir))
+    X, y, driver_ids, meta, sample_weights = load_csv_with_weights(
+        Path(args.csv),
+        min_legit_per_driver=args.min_legit_per_driver,
+        extra_rows=real_rows or None,
+        real_row_count=len(real_rows),
+        real_weight=args.real_weight,
     )
+    _warn_zero_real_samples(meta.get("n_real", 0), context="train_risk_gbt")
     print(f"Loaded {meta['n']} rows · legit={meta['n_legit']} suspicious={meta['n_suspicious']}")
+    print(f"         real={meta.get('n_real', 0)} synth={meta.get('n_synth', meta['n'])} "
+          f"real_weight={meta.get('real_weight', 1.0)}")
     print(f"amount_mean_global={meta['amount_mean_global_legit']:.1f} "
           f"amount_std_global={meta['amount_std_global_legit']:.1f}")
     print(f"optional cols present: {meta['optional_columns_present']}")
@@ -429,8 +511,13 @@ def main() -> None:
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import roc_auc_score, accuracy_score
 
-    X_tr, X_va, y_tr, y_va = train_test_split(
-        X, y, test_size=args.val_frac, random_state=args.seed, stratify=y
+    X_tr, X_va, y_tr, y_va, w_tr, w_va = train_test_split(
+        X,
+        y,
+        sample_weights,
+        test_size=args.val_frac,
+        random_state=args.seed,
+        stratify=y,
     )
 
     backend = args.backend
@@ -443,14 +530,19 @@ def main() -> None:
 
     if backend == "lightgbm":
         try:
-            model, used = train_lightgbm(X_tr, y_tr, X_va, y_va, args.seed)
+            model, used = train_lightgbm(
+                X_tr, y_tr, X_va, y_va, args.seed, sample_weight=w_tr
+            )
         except Exception as exc:
             print(f"LightGBM failed ({exc}) — falling back to sklearn")
-            model, used = train_sklearn(X_tr, y_tr, X_va, y_va, args.seed)
+            model, used = train_sklearn(
+                X_tr, y_tr, X_va, y_va, args.seed, sample_weight=w_tr
+            )
             backend = "sklearn"
     else:
-        model, used = train_sklearn(X_tr, y_tr, X_va, y_va, args.seed)
-
+        model, used = train_sklearn(
+            X_tr, y_tr, X_va, y_va, args.seed, sample_weight=w_tr
+        )
     # In-memory metrics
     p_tr = model.predict_proba(X_tr)[:, 1]
     p_va = model.predict_proba(X_va)[:, 1]

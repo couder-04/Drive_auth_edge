@@ -34,15 +34,18 @@ standalone = [
 # Optional hardware extras (Pi UART finger + BlueZ Bluetooth OTP + Hailo + GPIO).
 finger = ["pyfingerprint>=1.5"]
 bluetooth = ["dbus-python>=1.3"]
+can = ["python-can>=4.3"]
+tpm = ["tpm2-pytss>=2.1"]
 hailo = []  # hailo_platform is device-SDK installed; declare extra for docs/CI grouping
 gpio = ["RPi.GPIO>=0.7"]
-hardware = ["driveauth-edge[finger,bluetooth,gpio,face]"]
-all = ["driveauth-edge[onnx,voice,face,orchestrator,dev,dashboard,train,standalone,hardware]"]
+hardware = ["driveauth-edge[finger,bluetooth,gpio,face,can]"]
+all = ["driveauth-edge[onnx,voice,face,orchestrator,dev,dashboard,train,standalone,hardware,tpm]"]
 
 [project.scripts]
 driveauth-demo = "demo.run_demo:main"
 driveauth-dashboard = "dashboard.server:main"
 driveauth-finger-daemon = "hardware.finger_daemon:run_daemon_main"
+driveauth-can-logger = "hardware.can_logger:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -53,33 +53,74 @@ class CandidateResult:
     separation: float
 
 
-def _load_windows(data_dir: Path) -> tuple[np.ndarray, np.ndarray, list[str]]:
-    """Return X (N, T, F), y (N,) with 1=genuine 0=attack, and file paths."""
+def _load_windows(
+    data_dir: Path,
+    *,
+    real_data_dir: Path | None = None,
+    real_repeat: int = 3,
+) -> tuple[np.ndarray, np.ndarray, list[str], int]:
+    """Return X (N, T, F), y (N,), paths, and n_real_windows (pre-repeat)."""
     xs: list[np.ndarray] = []
     ys: list[int] = []
     paths: list[str] = []
-    for split, label in (("genuine", 1), ("attack", 0)):
-        folder = data_dir / split
-        for path in sorted(folder.glob("can_*.csv")):
-            with path.open(newline="") as f:
-                rows = list(csv.DictReader(f))
-            if len(rows) < 5:
+    n_real = 0
+
+    def _ingest(root: Path, *, is_real: bool) -> None:
+        nonlocal n_real
+        for split, label in (("genuine", 1), ("attack", 0)):
+            folder = root / split
+            if not folder.is_dir():
                 continue
-            mat = np.array(
-                [[float(r[k]) for k in BEHAVIORAL_FEATURE_KEYS] for r in rows],
-                dtype=np.float32,
-            )
-            if mat.shape[0] > WINDOW:
-                mat = mat[-WINDOW:]
-            elif mat.shape[0] < WINDOW:
-                pad = np.repeat(mat[:1], WINDOW - mat.shape[0], axis=0)
-                mat = np.concatenate([pad, mat], axis=0)
-            xs.append(mat)
-            ys.append(label)
-            paths.append(str(path.relative_to(data_dir)))
+            for path in sorted(folder.glob("can_*.csv")):
+                with path.open(newline="") as f:
+                    rows = list(csv.DictReader(f))
+                if len(rows) < 5:
+                    continue
+                mat = np.array(
+                    [[float(r[k]) for k in BEHAVIORAL_FEATURE_KEYS] for r in rows],
+                    dtype=np.float32,
+                )
+                if mat.shape[0] > WINDOW:
+                    mat = mat[-WINDOW:]
+                elif mat.shape[0] < WINDOW:
+                    pad = np.repeat(mat[:1], WINDOW - mat.shape[0], axis=0)
+                    mat = np.concatenate([pad, mat], axis=0)
+                repeats = real_repeat if is_real else 1
+                if is_real:
+                    n_real += 1
+                for _ in range(repeats):
+                    xs.append(mat)
+                    ys.append(label)
+                    paths.append(
+                        ("real:" if is_real else "synth:")
+                        + str(path.relative_to(root))
+                    )
+
+    _ingest(data_dir, is_real=False)
+    if real_data_dir is not None and real_data_dir.is_dir():
+        # Accept either behavioral/ root or a dump that already has genuine/.
+        if (real_data_dir / "genuine").is_dir() or (real_data_dir / "attack").is_dir():
+            _ingest(real_data_dir, is_real=True)
+        elif (real_data_dir / "behavioral").is_dir():
+            _ingest(real_data_dir / "behavioral", is_real=True)
     if not xs:
         raise SystemExit(f"No can_*.csv windows under {data_dir}")
-    return np.stack(xs), np.asarray(ys, dtype=np.int64), paths
+    return np.stack(xs), np.asarray(ys, dtype=np.int64), paths, n_real
+
+
+def _warn_zero_real_samples(n_real: int) -> None:
+    if n_real > 0:
+        return
+    print(
+        "\n"
+        "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+        "! WARNING: train_behavioral_bakeoff used ZERO real samples.\n"
+        "! Metrics remain synthetic-only — not production-ready.\n"
+        "! Collect fleet logs via hardware/can_logger.py and pass\n"
+        "! --real-data-dir before trusting bake-off winners.\n"
+        "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",
+        flush=True,
+    )
 
 
 def _fit_norm(x: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -333,11 +374,27 @@ def main() -> None:
     ap.add_argument("--store", type=Path, default=ROOT / "driveauth_store_phase2a")
     ap.add_argument("--driver-id", default="driver1")
     ap.add_argument("--epochs", type=int, default=25)
+    ap.add_argument(
+        "--real-data-dir",
+        type=Path,
+        default=None,
+        help="Real CAN windows (behavioral/genuine|attack or genuine|attack)",
+    )
+    ap.add_argument(
+        "--real-repeat",
+        type=int,
+        default=3,
+        help="Oversample factor for real windows when merging with synth",
+    )
     args = ap.parse_args()
 
-    x, y, paths = _load_windows(args.data)
+    x, y, paths, n_real = _load_windows(
+        args.data, real_data_dir=args.real_data_dir, real_repeat=args.real_repeat
+    )
+    _warn_zero_real_samples(n_real)
     print(
-        f"Loaded {len(y)} windows ({int(y.sum())} genuine, {int((1 - y).sum())} attack)",
+        f"Loaded {len(y)} windows ({int(y.sum())} genuine, {int((1 - y).sum())} attack) "
+        f"· real_windows={n_real} (pre-repeat)",
         flush=True,
     )
     print(f"Features ({N_FEAT}): {', '.join(BEHAVIORAL_FEATURE_KEYS)}", flush=True)
@@ -422,9 +479,15 @@ def main() -> None:
         "n_windows": int(len(y)),
         "n_genuine": int(y.sum()),
         "n_attack": int((1 - y).sum()),
+        "n_real_windows": int(n_real),
+        "real_data_dir": str(args.real_data_dir) if args.real_data_dir else None,
         "note": (
-            "Trained on current behavioral windows (likely synth). "
-            "Re-bake when real CAN arrives before trusting metrics."
+            "Trained with real windows mixed in."
+            if n_real > 0
+            else (
+                "Trained on current behavioral windows (likely synth). "
+                "Re-bake when real CAN arrives before trusting metrics."
+            )
         ),
         "files": paths,
     }
