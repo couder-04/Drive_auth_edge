@@ -1,4 +1,4 @@
-"""Minimal fleet health page (Phase G)."""
+"""Minimal fleet health page (Phase G) + local perf panel."""
 
 
 def render_fleet() -> str:
@@ -48,6 +48,7 @@ def render_fleet() -> str:
       font-size: 0.8rem; color: #c6d4f0;
     }
     p.note { color: var(--muted); font-size: 0.85rem; line-height: 1.45; }
+    h3 { margin-top: 1.25rem; font-size: 0.95rem; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -55,7 +56,7 @@ def render_fleet() -> str:
     <header>
       <div>
         <h1>DriveAuth <span>Fleet</span></h1>
-        <div class="sub">Auth rates · sensor flags · firmware — no biometric payloads</div>
+        <div class="sub">Auth rates · sensor flags · inference latency — no biometric payloads</div>
       </div>
       <nav aria-label="Pipeline pages">
         <a href="/manual">Manual</a>
@@ -66,9 +67,9 @@ def render_fleet() -> str:
     </header>
     <section class="panel">
       <p class="note">
-        Opt-in telemetry via <code>DRIVEAUTH_FLEET_TELEMETRY_URL</code>.
-        This view aggregates local audit decision counts and sensor availability
-        flags only — templates, embeddings, and transcripts are never included.
+        Opt-in remote telemetry via <code>DRIVEAUTH_FLEET_TELEMETRY_URL</code>.
+        Local perf CSV is always-on (<code>DRIVEAUTH_PERF_LOG</code>) and separate
+        from the security audit log.
       </p>
       <div class="grid" id="metrics">
         <div class="metric"><div class="label">Accept</div><div class="value" id="m_accept">—</div></div>
@@ -77,16 +78,45 @@ def render_fleet() -> str:
         <div class="metric"><div class="label">Accept rate</div><div class="value" id="m_rate">—</div></div>
         <div class="metric"><div class="label">Firmware</div><div class="value" id="m_fw" style="font-size:1rem">—</div></div>
       </div>
-      <h3 style="margin-top:1.25rem;font-size:0.95rem;color:var(--muted)">Sensors</h3>
+      <h3>Sensors</h3>
       <div class="grid" id="sensors"></div>
-      <h3 style="margin-top:1.25rem;font-size:0.95rem;color:var(--muted)">Last payload</h3>
+      <h3>Inference latency (avg ms, recent)</h3>
+      <div class="grid" id="latency">
+        <div class="metric"><div class="label">Voice</div><div class="value" id="l_voice">—</div></div>
+        <div class="metric"><div class="label">Face</div><div class="value" id="l_face">—</div></div>
+        <div class="metric"><div class="label">Finger</div><div class="value" id="l_finger">—</div></div>
+        <div class="metric"><div class="label">Liveness</div><div class="value" id="l_live">—</div></div>
+        <div class="metric"><div class="label">Total</div><div class="value" id="l_total">—</div></div>
+        <div class="metric"><div class="label">Face backend</div><div class="value" id="l_backend" style="font-size:1rem">—</div></div>
+      </div>
+      <h3>Host utilization</h3>
+      <div class="grid" id="util">
+        <div class="metric"><div class="label">CPU %</div><div class="value" id="u_cpu">—</div></div>
+        <div class="metric"><div class="label">RAM %</div><div class="value" id="u_ram">—</div></div>
+        <div class="metric"><div class="label">RAM used MB</div><div class="value" id="u_mb">—</div></div>
+      </div>
+      <h3>Last fleet payload</h3>
       <pre id="payload">Loading…</pre>
     </section>
   </div>
   <script>
+    function fmtMs(v) {
+      if (v == null || v === "") return "—";
+      const n = Number(v);
+      return Number.isFinite(n) ? n.toFixed(1) : "—";
+    }
+    function fmtNum(v) {
+      if (v == null || v === "") return "—";
+      const n = Number(v);
+      return Number.isFinite(n) ? n.toFixed(1) : "—";
+    }
     async function refresh() {
-      const res = await fetch("/api/fleet/health");
-      const data = await res.json();
+      const [healthRes, perfRes] = await Promise.all([
+        fetch("/api/fleet/health"),
+        fetch("/api/fleet/perf"),
+      ]);
+      const data = await healthRes.json();
+      const perf = await perfRes.json();
       const a = data.auth || {};
       $("m_accept").textContent = a.accept ?? 0;
       $("m_reject").textContent = a.reject ?? 0;
@@ -104,7 +134,18 @@ def render_fleet() -> str:
           (flags[k] ? "ok" : "bad") + '">' + (flags[k] ? "up" : "down") + "</div>";
         sens.appendChild(el);
       });
-      $("payload").textContent = JSON.stringify(data, null, 2);
+      const lat = (perf.latency_ms_avg) || {};
+      $("l_voice").textContent = fmtMs(lat.voice);
+      $("l_face").textContent = fmtMs(lat.face);
+      $("l_finger").textContent = fmtMs(lat.finger);
+      $("l_live").textContent = fmtMs(lat.liveness);
+      $("l_total").textContent = fmtMs(lat.total);
+      $("l_backend").textContent = perf.face_backend || "—";
+      const util = perf.utilization || {};
+      $("u_cpu").textContent = fmtNum(util.cpu_pct);
+      $("u_ram").textContent = fmtNum(util.ram_pct);
+      $("u_mb").textContent = fmtNum(util.ram_used_mb);
+      $("payload").textContent = JSON.stringify({ health: data, perf: perf }, null, 2);
     }
     function $(id) { return document.getElementById(id); }
     refresh();

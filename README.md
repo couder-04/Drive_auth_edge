@@ -510,8 +510,9 @@ pytest
 **160+** tests cover fail-closed paths, cache invalidation, geo/home learning, score
 provider, Sprint 1 security (constant-time pad + OOD-refresh gate), Phase 5
 (threshold re-baseline + real-model timeout/crash), Phase 6 / Sprint 6 benchmarks
-(FAR/FRR/EER/ROC · PAD · risk · latency · vs OTP/MFA/staged), and the standalone
-session — see [`phases/phase5.md`](phases/phase5.md) · [`phases/phase6.md`](phases/phase6.md).
+(FAR/FRR/EER/ROC · PAD · risk · latency · vs OTP/MFA/staged), integration e2e,
+mid-disconnect recovery, fingerprint adapter selection, and perf telemetry —
+see [`phases/phase5.md`](phases/phase5.md) · [`phases/phase6.md`](phases/phase6.md).
 
 ## Documentation
 
@@ -525,6 +526,9 @@ URLs still open). Phase 8 drafts live under [`docs/paper/`](docs/paper/) — see
 | [architecture/overview.md](architecture/overview.md) | Pipeline diagram and module map |
 | [architecture/trust-risk-separation.md](architecture/trust-risk-separation.md) | Trust, Risk, Confidence scores and policy tiers |
 | [docs/security-assumptions.md](docs/security-assumptions.md) | **Threat model, invariants, non-claims, integrator checklist** |
+| [docs/install-guide.md](docs/install-guide.md) | Pi 5 / local install, extras map, Docker compose |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Sensor / BT / Hailo / fresh-clone failures (real log lines) |
+| [docs/api-reference.md](docs/api-reference.md) | `DriveAuth` methods + `DriveAuthResult` fields |
 | [docs/public-posts.md](docs/public-posts.md) | LinkedIn / Medium drafts (Phase 7) |
 | [phases/phase8.md](phases/phase8.md) · [docs/paper/](docs/paper/) | White paper · IV 2027 draft · demo storyboard |
 | [roadmap-2026-07.md](roadmap-2026-07.md) | Current roadmap — phases, sprints, non-goals |
@@ -539,19 +543,21 @@ URLs still open). Phase 8 drafts live under [`docs/paper/`](docs/paper/) — see
 ## Repository layout
 
 ```
-staged_driveauth-edge/
+Drive_auth_edge/
 ├── README.md · TODO.txt · roadmap-2026-07.md
 ├── secrets.env.example    # copy → secrets.env (gitignored)
-├── Dockerfile · railway.toml
+├── Dockerfile · Dockerfile.edge · docker-compose.yml · railway.toml
 ├── pyproject.toml
 ├── architecture/          # Design docs + diagrams
-├── dashboard/             # /manual · /standalone · /register (+ standalone_ui)
+├── dashboard/             # /manual · /standalone · /register · /fleet
 ├── demo/                  # CLI demo (mock matchers)
+├── hardware/              # finger daemon · BT OTP · CAN · Hailo · actuation
 ├── data/                  # Phase 3 datasets (biometrics gitignored)
-├── scripts/               # phase2a_*, generate_*, calibrate_*, overfit_audit
+├── scripts/               # install.sh · setup_pi.sh · phase2a_* · calibrate_*
 ├── phases/                # calibration JSON, timing notes, Sprint 6
 ├── driveauth/
 │   ├── api.py             # Public DriveAuth API (+ Nova intercept())
+│   ├── perf_telemetry.py  # Always-on latency / CPU-RAM CSV
 │   ├── secrets.py · openrouter_client.py · standalone_session.py
 │   ├── audio_io.py · enrollment.py · geo.py · intent.py
 │   ├── config.py · policy.yaml
@@ -563,7 +569,7 @@ staged_driveauth-edge/
 │   └── types.py
 ├── tests/
 ├── examples/
-└── docs/                  # standalone.md · security-assumptions · integration
+└── docs/                  # install · troubleshooting · api-reference · security
 ```
 
 ## Nova AI integration
@@ -580,7 +586,7 @@ With:
 from driveauth import DriveAuth as DriveAuthGate
 ```
 
-Or install editable: `pip install -e /path/to/staged_driveauth-edge`
+Or install editable: `pip install -e .` (from this repo root)
 
 Set `DRIVEAUTH_STORE_DIR` and `DRIVEAUTH_ENROLL_DIR`. Env vars use `DRIVEAUTH_*` (`NOVA_*` aliases supported).
 
@@ -599,26 +605,47 @@ auth.update_vehicle_context(gps_lat=…, gps_lon=…, gps_accuracy_m=…, speed_
 | `onnx` | Risk model + orchestrator MLP |
 | `orchestrator` | Dynamic trust weights (PolicyMLP) |
 | `dashboard` | FastAPI web UI + pipeline API |
-| `dev` | pytest + ruff |
+| `finger` | R307/AS608 UART via `pyfingerprint` |
+| `bluetooth` | BlueZ MAP / BLE GATT ladder OTP |
+| `gpio` | RPi.GPIO actuation relay |
+| `can` | python-can logger |
+| `hardware` | finger + bluetooth + gpio + face + can |
+| `perf` | psutil for always-on latency/CPU CSV |
+| `dev` | pytest + ruff + psutil |
 | `all` | All of the above |
+
+Install helpers: [`scripts/install.sh`](scripts/install.sh) · Pi first-boot: [`scripts/setup_pi.sh`](scripts/setup_pi.sh) · guide: [`docs/install-guide.md`](docs/install-guide.md).
 
 ## What's left
 
-Shipped work is woven into the sections above (architecture, Phase 2a models +
-latency, Phase 3 data, standalone dashboard, tests, Sprint 6, Phase 7 docs).
-Full checklist: [`TODO.txt`](TODO.txt) · plan: [`roadmap-2026-07.md`](roadmap-2026-07.md).
+### Code-side MVP (this repo)
+
+| Item | Status |
+|------|--------|
+| R307/AS608 UART adapter + daemon auto-detect | **Shipped** (`hardware/finger_uart.py`) |
+| Full-pipeline Docker + compose | **Shipped** (`Dockerfile.edge`, `docker-compose.yml`) |
+| One-command install / Pi setup scripts | **Shipped** (`scripts/install.sh`, `setup_pi.sh`) |
+| Always-on inference latency + CPU/RAM telemetry | **Shipped** (`driveauth/perf_telemetry.py`, `/fleet` panel) |
+| End-to-end + mid-disconnect recovery tests | **Shipped** (`tests/test_integration_e2e.py`, `test_phase6_failure_recovery.py`) |
+| Install / troubleshooting / API docs | **Shipped** under `docs/` |
+
+### Still needs hardware / people (not faked here)
 
 | Gap | Required to complete |
 |-----|----------------------|
-| Finger sensor path | Vendor SDK + real captures → drop `ManualScores` / mock finger |
-| Behavioral on real CAN | Recorder dumps under `data/*/behavioral/{genuine,attack}/` → re-run `scripts/train_behavioral_bakeoff.py` → re-enroll |
-| Nova live GPS | Wire telematics → `update_vehicle_context` each auth (Maps/dashboard stand-in until then) |
-| Always-on public demo | Railway (or similar) with persistent `/data` volume — Cloudflare quick tunnel needs Mac awake |
-| Policy bar refresh | Re-check bars after Stage 2; do **not** apply `phases/phase2b_suggested.env` until face overlap is acceptable |
-| Phase 7 publish | Post LinkedIn/Medium from [`docs/public-posts.md`](docs/public-posts.md); paste URLs in that file |
-| Phase 8 publications | Authors · IEEE template · figures · record demo video · submit **IV 2027** by **15 Nov 2026** ([`phases/phase8.md`](phases/phase8.md)) |
-| Risk on live labels | Retrain Risk head only after ~5k real txn labels (explicit non-goal before then) |
+| Deploy + validate on a real Pi 5 | Flash OS, run `setup_pi.sh`, wire sensors |
+| Real Hailo `.hef` convert + benchmark | Device + vendor SDK |
+| Real CAN-HAT validation | HAT + vehicle bus |
+| Bluetooth MAP vs real head unit | Paired phone + BlueZ MAP agent |
+| 5–20 user behavioral dataset | Capture under `data/*/behavioral/` |
+| 24–48h stress test | Live vehicle / bench soak |
+| Demo video + IV 2027 slides | Record / author ([`phases/phase8.md`](phases/phase8.md)) |
+| Nova live GPS | Wire telematics → `update_vehicle_context` each auth |
+| Policy bar refresh | Re-check after Stage 2; do **not** apply `phases/phase2b_suggested.env` until face overlap is acceptable |
+| Phase 7 publish | Post LinkedIn/Medium from [`docs/public-posts.md`](docs/public-posts.md) |
+
+Full checklist: [`TODO.txt`](TODO.txt) · plan: [`roadmap-2026-07.md`](roadmap-2026-07.md).
 
 ## License
 
-Same lineage as Nova AI — see parent repository for license terms.
+[Apache License 2.0](LICENSE) — see `LICENSE` for the full text.

@@ -1,0 +1,51 @@
+# DriveAuth Edge — full pipeline image (dashboard + hardware package).
+# Hardware-optional deps degrade gracefully when absent (same as runtime).
+#
+# Build:
+#   docker build -f Dockerfile.edge -t driveauth-edge:pipeline .
+# Dashboard-only cloud image remains Dockerfile.
+
+FROM python:3.11-slim-bookworm AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential \
+      libsndfile1 \
+      ffmpeg \
+      libgl1 \
+      libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY pyproject.toml README.md ./
+COPY driveauth ./driveauth
+COPY dashboard ./dashboard
+COPY demo ./demo
+COPY hardware ./hardware
+COPY scripts ./scripts
+COPY driveauth_store_pha ./driveauth_store_pha
+
+# Core + voice/face/onnx/dashboard. Skip RPi.GPIO / python-can / pyfingerprint /
+# Hailo SDK here — they are device-specific and imported optionally at runtime.
+FROM base AS pipeline
+RUN pip install --upgrade pip \
+ && pip install -e ".[voice,face,onnx,dashboard,perf,dev]"
+
+RUN mkdir -p /data/store /data/data /data/hf /data/torch /data/perf \
+ && cp -a /app/driveauth_store_pha/. /data/store/ || true
+
+ENV DRIVEAUTH_DASHBOARD_HOST=0.0.0.0 \
+    DRIVEAUTH_USE_MOCK=1 \
+    DRIVEAUTH_DASHBOARD_STORE=/data/store \
+    DRIVEAUTH_REGISTER_STORE=/data/store \
+    DRIVEAUTH_DATA_ROOT=/data/data \
+    DRIVEAUTH_PERF_LOG=/data/perf/perf.csv \
+    HF_HOME=/data/hf \
+    TORCH_HOME=/data/torch \
+    SPEECHBRAIN_CACHE=/data/hf
+
+EXPOSE 8765
+CMD ["sh", "-c", "driveauth-dashboard --host 0.0.0.0 --port ${PORT:-8765} --strict-port"]

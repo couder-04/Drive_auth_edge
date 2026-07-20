@@ -1,0 +1,42 @@
+# Local edge topology: core library process (finger daemon) + dashboard.
+# Orchestrator PolicyMLP runs in-process inside DriveAuth — not a separate service.
+#
+#   docker compose up --build
+#   open http://localhost:8765/fleet
+
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.edge
+    ports:
+      - "8765:8765"
+    environment:
+      DRIVEAUTH_USE_MOCK: "1"
+      DRIVEAUTH_DASHBOARD_STORE: /data/store
+      DRIVEAUTH_REGISTER_STORE: /data/store
+      DRIVEAUTH_DATA_ROOT: /data/data
+      DRIVEAUTH_PERF_LOG: /data/perf/perf.csv
+      DRIVEAUTH_FINGER_SOCKET: /tmp/driveauth_finger.sock
+      DRIVEAUTH_FINGER_MANUAL: "1"
+    volumes:
+      - driveauth_data:/data
+      - finger_sock:/tmp
+    depends_on:
+      - finger-daemon
+
+  finger-daemon:
+    build:
+      context: .
+      dockerfile: Dockerfile.edge
+    command: ["sh", "-c", "DRIVEAUTH_FINGER_MANUAL=1 driveauth-finger-daemon"]
+    environment:
+      DRIVEAUTH_FINGER_SOCKET: /tmp/driveauth_finger.sock
+      DRIVEAUTH_FINGER_MANUAL: "1"
+    volumes:
+      - finger_sock:/tmp
+    # No host UART in local compose — ManualFingerSensor keeps the protocol up.
+
+volumes:
+  driveauth_data:
+  finger_sock:

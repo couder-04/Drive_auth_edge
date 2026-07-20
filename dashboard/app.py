@@ -512,6 +512,14 @@ def fleet_health() -> dict[str, Any]:
     return payload
 
 
+@app.get("/api/fleet/perf")
+def fleet_perf() -> dict[str, Any]:
+    """Local inference-latency / CPU-RAM panel — not a security audit."""
+    from driveauth.perf_telemetry import get_default_telemetry
+
+    return get_default_telemetry().summary()
+
+
 @app.get("/api/register/drivers")
 def register_drivers_list() -> list[dict[str, Any]]:
     return list_registered_drivers(_data_root(), _register_store())

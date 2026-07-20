@@ -4,6 +4,7 @@ version = "0.2.0"
 description = "DriveAuth Edge — Trust/Risk-separated vehicle biometric authorization"
 readme = "README.md"
 requires-python = ">=3.11"
+license = "Apache-2.0"
 dependencies = [
     "numpy>=1.26",
     "cryptography>=42.0",
@@ -22,11 +23,12 @@ train = ["lightgbm>=4.0", "onnxmltools>=1.12", "onnx>=1.15", "scikit-learn>=1.4"
 voice = ["torch>=2.0", "speechbrain>=1.0"]
 face = ["opencv-python>=4.8", "onnxruntime>=1.17"]
 orchestrator = ["onnxruntime>=1.17"]
-dev = ["pytest>=8.0", "ruff>=0.15"]
+dev = ["pytest>=8.0", "ruff>=0.15", "psutil>=5.9"]
 dashboard = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
     "python-multipart>=0.0.9",
+    "psutil>=5.9",
 ]
 standalone = [
     "driveauth-edge[voice,face,onnx,dashboard]",
@@ -39,7 +41,8 @@ tpm = ["tpm2-pytss>=2.1"]
 hailo = []  # hailo_platform is device-SDK installed; declare extra for docs/CI grouping
 gpio = ["RPi.GPIO>=0.7"]
 hardware = ["driveauth-edge[finger,bluetooth,gpio,face,can]"]
-all = ["driveauth-edge[onnx,voice,face,orchestrator,dev,dashboard,train,standalone,hardware,tpm]"]
+perf = ["psutil>=5.9"]
+all = ["driveauth-edge[onnx,voice,face,orchestrator,dev,dashboard,train,standalone,hardware,tpm,perf]"]
 
 [project.scripts]
 driveauth-demo = "demo.run_demo:main"

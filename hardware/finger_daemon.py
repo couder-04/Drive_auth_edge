@@ -18,7 +18,11 @@ import socket
 import threading
 from pathlib import Path
 
-from hardware.finger_uart import FingerSensorAdapter, ManualFingerSensor
+from hardware.finger_uart import (
+    FingerSensorAdapter,
+    ManualFingerSensor,
+    open_default_sensor,
+)
 
 logger = logging.getLogger("driveauth.hardware.finger_daemon")
 
@@ -32,9 +36,13 @@ class FingerDaemon:
         sensor: FingerSensorAdapter | None = None,
         *,
         backlog: int = 4,
+        sensor_kind: str | None = None,
     ):
         self._socket_path = socket_path
         self._sensor: FingerSensorAdapter = sensor or ManualFingerSensor()
+        self._sensor_kind = sensor_kind or (
+            "manual" if isinstance(self._sensor, ManualFingerSensor) else "injected"
+        )
         self._backlog = backlog
         self._server: socket.socket | None = None
         self._thread: threading.Thread | None = None
@@ -49,6 +57,11 @@ class FingerDaemon:
     @property
     def sensor_ok(self) -> bool:
         return self._sensor_ok
+
+    @property
+    def sensor_kind(self) -> str:
+        """``manual`` | ``pyfingerprint`` | ``manual_fallback`` | ``injected``."""
+        return self._sensor_kind
 
     def start(self) -> bool:
         if self._thread and self._thread.is_alive():
@@ -171,23 +184,37 @@ def run_daemon_main(
     *,
     port: str | None = None,
     manual: bool = False,
+    allow_manual_fallback: bool | None = None,
 ) -> None:
-    """CLI entry for ``python -m hardware.finger_daemon``."""
+    """CLI entry for ``python -m hardware.finger_daemon``.
+
+    Default path: probe R307/AS608 UART via ``pyfingerprint``; if the sensor
+    is absent, fall back to :class:`ManualFingerSensor` so the Unix-socket
+    protocol stays available for demos (override with
+    ``DRIVEAUTH_FINGER_NO_FALLBACK=1`` to fail hard instead).
+    """
     from driveauth import config
 
     sock = socket_path or config.FINGER_SOCKET
-    if manual or os.getenv("DRIVEAUTH_FINGER_MANUAL", "0") == "1":
-        sensor: FingerSensorAdapter = ManualFingerSensor()
-    else:
-        from hardware.finger_uart import PyFingerprintAdapter
-
-        sensor = PyFingerprintAdapter(
-            port or os.getenv("DRIVEAUTH_FINGER_UART", "/dev/ttyUSB0")
+    if allow_manual_fallback is None:
+        allow_manual_fallback = os.getenv("DRIVEAUTH_FINGER_NO_FALLBACK", "0") != "1"
+    try:
+        sensor, kind = open_default_sensor(
+            port=port,
+            manual=manual,
+            allow_manual_fallback=allow_manual_fallback,
         )
-    daemon = FingerDaemon(sock, sensor)
+    except RuntimeError as exc:
+        logger.error("FingerDaemon: %s", exc)
+        raise SystemExit(1) from exc
+    daemon = FingerDaemon(sock, sensor, sensor_kind=kind)
     if not daemon.start():
         raise SystemExit(1)
-    logger.info("FingerDaemon listening on %s", sock)
+    logger.info(
+        "FingerDaemon listening on %s (sensor=%s)",
+        sock,
+        daemon.sensor_kind,
+    )
     try:
         threading.Event().wait()
     except KeyboardInterrupt:

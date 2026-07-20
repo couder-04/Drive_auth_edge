@@ -81,6 +81,7 @@ class DecisionEngine:
         # Optional IR liveness gate (Phase 3) — independent of Stage-2 PAD.
         self._ir_liveness = ir_liveness
         self._ir_capture = ir_capture
+        self._last_liveness_ms: float | None = None
 
     def _build_risk_ctx(
         self,
@@ -198,12 +199,16 @@ class DecisionEngine:
                     ir_crop = None
                     frames = None
             try:
-                live = self._ir_liveness.check(ir_crop, frames=frames)
-            except TypeError:
-                # Older checker without frames kwarg.
-                live = self._ir_liveness.check(ir_crop)
+                t_live = time.perf_counter()
+                try:
+                    live = self._ir_liveness.check(ir_crop, frames=frames)
+                except TypeError:
+                    # Older checker without frames kwarg.
+                    live = self._ir_liveness.check(ir_crop)
+                self._last_liveness_ms = (time.perf_counter() - t_live) * 1000.0
             except Exception as exc:
                 logger.error("DecisionEngine: IR liveness crashed: %s", exc)
+                self._last_liveness_ms = None
                 return ModalityResult(None, False, available=False)
             if not live.live:
                 qflags.face_ok = False
@@ -305,6 +310,7 @@ class DecisionEngine:
         face_expected: bool | None = None,
     ) -> DriveAuthResult:
         t_start = time.monotonic()
+        self._last_liveness_ms = None
         explanations: list[str] = []
         sensor_gaps: list[str] = []
 
@@ -484,24 +490,28 @@ class DecisionEngine:
                     "conf": voice_r.confident,
                     "q": voice_r.quality,
                     "available": voice_r.available,
+                    "latency_ms": voice_r.latency_ms,
                 },
                 "face": {
                     "score": face_r.score,
                     "conf": face_r.confident,
                     "q": face_r.quality,
                     "available": face_r.available,
+                    "latency_ms": face_r.latency_ms,
                 },
                 "finger": {
                     "score": finger_r.score,
                     "conf": finger_r.confident,
                     "q": finger_r.quality,
                     "available": finger_r.available,
+                    "latency_ms": finger_r.latency_ms,
                 },
                 "otp": {
                     "score": otp_r.score,
                     "conf": otp_r.confident,
                     "q": otp_r.quality,
                     "available": otp_r.available,
+                    "latency_ms": otp_r.latency_ms,
                 },
                 "effective_weights": eff_w,
             },
@@ -515,6 +525,20 @@ class DecisionEngine:
             session_id=session_id,
             driver_id=self._driver_id,
         )
+
+        try:
+            from driveauth.perf_telemetry import get_default_telemetry
+
+            get_default_telemetry().record_from_modality_results(
+                results,
+                session_id=session_id,
+                driver_id=self._driver_id,
+                decision=decision.value if hasattr(decision, "value") else str(decision),
+                total_ms=(time.monotonic() - t_start) * 1000.0,
+                liveness_ms=self._last_liveness_ms,
+            )
+        except Exception as exc:
+            logger.debug("DecisionEngine: perf telemetry skipped (%s)", type(exc).__name__)
 
         self._pad_timing(t_start)
         return result

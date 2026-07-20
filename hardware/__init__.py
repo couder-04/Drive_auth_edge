@@ -27,7 +27,15 @@ from hardware.bluetooth_otp import (
 from hardware.ble_gatt_server import BleGattServer, MemoryBleGattBackend
 from hardware.can_logger import CanLogger, TXN_CSV_COLUMNS
 from hardware.finger_daemon import FingerDaemon
-from hardware.finger_uart import FingerSensorAdapter, ManualFingerSensor, PyFingerprintAdapter
+from hardware.finger_uart import (
+    AS608Adapter,
+    FingerSensorAdapter,
+    ManualFingerSensor,
+    PyFingerprintAdapter,
+    R307Adapter,
+    open_default_sensor,
+    probe_pyfingerprint,
+)
 from hardware.fleet_telemetry import FleetTelemetryReporter, build_telemetry_payload
 from hardware.hailo_face import HailoFaceMatcher
 from hardware.ir_capture import IRCameraCapture, MicArrayCapture, RGBCameraCapture
@@ -63,6 +71,7 @@ __all__ = [
     "LadderOTPLane",
     "LivenessResult",
     "LogSpeaker",
+    "AS608Adapter",
     "ManualFingerSensor",
     "MemoryBleGattBackend",
     "MicArrayCapture",
@@ -70,11 +79,14 @@ __all__ = [
     "NullSpeaker",
     "OTAClient",
     "PyFingerprintAdapter",
+    "R307Adapter",
     "RGBCameraCapture",
     "TXN_CSV_COLUMNS",
     "TelematicsIngest",
     "build_telemetry_payload",
     "combine_liveness_scores",
+    "open_default_sensor",
+    "probe_pyfingerprint",
     "sanitize_vehicle_fields",
     "score_blink_motion",
     "score_moire",
