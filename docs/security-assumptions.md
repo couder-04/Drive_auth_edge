@@ -52,7 +52,7 @@ These are **design invariants**, not optional heuristics.
 | `ManualScores(finger=…)` dashboard path | Mock stand-in | Still works; does not require the daemon |
 | Payment `otp_mobile` HTTP OTP | Real HTTP client | Unchanged (`HTTPProviderDelivery`) |
 | Ladder Bluetooth OTP (MAP) | Stubbed BlueZ path | Unit-tested with injected `map_send`; real MAP needs head-unit OBEX agent |
-| Ladder Bluetooth OTP (BLE GATT) | Stubbed + contract | Companion app UUID/payload documented; app itself **not** built this phase |
+| Ladder Bluetooth OTP (BLE GATT) | **Reference impl** | Car: `hardware/ble_gatt_server.py` (BlueZ D-Bus peripheral); phone: `companion/ble_otp_pwa/` Web Bluetooth PWA. Fixed UUIDs in `docs/integration.md`. Unit-tested with mocked BlueZ; phone flow is manual-only. |
 | Paired-MAC gate | **Real check** | Refuses delivery unless paired MAC matches `contacts/{id}.bt_mac` |
 | IR / RGB / mic capture (`hardware/ir_capture.py` et al.) | **Real service API** | OpenCV / inject backends; unit-tested shapes (112² crop, 16 kHz mono) |
 | IR liveness (`hardware/ir_liveness.py`) | Heuristic ensemble | Reflectance-only by default (`DRIVEAUTH_IR_LIVENESS_ENABLED`); optional Liveness v2 via `DRIVEAUTH_IR_LIVENESS_ENSEMBLE=1` (reflectance + blink/micro-motion + moiré). **Not** ISO/IEC 30107-3 certified; Stage-2 PAD logreg still separate |
@@ -88,6 +88,13 @@ blink / micro-motion, (c) FFT moiré / screen-grid check. Default remains
 reflectance-only so integrators see no behaviour change until they opt in.
 **Not closed:** presentation-attack robustness claims; synthetic unit tests
 only exercise each signal, not a PAD corpus.
+
+### Phase 9 note — BLE GATT companion (reference, not a certified channel)
+
+Shipped the real GATT peripheral + Web Bluetooth PWA so the documented UUID
+contract is executable end-to-end. **Not closed:** production assurance still
+depends on BlueZ LE stability on the head unit, HTTPS hosting for the PWA,
+and the paired-MAC gate — Web Bluetooth itself is not a security boundary.
 
 ### Phase 0 note — `dist_from_home` retired as a risk feature
 

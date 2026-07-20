@@ -8,15 +8,22 @@ Delivery order
 --------------
 1. **MAP** (Message Access Profile) via BlueZ — arrives as an SMS-style
    notification when the phone grants messaging access.
-2. **BLE GATT** fallback — companion app subscribes to a notify characteristic.
+2. **BLE GATT** fallback — car-side ``BleGattServer`` notifies the companion
+   PWA (or legacy central-write to a remote characteristic if no local
+   server is running).
 
-Companion-app BLE contract (stub — app not built in this phase)
----------------------------------------------------------------
+Companion-app BLE contract
+--------------------------
 * Service UUID: ``BLE_GATT_SERVICE_UUID``
-* Characteristic UUID: ``BLE_GATT_CHAR_UUID`` (notify + write-without-response)
+* OTP notify UUID: ``BLE_GATT_CHAR_UUID`` / ``BLE_GATT_OTP_CHAR_UUID``
+  (car → phone)
+* Ack write UUID: ``BLE_GATT_ACK_CHAR_UUID`` (phone → car)
 * Payload (UTF-8 JSON, ≤ 180 bytes)::
 
     {"v":1,"purpose":"driveauth_ladder_otp","code":"123456","ttl_s":120}
+
+Reference implementation: ``hardware/ble_gatt_server.py`` +
+``companion/ble_otp_pwa/``. See ``docs/integration.md``.
 
 Security: never deliver to whatever phone is paired — the paired MAC must
 match ``contacts/{driver_id}.bt_mac`` (or the configured lookup).
@@ -33,9 +40,12 @@ from driveauth import config
 
 logger = logging.getLogger("driveauth.hardware.bluetooth_otp")
 
-# Fixed UUIDs for the companion-app GATT contract (documentation + tests).
+# Fixed UUIDs for the companion-app GATT contract (keep in sync with
+# hardware.ble_gatt_server and companion/ble_otp_pwa).
 BLE_GATT_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
-BLE_GATT_CHAR_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
+BLE_GATT_OTP_CHAR_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
+BLE_GATT_ACK_CHAR_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
+BLE_GATT_CHAR_UUID = BLE_GATT_OTP_CHAR_UUID  # back-compat alias
 
 _MAC_RE = re.compile(r"^([0-9A-Fa-f]{2}([:-]?)){5}[0-9A-Fa-f]{2}$")
 
@@ -133,7 +143,19 @@ def map_push_message(mac: str, payload: str) -> bool:
 
 
 def ble_gatt_push(mac: str, payload: str) -> bool:
-    """Notify companion app over BLE GATT. Returns False if link unavailable."""
+    """Notify companion app over BLE GATT. Returns False if link unavailable.
+
+    Prefers a running car-side ``BleGattServer`` (Phase 9). Falls back to the
+    legacy central-write path against a remote characteristic.
+    """
+    try:
+        from hardware.ble_gatt_server import get_active_server
+
+        server = get_active_server()
+        if server is not None and server.running:
+            return bool(server.push_payload(payload))
+    except Exception as exc:
+        logger.info("BT OTP: local GATT server push failed (%s)", type(exc).__name__)
     try:
         return _bluez_ble_notify(mac, payload)
     except Exception as exc:
@@ -190,7 +212,7 @@ def _bluez_map_send(mac: str, payload: str) -> bool:
 
 
 def _bluez_ble_notify(mac: str, payload: str) -> bool:
-    """Write/notify the companion characteristic if the peripheral is connected."""
+    """Legacy: write the companion characteristic if the phone is a peripheral."""
     try:
         import dbus  # type: ignore
     except ImportError:

@@ -10,10 +10,13 @@ from __future__ import annotations
 
 from hardware.actuation import ActuationListener, GPIORelay, LogSpeaker, NullRelay, NullSpeaker
 from hardware.bluetooth_otp import (
+    BLE_GATT_ACK_CHAR_UUID,
     BLE_GATT_CHAR_UUID,
+    BLE_GATT_OTP_CHAR_UUID,
     BLE_GATT_SERVICE_UUID,
     BluetoothOTPDelivery,
 )
+from hardware.ble_gatt_server import BleGattServer, MemoryBleGattBackend
 from hardware.can_logger import CanLogger, TXN_CSV_COLUMNS
 from hardware.finger_daemon import FingerDaemon
 from hardware.finger_uart import FingerSensorAdapter, ManualFingerSensor, PyFingerprintAdapter
@@ -31,8 +34,11 @@ from hardware.telematics import TelematicsIngest, sanitize_vehicle_fields
 
 __all__ = [
     "ActuationListener",
+    "BLE_GATT_ACK_CHAR_UUID",
     "BLE_GATT_CHAR_UUID",
+    "BLE_GATT_OTP_CHAR_UUID",
     "BLE_GATT_SERVICE_UUID",
+    "BleGattServer",
     "BluetoothOTPDelivery",
     "CanLogger",
     "FingerDaemon",
@@ -45,6 +51,7 @@ __all__ = [
     "LivenessResult",
     "LogSpeaker",
     "ManualFingerSensor",
+    "MemoryBleGattBackend",
     "MicArrayCapture",
     "NullRelay",
     "NullSpeaker",

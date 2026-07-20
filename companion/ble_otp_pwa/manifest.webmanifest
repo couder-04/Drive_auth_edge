@@ -1,0 +1,10 @@
+{
+  "name": "DriveAuth OTP",
+  "short_name": "DriveAuth",
+  "description": "BLE companion for DriveAuth ladder OTP",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f1419",
+  "theme_color": "#0f1419",
+  "icons": []
+}

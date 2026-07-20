@@ -132,3 +132,69 @@ Dashboard can set the same fields manually until Nova wires sensors.
 | Risk GBT | `scripts/train_risk_gbt.py` | `risk_gbt.onnx` |
 
 Place ONNX files in `DRIVEAUTH_STORE_DIR`.
+
+---
+
+## BLE GATT companion OTP (Phase 9)
+
+Car-side peripheral: `hardware/ble_gatt_server.py` (BlueZ D-Bus; `--memory` for
+local dry-run). Phone-side reference: Web Bluetooth PWA in
+`companion/ble_otp_pwa/` (Chrome / Android; no app-store build).
+
+### Fixed UUIDs
+
+| Role | UUID |
+|------|------|
+| Service | `6e400001-b5a3-f393-e0a9-e50e24dcca9e` |
+| OTP notify (car → phone) | `6e400003-b5a3-f393-e0a9-e50e24dcca9e` |
+| Ack write (phone → car) | `6e400002-b5a3-f393-e0a9-e50e24dcca9e` |
+
+Local name default: `DriveAuth-OTP`.
+
+### Payload
+
+OTP notify (UTF-8 JSON, ≤ 180 bytes):
+
+```json
+{"v":1,"purpose":"driveauth_ladder_otp","code":"123456","ttl_s":120}
+```
+
+Ack write:
+
+```json
+{"v":1,"purpose":"driveauth_ladder_otp_ack","code":"123456","ok":true}
+```
+
+Paired-MAC gate still applies: `BluetoothOTPDelivery` refuses delivery unless
+the connected MAC matches `contacts/{driver_id}.bt_mac`.
+
+### Run (car)
+
+```bash
+pip install -e ".[bluetooth]"   # dbus-python; also needs BlueZ + PyGObject on the head unit
+driveauth-ble-gatt              # or: python -m hardware.ble_gatt_server
+# optional demo push:
+driveauth-ble-gatt --demo-code 123456
+```
+
+### Run (phone PWA)
+
+```bash
+cd companion/ble_otp_pwa
+python -m http.server 8765   # must be HTTPS or localhost for Web Bluetooth
+# On Android Chrome: open http://<car-or-dev-host>:8765/
+```
+
+### Manual test checklist (phone — not mockable in CI)
+
+Browser BLE cannot be mocked in CI; run this on a real phone + head unit:
+
+- [ ] Head unit: `driveauth-ble-gatt` advertising; BlueZ LE enabled
+- [ ] Phone: Chrome (Android), open the PWA over HTTPS or same-LAN `http://…`
+- [ ] Tap **Connect to car** → chooser shows `DriveAuth-OTP` (or service filter)
+- [ ] Status shows **Connected — waiting for OTP**
+- [ ] On car: `driveauth-ble-gatt --demo-code 424242` (or ladder auth triggers BLE push)
+- [ ] Phone displays `424242` and attempts ack write
+- [ ] Car `BleGattServer.last_ack` / logs show ack with matching code (optional)
+- [ ] Disconnect / out-of-range: PWA status becomes **Disconnected**; reconnect works
+- [ ] Negative: wrong/unpaired phone must not receive OTP (MAC gate on delivery path)
