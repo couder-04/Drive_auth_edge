@@ -42,11 +42,11 @@ These are **design invariants**, not optional heuristics.
 
 ---
 
-## 2b. Mocked vs real (Phase 1 hardware surface)
+## 2b. Mocked vs real (hardware surface)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Voice / face matchers | Mock or ONNX | Unchanged this phase |
+| Voice / face matchers | Mock or ONNX | Unchanged default |
 | Finger capture daemon (`hardware/finger_daemon.py`) | **Real protocol** | Unix `SCAN\\n` → 256×256 bytes; UART via `PyFingerprintAdapter` (optional extra) or `ManualFingerSensor` |
 | Finger match / templates | Partial | `FingerMatcher` decrypts Fernet `fingers/*.enc`; **Fernet-only at rest remains a known gap** (no TEE / wrapped keys) |
 | `ManualScores(finger=…)` dashboard path | Mock stand-in | Still works; does not require the daemon |
@@ -54,7 +54,11 @@ These are **design invariants**, not optional heuristics.
 | Ladder Bluetooth OTP (MAP) | Stubbed BlueZ path | Unit-tested with injected `map_send`; real MAP needs head-unit OBEX agent |
 | Ladder Bluetooth OTP (BLE GATT) | Stubbed + contract | Companion app UUID/payload documented; app itself **not** built this phase |
 | Paired-MAC gate | **Real check** | Refuses delivery unless paired MAC matches `contacts/{id}.bt_mac` |
-| IR capture / liveness / Hailo / GPIO | Mock / absent | Phases 2–5 |
+| IR / RGB / mic capture (`hardware/ir_capture.py` et al.) | **Real service API** | OpenCV / inject backends; unit-tested shapes (112² crop, 16 kHz mono) |
+| IR liveness (`hardware/ir_liveness.py`) | Heuristic | Reflectance stats; opt-in via `DRIVEAUTH_IR_LIVENESS_ENABLED`; **not** ISO PAD certified; Stage-2 PAD logreg still separate |
+| Hailo face (`hardware/hailo_face.py`) | Optional | `DRIVEAUTH_FACE_BACKEND=hailo` + `.hef`; fail-closed without device; IR liveness stays on CPU |
+| Actuation (`hardware/actuation.py`) | **Real API** | Relay defaults open; closes only on fresh ACCEPT; optional `RPi.GPIO` |
+| GPS/CAN ingest (`hardware/telematics.py`) | **Real API** | Sanitizes then calls `update_vehicle_context`; malformed frames skipped |
 
 ### Phase 0 note — `dist_from_home` retired as a risk feature
 
@@ -133,9 +137,10 @@ Do **not** market or paper these as proven:
 | “Behavioral biometrics production-ready” | Bake-off winner trained on **synth CAN**; re-bake required on recorder dumps |
 | “Fingerprint verification shipping” | Daemon + UART adapter land in Phase 1; production claims still need vendor SDK captures + FAR/FRR on-device |
 | “Deepfake / ASVspoof complete” | Voice anti-spoof is quality + calibrator depth, not a full countermeasure suite |
-| “PAD stops all replays” | Hand-crafted PAD features; APCER reported in Phase 6 — not ISO PAD certification |
+| “PAD stops all replays” | Hand-crafted PAD features + optional IR reflectance heuristic; APCER reported in Phase 6 — **not** ISO PAD certification |
 | “Constant-time by default” | Timing pad is opt-in; default `constant_time_ms: 0` |
 | “OTP comparison proves superiority” | `otp_only` FAR=0 in benches **assumes** OTP channel security; ladder BT OTP additionally assumes paired-MAC binding + MAP/BLE integrity |
+| “Hailo face certified” | `HailoFaceMatcher` is a swappable backend; latency/accuracy claims require on-device HEF benchmarks |
 | Apply `phase2b_suggested.env` blindly | Policy bars stay conservative until face attack overlap improves |
 
 ---

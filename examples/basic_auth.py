@@ -1,4 +1,12 @@
-"""Basic authentication example."""
+"""Basic authentication example.
+
+For live mic capture on-device, replace the silence buffer with::
+
+    from hardware.mic_capture import MicArrayCapture, NumpyAudioBackend
+    mic = MicArrayCapture(backend=NumpyAudioBackend(audio))  # or real backend
+    mic.start()
+    audio = mic.capture(seconds=1.5)
+"""
 
 import numpy as np
 

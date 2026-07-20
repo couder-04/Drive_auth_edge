@@ -112,9 +112,18 @@ step_up:
 hardware:
   fingerprint_available: ${DRIVEAUTH_FINGERPRINT_AVAILABLE:1}
   ir_camera_index: ${DRIVEAUTH_IR_CAMERA_INDEX:0}
+  rgb_camera_index: ${DRIVEAUTH_RGB_CAMERA_INDEX:1}
   finger_socket: ${DRIVEAUTH_FINGER_SOCKET:/tmp/driveauth_finger.sock}
   # UART device for hardware.finger_daemon (optional extras).
   finger_uart: ${DRIVEAUTH_FINGER_UART:/dev/ttyUSB0}
+  # Face matcher backend: onnx (default) | hailo
+  face_backend: ${DRIVEAUTH_FACE_BACKEND:onnx}
+  hailo_hef: ${DRIVEAUTH_HAILO_HEF:}
+  # IR liveness gate (independent of Stage-2 PAD logreg).
+  ir_liveness_enabled: ${DRIVEAUTH_IR_LIVENESS_ENABLED:0}
+  ir_liveness_threshold: ${DRIVEAUTH_IR_LIVENESS_THRESHOLD:0.55}
+  # GPIO relay BCM pin for ACCEPT actuation (optional).
+  relay_gpio_pin: ${DRIVEAUTH_RELAY_GPIO_PIN:17}
 
 escalation:
   # Voice → Face → Finger ladder (Accept on high score; Reject if ladder exhausted).

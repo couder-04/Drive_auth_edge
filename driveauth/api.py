@@ -137,7 +137,21 @@ class DriveAuth:
                 voice = MockVoiceMatcher()
 
             face = FaceMatcher.load(str(store), driver_id)
-            if not face.ready:
+            if config.FACE_BACKEND == "hailo":
+                try:
+                    from hardware.hailo_face import HailoFaceMatcher
+
+                    hailo_face = HailoFaceMatcher.load(str(store), driver_id)
+                    if hailo_face.ready:
+                        face = hailo_face
+                        logger.info("DriveAuth: using HailoFaceMatcher")
+                    else:
+                        logger.warning(
+                            "DriveAuth: Hailo backend requested but not ready — ONNX/mock face"
+                        )
+                except Exception as exc:
+                    logger.warning("DriveAuth: Hailo face load failed (%s)", exc)
+            if not getattr(face, "ready", True):
                 logger.warning("DriveAuth: face not ready — using mock face")
                 face = MockFaceMatcher()
 
@@ -238,6 +252,7 @@ class DriveAuth:
         auth._risk_ctx = risk_ctx
         auth._ctx_lock = ctx_lock
         auth._attach_ladder_otp()
+        auth._attach_ir_liveness()
         # Optional HW stand-in: DRIVEAUTH_MANUAL_SCORES=path.json or inline JSON
         try:
             from driveauth.matchers.score_provider import apply_manual_scores_from_env
@@ -683,6 +698,36 @@ class DriveAuth:
         except Exception as exc:
             logger.warning("DriveAuth: ladder OTP lane unavailable (%s)", exc)
             self._engine._ladder_otp = None
+
+    def _attach_ir_liveness(self) -> None:
+        """Optional IR liveness gate (``DRIVEAUTH_IR_LIVENESS_ENABLED=1``)."""
+        if not config.IR_LIVENESS_ENABLED:
+            self._engine._ir_liveness = None
+            self._engine._ir_capture = None
+            return
+        try:
+            from hardware.ir_capture import IRCameraCapture, NumpyFrameBackend
+            from hardware.ir_liveness import IRLivenessChecker
+
+            # Prefer live OpenCV; fall back to inject-only backend so the gate
+            # fail-closes on missing frames rather than crashing import.
+            capture = IRCameraCapture(config.IR_CAMERA_INDEX)
+            if not capture.start():
+                capture = IRCameraCapture(
+                    config.IR_CAMERA_INDEX, backend=NumpyFrameBackend()
+                )
+                capture.start()
+            self._engine._ir_capture = capture
+            self._engine._ir_liveness = IRLivenessChecker(
+                threshold=config.IR_LIVENESS_THRESHOLD
+            )
+            logger.info(
+                "DriveAuth: IR liveness enabled (thr=%.3f)", config.IR_LIVENESS_THRESHOLD
+            )
+        except Exception as exc:
+            logger.warning("DriveAuth: IR liveness unavailable (%s)", exc)
+            self._engine._ir_liveness = None
+            self._engine._ir_capture = None
 
     def _tts_deny(self, ws_out_queue: Any, message: str) -> None:
         ws_out_queue.put({"type": "tts_speak", "text": message})

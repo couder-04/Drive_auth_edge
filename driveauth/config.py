@@ -195,8 +195,15 @@ FALLBACK_MIN_TRUST = _as_float(_P["step_up"]["fallback_min_trust"])
 
 FINGERPRINT_AVAILABLE = _as_bool01(_P["hardware"]["fingerprint_available"])
 IR_CAMERA_INDEX = _as_int(_P["hardware"]["ir_camera_index"])
+RGB_CAMERA_INDEX = _as_int(_P["hardware"].get("rgb_camera_index", 1))
 FINGER_SOCKET = str(_P["hardware"]["finger_socket"])
 FINGER_UART = str(_P["hardware"].get("finger_uart", "/dev/ttyUSB0"))
+_FACE_BACKEND_RAW = str(_P["hardware"].get("face_backend", "onnx")).strip().lower()
+FACE_BACKEND = _FACE_BACKEND_RAW if _FACE_BACKEND_RAW in ("onnx", "hailo") else "onnx"
+HAILO_HEF = str(_P["hardware"].get("hailo_hef", "") or "")
+IR_LIVENESS_ENABLED = _as_bool01(_P["hardware"].get("ir_liveness_enabled", 0))
+IR_LIVENESS_THRESHOLD = _as_float(_P["hardware"].get("ir_liveness_threshold", 0.55))
+RELAY_GPIO_PIN = _as_int(_P["hardware"].get("relay_gpio_pin", 17))
 
 ESCALATION_ENABLED = _as_bool01(_P["escalation"]["enabled"])
 ESCALATION_CONSTANT_TIME_MS = _as_float(_P["escalation"]["constant_time_ms"])

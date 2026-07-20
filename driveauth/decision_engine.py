@@ -60,6 +60,8 @@ class DecisionEngine:
         profile: Any = None,
         driver_id: str = "",
         ladder_otp: Any = None,
+        ir_liveness: Any = None,
+        ir_capture: Any = None,
     ):
         self._m = matchers
         self._q = quality
@@ -76,6 +78,9 @@ class DecisionEngine:
         self._driver_id = driver_id
         # Optional stage-3 Bluetooth OTP lane (identity ladder only).
         self._ladder_otp = ladder_otp
+        # Optional IR liveness gate (Phase 3) — independent of Stage-2 PAD.
+        self._ir_liveness = ir_liveness
+        self._ir_capture = ir_capture
 
     def _build_risk_ctx(
         self,
@@ -172,6 +177,28 @@ class DecisionEngine:
 
     def _probe_face(self, qflags) -> ModalityResult:
         face = self._m.face
+        # Phase 3: IR liveness before trusting the face matcher (fail-closed).
+        if self._ir_liveness is not None:
+            ir_crop = None
+            if self._ir_capture is not None and hasattr(self._ir_capture, "capture_gray"):
+                try:
+                    if getattr(self._ir_capture, "started", True):
+                        ir_crop = self._ir_capture.capture_gray()
+                except Exception as exc:
+                    logger.warning("DecisionEngine: IR capture failed: %s", exc)
+                    ir_crop = None
+            try:
+                live = self._ir_liveness.check(ir_crop)
+            except Exception as exc:
+                logger.error("DecisionEngine: IR liveness crashed: %s", exc)
+                return ModalityResult(None, False, available=False)
+            if not live.live:
+                qflags.face_ok = False
+                qflags.notes.append(f"ir_liveness_{live.reason}")
+                return ModalityResult(
+                    None, False, quality=float(live.score), available=True
+                )
+
         if hasattr(face, "capture_frame"):
             frame = face.capture_frame()
             face_frac = getattr(face, "face_frac", None)
@@ -400,6 +427,9 @@ class DecisionEngine:
                 explanations.append("voice_unavailable")
         if not face_r.available and face_r.score is None:
             explanations.append("face_unavailable")
+        for note in getattr(qflags, "notes", []) or []:
+            if str(note).startswith("ir_liveness") and note not in explanations:
+                explanations.append(str(note))
         if any(ood_baseline_missing.values()):
             explanations.append("ood_baseline_missing")
 
