@@ -159,7 +159,9 @@ def reset_auth(
 ) -> DriveAuth:
     state = _state(request)
     state.clear()
-    return get_auth(driver_id, use_mock=use_mock, mature=mature, request=request)
+    return get_auth(
+        request=request, driver_id=driver_id, use_mock=use_mock, mature=mature
+    )
 
 
 def _decode_face_jpeg(raw: bytes) -> np.ndarray:
@@ -1162,7 +1164,9 @@ async def standalone_auth(
             face_bgr = _decode_face_jpeg(face_raw)
 
     try:
-        auth = get_auth(did, use_mock=False, mature=True, request=request)
+        auth = get_auth(
+            request=request, driver_id=did, use_mock=False, mature=True
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=503,
