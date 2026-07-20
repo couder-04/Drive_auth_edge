@@ -375,15 +375,24 @@ def enroll_driver(
     *,
     require_minimums: bool = True,
     key_protector: KeyProtector | None = None,
+    require_consent: bool = True,
 ) -> dict:
     """Embed enroll samples and write encrypted templates + OOD baselines.
 
     ``key_protector`` defaults to :class:`SoftwareKeyProtector` (Fernet key
     on disk, unchanged). Pass a TPM-backed protector to seal the Fernet key.
+
+    Phase E: when ``require_consent`` is True (default), a consent record must
+    already exist via :func:`driveauth.consent.record_consent`. Pass
+    ``require_consent=False`` only for legacy unit fixtures / offline tooling.
     """
     driver_id = validate_driver_id(driver_id)
     store = Path(store_dir)
     data = Path(data_dir)
+    if require_consent:
+        from driveauth.consent import require_consent as _require_consent
+
+        _require_consent(store, driver_id)
     protector = key_protector or SoftwareKeyProtector()
     TemplateStore(store, protector=protector).ensure_key()
 
@@ -433,4 +442,5 @@ def enroll_driver(
         "store_dir": str(store),
         "data_dir": str(data),
         "key_protector": type(protector).__name__,
+        "consent_required": require_consent,
     }

@@ -926,6 +926,7 @@ def render_dashboard(*, mode: str = "manual") -> str:
         <a class="nav-link __NAV_MANUAL__" href="/manual">Manual pipeline</a>
         <a class="nav-link __NAV_STANDALONE__" href="/standalone">Standalone pay</a>
         <a class="nav-link" href="/register">Register driver</a>
+        <a class="nav-link" href="/fleet">Fleet health</a>
       </nav>
       <div id="status-bar">Loading…</div>
     </div>

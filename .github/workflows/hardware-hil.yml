@@ -1,0 +1,50 @@
+name: Hardware-in-the-loop
+
+# Manual only. These jobs require a self-hosted runner attached to real
+# Bluetooth / Hailo hardware. They CANNOT run on GitHub-hosted runners.
+#
+# Setup:
+#   1. Register a self-hosted runner with labels: [self-hosted, driveauth-hw]
+#   2. On that host: install BlueZ, HailoRT, board SDKs; pip install -e ".[hardware,dev]"
+#   3. Actions → Hardware-in-the-loop → Run workflow
+#
+# Env flags exercised:
+#   DRIVEAUTH_BT_HW_TEST=1
+#   DRIVEAUTH_HAILO_HW_TEST=1
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_bt:
+        description: "Run Bluetooth OTP / BLE GATT HW tests"
+        type: boolean
+        default: true
+      run_hailo:
+        description: "Run Hailo face HW tests"
+        type: boolean
+        default: true
+
+jobs:
+  bt-hw:
+    if: ${{ inputs.run_bt }}
+    runs-on: [self-hosted, driveauth-hw]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bluetooth HW tests
+        env:
+          DRIVEAUTH_BT_HW_TEST: "1"
+        run: |
+          python -m pip install -e ".[dev,hardware,bluetooth]"
+          python -m pytest -q tests/test_phase1_ladder_otp.py tests/test_ble_gatt_server.py -m "not skip"
+
+  hailo-hw:
+    if: ${{ inputs.run_hailo }}
+    runs-on: [self-hosted, driveauth-hw]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Hailo HW tests
+        env:
+          DRIVEAUTH_HAILO_HW_TEST: "1"
+        run: |
+          python -m pip install -e ".[dev,face,hailo]"
+          python -m pytest -q tests/test_phases_2_to_6.py -k hailo

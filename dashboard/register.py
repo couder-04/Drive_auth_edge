@@ -330,6 +330,7 @@ def render_register() -> str:
     <div class="nav-row">
       <a class="nav" href="/manual">Manual pipeline</a>
       <a class="nav" href="/standalone">Standalone pay</a>
+      <a class="nav" href="/fleet">Fleet health</a>
     </div>
   </header>
 
@@ -777,7 +778,11 @@ def render_register() -> str:
         const res = await api("/api/register/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ driver_id: driverId() }),
+          body: JSON.stringify({
+            driver_id: driverId(),
+            consent: true,
+            consent_notes: "dashboard /register explicit enroll click",
+          }),
         });
         log(
           `Enrolled ${res.driver_id}: voice=${res.voice_samples} face=${res.face_samples}\\n` +

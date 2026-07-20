@@ -110,9 +110,28 @@ def test_register_complete_rejects_without_home(tmp_path: Path, monkeypatch) -> 
 
     client = TestClient(app)
     client.post("/api/register/init", json={"driver_id": "noHome"})
-    r = client.post("/api/register/complete", json={"driver_id": "noHome"})
+    r = client.post(
+        "/api/register/complete",
+        json={"driver_id": "noHome", "consent": True},
+    )
     assert r.status_code == 400
     assert "home" in r.json()["detail"].lower()
+
+
+def test_register_complete_rejects_without_consent(tmp_path: Path, monkeypatch) -> None:
+    import dashboard.app as app_mod
+
+    store = tmp_path / "store"
+    store.mkdir()
+    monkeypatch.setattr(app_mod, "_data_root", lambda: tmp_path)
+    monkeypatch.setattr(app_mod, "_register_store", lambda: store)
+    monkeypatch.setattr(app_mod, "_unified_store", lambda: store)
+
+    client = TestClient(app)
+    client.post("/api/register/init", json={"driver_id": "noConsent"})
+    r = client.post("/api/register/complete", json={"driver_id": "noConsent"})
+    assert r.status_code == 400
+    assert "consent" in r.json()["detail"].lower()
 
 
 def test_enrolled_driver_is_locked_from_mutation(tmp_path: Path, monkeypatch) -> None:

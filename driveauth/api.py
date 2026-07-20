@@ -103,6 +103,11 @@ class DriveAuth:
         store = Path(store_dir or os.getenv("DRIVEAUTH_STORE_DIR", "./driveauth_store"))
         store.mkdir(parents=True, exist_ok=True)
 
+        # Phase D — optional signed-manifest integrity (fail closed when enabled).
+        from driveauth.integrity import verify_store_integrity
+
+        verify_store_integrity(store)
+
         if use_mock_matchers or os.getenv("DRIVEAUTH_USE_MOCK", "0") == "1":
             matchers = MatcherBundle(
                 voice=MockVoiceMatcher(),

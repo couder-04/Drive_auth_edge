@@ -23,7 +23,7 @@ Companion docs: [trust-risk-separation.md](../architecture/trust-risk-separation
 Out of scope for this release (product / platform responsibility):
 
 - Physical theft of the enrolled driver’s phone used as OTP second factor
-- Compromise of the host OS, model store encryption keys, or dashboard process
+- Compromise of the host OS, model store encryption keys, Vault token, or dashboard process
 - Network MITM on Nova ↔ Edge IPC (assumes trusted in-vehicle channel)
 - Certification exhaustiveness of every staged-escalation path (toggle parallel probes if required)
 
@@ -60,6 +60,29 @@ These are **design invariants**, not optional heuristics.
 | Actuation (`hardware/actuation.py`) | **Real API** | Relay defaults open; closes only on fresh ACCEPT; optional `RPi.GPIO` |
 | GPS/CAN ingest (`hardware/telematics.py`) | **Real API** | Sanitizes then calls `update_vehicle_context`; malformed frames skipped |
 | CAN/GPS logger (`hardware/can_logger.py`) | **Harness** | Writes txn + behavioral CSVs matching synthetic schemas; needs a live bus / pilot fleet — does not invent real data |
+
+### Phase A note — pluggable secrets (env default; Vault wired; HSM stub)
+
+`driveauth/secrets.py` exposes a `SecretsProvider` protocol (`get(key) -> str | None`).
+Default `EnvFileSecretsProvider` preserves today's `secrets.env` behaviour.
+`VaultSecretsProvider` reads HashiCorp Vault KV v2 via a swappable HTTP client
+(no secrets baked into the image). `HSMSecretsProvider` is an **interface stub** —
+`get()` raises until a real PKCS#11 / vendor backend is injected.
+**Not closed:** fleet secret ops (Vault policy, token rotation) and any claim of
+HSM-backed secrets without the hardware. Process: [`key-provisioning.md`](key-provisioning.md).
+
+### Phase B–I note — production hardening (code + process; hardware gaps remain)
+
+| Phase | Landed | Still open without external work |
+|-------|--------|----------------------------------|
+| **B** Audit hash-chain + optional remote sink (`DRIVEAUTH_AUDIT_REMOTE_URL`) | Detects local rewrite when chain verified / remote enabled | Remote sink ops; owner who also controls the sink |
+| **C** Actuation watchdog | Forces relay open on stale heartbeat | Real GPIO timing on vehicle HW |
+| **D** Signed manifest integrity | App-level fail-closed check | Full SoC secure boot / dm-verity — [`secure-boot.md`](secure-boot.md) |
+| **E** Consent + `purge_driver` | Enrollment gate + deletion API | **Legal** BIPA/GDPR-class sign-off — [`biometric-data-policy.md`](biometric-data-policy.md) |
+| **F** Signed OTA + rollback | `OTAClient` + `build_update_package.py` | Fleet signing infra, staged rollout |
+| **G** Fleet telemetry | Opt-in rates/sensors/firmware only | Pilot fleet endpoint + ops |
+| **H** CI workflows | `.github/workflows/ci.yml` + HIL stub | Self-hosted runner for real BT/Hailo |
+| **I** Score buckets in audit | Drift/fairness **data collection only** | Diverse field dataset + analysis — **does not** close skin-tone validation |
 
 ### Phase 7 note — secure-element key protection (optional, off by default)
 
@@ -157,9 +180,16 @@ APIs. Until then, demos using mocks or manual scores **do not** prove field FAR/
 | Decision cache limits | `api.require_auth` | No reuse of REJECT/STEP_UP; tier/fraud/profile epoch checked |
 | Timing pad | `DecisionEngine._pad_timing` | **Off** unless `DRIVEAUTH_ESCALATION_CONSTANT_TIME_MS` > 0 |
 | Atomic profile writes | `profile_store.py` | `.tmp` + replace; schema migration |
+| Pluggable secrets | `secrets.py` | Default env file; optional Vault KV v2; HSM stub only |
+| Audit hash-chain | `audit_log.py` | `prev_hash`/`entry_hash`; optional remote sink |
+| Actuation watchdog | `hardware/actuation.py` | Force-open on stale heartbeat |
+| App integrity check | `integrity.py` | Opt-in via `DRIVEAUTH_INTEGRITY_CHECK=1` |
+| Consent + purge | `consent.py` · `purge.py` | Required before enroll; deletion API |
+| Fleet telemetry | `hardware/fleet_telemetry.py` | Opt-in; no biometric fields |
 
 Evidence: `tests/test_security_sprint1.py`, `tests/test_production.py`,
-`tests/test_phase5_failure_modes.py`, Sprint 6 ablations in `phases/phase6.md`.
+`tests/test_phase5_failure_modes.py`, `tests/test_secrets.py`,
+`tests/test_hardening.py`, Sprint 6 ablations in `phases/phase6.md`.
 
 ---
 
@@ -195,11 +225,13 @@ Do **not** market or paper these as proven:
 
 From [review-fixes.md](review-fixes.md) and roadmap deferred items:
 
-1. **Fairness / quality gates** — brightness and blur thresholds unvalidated across skin tones and cabin lighting.
+1. **Fairness / quality gates** — brightness and blur thresholds unvalidated across skin tones and cabin lighting. Phase I only adds bucketed score logging so a later analysis *can* detect correlated failures; **it does not close this gap** until a diverse field dataset exists and is reviewed.
 2. **Bootstrap duration** — `BOOTSTRAP_MIN_TXNS` / days are defaults, not fleet-tuned.
 3. **Certification path growth** — staged probes widen the state space; set `DRIVEAUTH_ESCALATION_ENABLED=0` for static parallel probes if required.
 4. **Nova GPS wiring** — until live, Risk underestimates location/speed anomalies.
-5. **Store encryption / secure element** — default remains Fernet key on disk (`SoftwareKeyProtector`). Optional `TPMKeyProtector` is an upgrade path; the at-rest gap stays open until hardware-backed protection is enabled on a real SE.
+5. **Store encryption / secure element** — default remains Fernet key on disk (`SoftwareKeyProtector`). Optional `TPMKeyProtector` is an upgrade path; the at-rest gap stays open until hardware-backed protection is enabled on a real SE. Product API secrets can move to Vault via `SecretsProvider`; `HSMSecretsProvider` remains a stub without hardware (see [`key-provisioning.md`](key-provisioning.md)).
+6. **Secure boot** — application manifest check is opt-in; board verified-boot / dm-verity remain OEM integration ([`secure-boot.md`](secure-boot.md)).
+7. **Biometric legal compliance** — consent records are a code gate, not a BIPA/GDPR certification ([`biometric-data-policy.md`](biometric-data-policy.md)).
 
 ---
 
@@ -213,6 +245,7 @@ Before calling a deployment “secure”:
 - [ ] Nova telematics calls `update_vehicle_context` every auth
 - [ ] Enable timing pad if network/IPC observers are in scope
 - [ ] Confirm `DRIVEAUTH_USE_MOCK=0` and Stage-2 heads loaded (PAD/calibrators on)
+- [ ] Provision secrets per [`key-provisioning.md`](key-provisioning.md) (on-device `.bio_key`; no secrets in image)
 - [ ] Run `pytest` + `scripts/phase6_benchmark.py` on the target store after any threshold change
 
 ---

@@ -26,6 +26,8 @@ from driveauth.enrollment import (
     save_voice_wav_bytes,
     validate_driver_id,
 )
+from driveauth.consent import ConsentRequiredError, record_consent
+from driveauth.purge import purge_driver
 from driveauth.matchers.mock import (
     MOCK_FACE_DIM,
     MOCK_FINGER_DIM,
@@ -44,6 +46,7 @@ from driveauth.secrets import (
 )
 from driveauth.standalone_session import IntentSlots, process_audio, process_transcript
 from dashboard.dashboard import render_dashboard
+from dashboard.fleet import render_fleet
 from dashboard.register import render_register
 
 ensure_secrets_loaded()
@@ -479,6 +482,36 @@ def register_page() -> str:
     return render_register()
 
 
+@app.get("/fleet", response_class=HTMLResponse)
+def fleet_page() -> str:
+    return render_fleet()
+
+
+@app.get("/api/fleet/health")
+def fleet_health() -> dict[str, Any]:
+    """Local fleet-health snapshot — scores/rates only, no biometrics."""
+    from driveauth import __version__
+    from hardware.fleet_telemetry import build_telemetry_payload, summarize_audit_file
+
+    store = _unified_store()
+    audit = store / "audit" / "driveauth_events.jsonl"
+    counts = summarize_audit_file(audit)
+    payload = build_telemetry_payload(
+        vehicle_id=os.getenv("DRIVEAUTH_VEHICLE_ID", "local"),
+        firmware_version=os.getenv("DRIVEAUTH_FIRMWARE_VERSION", __version__),
+        accept_count=counts["accept"],
+        reject_count=counts["reject"],
+        step_up_count=counts["step_up"],
+        sensor_flags={
+            "voice": True,
+            "face": True,
+            "finger": os.getenv("DRIVEAUTH_FINGERPRINT_AVAILABLE", "0") == "1",
+            "gps": True,
+        },
+    )
+    return payload
+
+
 @app.get("/api/register/drivers")
 def register_drivers_list() -> list[dict[str, Any]]:
     return list_registered_drivers(_data_root(), _register_store())
@@ -577,13 +610,26 @@ async def register_voice(
     }
 
 
+class RegisterCompleteRequest(BaseModel):
+    driver_id: str = Field(..., min_length=1, max_length=32)
+    # Explicit acknowledgment that biometric enrollment is consented.
+    consent: bool = False
+    consent_notes: str = ""
+
+
 @app.post("/api/register/complete")
-def register_complete(req: RegisterDriverRequest) -> dict[str, Any]:
+def register_complete(req: RegisterCompleteRequest) -> dict[str, Any]:
     try:
         driver_id = validate_driver_id(req.driver_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     _assert_register_writable(driver_id)
+    if not req.consent:
+        raise HTTPException(
+            status_code=400,
+            detail="consent required — set consent=true after informing the driver "
+            "(BIPA/GDPR-class legal review still required for non-test drivers)",
+        )
     profile = _profile_for(driver_id)
     home_lat, home_lon, _ = profile.home_coords()
     if home_lat is None or home_lon is None:
@@ -593,13 +639,32 @@ def register_complete(req: RegisterDriverRequest) -> dict[str, Any]:
         )
     data_dir = _data_root() / driver_id
     store = _register_store()
+    record_consent(store, driver_id, notes=req.consent_notes or "dashboard /register")
     try:
         result = enroll_driver(store, data_dir, driver_id, require_minimums=True)
+    except ConsentRequiredError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {"status": "ok", "home_lat": home_lat, "home_lon": home_lon, **result}
+
+
+@app.post("/api/register/purge")
+def register_purge(req: RegisterDriverRequest) -> dict[str, Any]:
+    """Delete biometric templates + OOD + consent for a driver (Phase E)."""
+    try:
+        driver_id = validate_driver_id(req.driver_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    result = purge_driver(
+        _register_store(),
+        driver_id,
+        data_root=_data_root(),
+        remove_sample_files=False,
+    )
+    return {"status": "ok", **result}
 
 
 @app.post("/api/register/clear")

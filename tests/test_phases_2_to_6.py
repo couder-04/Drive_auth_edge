@@ -205,7 +205,7 @@ def test_face_matcher_contract_parametrized_backends():
 def test_actuation_relay_only_closes_on_accept():
     relay = NullRelay()
     speaker = NullSpeaker()
-    act = ActuationListener(relay=relay, speaker=speaker)
+    act = ActuationListener(relay=relay, speaker=speaker, enable_watchdog=False)
     assert act.start() is True
     assert relay.closed is False
 
@@ -237,7 +237,9 @@ def test_actuation_relay_only_closes_on_accept():
 
 def test_actuation_step_up_keeps_relay_open():
     relay = NullRelay()
-    act = ActuationListener(relay=relay, speaker=NullSpeaker())
+    act = ActuationListener(
+        relay=relay, speaker=NullSpeaker(), enable_watchdog=False
+    )
     act.start()
     act.on_result(
         DriveAuthResult(

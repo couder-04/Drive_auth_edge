@@ -125,6 +125,9 @@ def main() -> None:
 
     print("Enrolling voice from", len(list_enroll_wavs(data)), "files")
     print("Enrolling face from", len(list_enroll_images(data)), "files")
+    from driveauth.consent import record_consent
+
+    record_consent(store, args.driver_id, notes="phase2a_enroll.py")
     result = enroll_driver(store, data, args.driver_id, require_minimums=False)
     print("\nEnrollment complete:")
     print(f"  {store}/{result['voice_template']}")
