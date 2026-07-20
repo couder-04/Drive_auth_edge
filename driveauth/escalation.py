@@ -1,14 +1,18 @@
 """
-Strict biometric ladder (voice → face → finger).
+Strict biometric ladder (voice → face → stage-3).
 
 Architecture:
   1. Probe Voice.  High match → ACCEPT.
   2. Low / missing voice → Face.  High match → ACCEPT.
-  3. Still low → Fingerprint (last resort).  Match OK → ACCEPT.
+  3. Still low → stage-3 lane(s):
+       finger_only   — fingerprint (default, prior behavior)
+       otp_only      — Bluetooth OTP to the registered paired phone
+       finger_or_otp — try lanes in ``stage3_order`` (OR, not AND)
   4. Otherwise → REJECT.
 
-No OTP mid-ladder.  "High" / "match OK" are per-modality score thresholds
-from policy (``ladder.accept_voice`` / ``accept_face`` / ``accept_finger``).
+Payment ``otp_mobile`` step-up (HTTP provider) is separate and unchanged.
+"High" / "match OK" are per-modality score thresholds from policy
+(``ladder.accept_voice`` / ``accept_face`` / ``accept_finger``).
 Timing pad remains optional (constant-time mitigation).
 """
 
@@ -22,6 +26,7 @@ from driveauth import config
 logger = logging.getLogger("driveauth.escalation")
 
 PROBE_ORDER = ("voice", "face", "finger")
+STAGE3_MODES = frozenset({"finger_only", "otp_only", "finger_or_otp"})
 
 
 def _default_accept_bars() -> dict[str, float]:
@@ -29,7 +34,24 @@ def _default_accept_bars() -> dict[str, float]:
         "voice": float(config.LADDER_ACCEPT_VOICE),
         "face": float(config.LADDER_ACCEPT_FACE),
         "finger": float(config.LADDER_ACCEPT_FINGER),
+        # Bluetooth OTP verify is binary (score 0 or 1); use the finger bar so
+        # fraud trust_margin cannot push the threshold above 1.0.
+        "otp": float(config.LADDER_ACCEPT_FINGER),
     }
+
+
+def _stage3_lanes(mode: str, order: tuple[str, ...]) -> tuple[str, ...]:
+    if mode == "finger_only":
+        return ("finger",)
+    if mode == "otp_only":
+        return ("otp",)
+    # finger_or_otp — preserve configured order, only known lanes.
+    lanes = tuple(m for m in order if m in ("finger", "otp"))
+    return lanes or ("finger", "otp")
+
+
+def _effective_order(mode: str, stage3: tuple[str, ...]) -> tuple[str, ...]:
+    return ("voice", "face") + stage3
 
 
 @dataclass
@@ -41,6 +63,8 @@ class LadderPlan:
     accept_bars: dict[str, float] = field(default_factory=_default_accept_bars)
     reason: str = "voice_face_finger_ladder"
     probed: list[str] = field(default_factory=list)
+    stage3_mode: str = "finger_only"
+    stage3_order: tuple[str, ...] = ("finger",)
 
     def bar_for(self, modality: str | None = None) -> float:
         if modality and modality in self.accept_bars:
@@ -82,6 +106,8 @@ class EscalationPolicy:
         fraud_rigor: dict | None = None,
         profile_mature: bool = True,
         fingerprint_available: bool = True,
+        stage3_mode: str | None = None,
+        stage3_order: tuple[str, ...] | None = None,
     ) -> LadderPlan:
         rigor = fraud_rigor or {}
         # Fraud trust_margin raises every modality bar; never changes ladder shape.
@@ -89,11 +115,25 @@ class EscalationPolicy:
         bars = {k: v + margin for k, v in _default_accept_bars().items()}
         # Legacy accept_bar = voice bar (most common early-stop path).
         accept_bar = bars["voice"]
+        mode = (stage3_mode or config.LADDER_STAGE3_MODE).strip().lower()
+        if mode not in STAGE3_MODES:
+            mode = "finger_only"
+        order3 = stage3_order or config.LADDER_STAGE3_ORDER
+        lanes = _stage3_lanes(mode, order3)
+        order = _effective_order(mode, lanes)
+        if mode == "finger_only":
+            reason = "voice_face_finger_ladder"
+        elif mode == "otp_only":
+            reason = "voice_face_otp_ladder"
+        else:
+            reason = "voice_face_finger_or_otp_ladder"
         return LadderPlan(
-            order=PROBE_ORDER,
+            order=order,
             accept_bar=accept_bar,
             accept_bars=bars,
-            reason="voice_face_finger_ladder",
+            reason=reason,
+            stage3_mode=mode,
+            stage3_order=lanes,
         )
 
     @staticmethod

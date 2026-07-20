@@ -237,6 +237,7 @@ class DriveAuth:
         )
         auth._risk_ctx = risk_ctx
         auth._ctx_lock = ctx_lock
+        auth._attach_ladder_otp()
         # Optional HW stand-in: DRIVEAUTH_MANUAL_SCORES=path.json or inline JSON
         try:
             from driveauth.matchers.score_provider import apply_manual_scores_from_env
@@ -651,6 +652,37 @@ class DriveAuth:
         if path.exists():
             return path.read_text().strip()
         return os.getenv("DRIVEAUTH_DRIVER_MOBILE", os.getenv("NOVA_DRIVER_MOBILE"))
+
+    def _registered_bt_mac(self) -> str | None:
+        """MAC registered for the driver's phone (HFP pairing reuse)."""
+        path = Path(self._store) / "contacts" / f"{self.driver_id}.bt_mac"
+        if path.exists():
+            return path.read_text().strip()
+        return os.getenv("DRIVEAUTH_DRIVER_BT_MAC", os.getenv("NOVA_DRIVER_BT_MAC"))
+
+    def _attach_ladder_otp(self) -> None:
+        """Wire a separate Bluetooth OTPStepUp for identity-ladder stage-3."""
+        if config.LADDER_STAGE3_MODE == "finger_only":
+            self._engine._ladder_otp = None
+            return
+        try:
+            from hardware.bluetooth_otp import BluetoothOTPDelivery
+            from hardware.ladder_otp import LadderOTPLane
+            from driveauth.step_up_otp import OTPStepUp as _OTP
+
+            delivery = BluetoothOTPDelivery(
+                registered_mac_lookup=self._registered_bt_mac,
+            )
+            # Independent challenge state from payment ``self._otp``.
+            ladder_otp_stepup = _OTP(delivery=delivery)
+            self._engine._ladder_otp = LadderOTPLane(
+                otp=ladder_otp_stepup,
+                mobile_lookup=self._registered_mobile,
+                registered_mac_lookup=self._registered_bt_mac,
+            )
+        except Exception as exc:
+            logger.warning("DriveAuth: ladder OTP lane unavailable (%s)", exc)
+            self._engine._ladder_otp = None
 
     def _tts_deny(self, ws_out_queue: Any, message: str) -> None:
         ws_out_queue.put({"type": "tts_speak", "text": message})

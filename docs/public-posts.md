@@ -17,31 +17,33 @@ FAR/FRR for finger or synth-CAN behavioral metrics — see assumptions §6–7.
 ## 1. LinkedIn (technical post)
 
 **Suggested title (first line):**  
-Why OTP in the car is the wrong MFA — and what we built instead
+Why OTP in the car is the wrong MFA — and what I built instead
 
 **Body (≈1,300–1,600 chars — trim if needed for LinkedIn):**
 
 ```
-In-cabin payments and “unlock HVAC / start charging” commands are a terrible fit for phone OTP.
+“Pay ₹2,000 to Raj.” “Buy a pizza from the nearest shop.” “Unlock HVAC.”
 
-You’re driving. The cabin is noisy. An attacker sitting next to you can ask for the code, replay a recording, or point a phone screen at the camera. Static “voice AND face every time” is safer — and punishingly slow.
+Phone OTP is the wrong MFA for any of that.
 
-DriveAuth Edge is an offline biometric authorization stack for in-vehicle payments and sensitive commands. The design bet is simple:
+You’re driving. Hands aren’t free. The cabin is noisy. A passenger can ask for the code, replay a voice note, or hold a phone to the camera. Static “voice AND face every time” is safer — and too slow for a moving vehicle.
 
-• Trust — “Is this the enrolled driver?” (voice → face → finger only)
+So I built DriveAuth Edge: an offline biometric authorization stack for in-vehicle payments and sensitive commands. Three scores, kept deliberately separate:
+
+• Trust — “Is this the enrolled driver?” (voice → face → finger)
 • Risk — “How unusual is this transaction?” (amount, GPS, speed, beneficiary, driving behaviour)
 • Confidence — “Should we trust our scores on this capture?” (quality, OOD, modality agreement)
 
-Accept/Reject is ladder-driven (early-stop when a strong probe clears), with hard Risk ceilings and a fail-closed policy engine — YAML thresholds auditors can change without retraining models.
+Accept / Reject is ladder-driven — early-stop when a strong probe clears — with hard Risk ceilings and a fail-closed policy engine. Thresholds live in YAML so auditors can change them without retraining models.
 
-What we shipped (July 2026):
+Shipped so far (July 2026):
 → ECAPA voice + MobileFaceNet face on Mac and NVIDIA Thor (CUDA p95 ≈ 8–9 ms)
-→ Stage-2 face PAD + score calibrators
-→ Risk head (LightGBM→ONNX) on 50k txns
-→ 155+ tests including timing pad + OOD-refresh gating
-→ Sprint 6 FAR/FRR/EER/ROC ablations (early-stop vs security floor)
+→ Stage-2 face PAD + score calibration
+→ LightGBM → ONNX risk head trained on 50k transactions
+→ 155+ tests (timing pad, OOD-refresh gating, core pipeline)
+→ Sprint 6 FAR / FRR / EER / ROC + early-stop vs security-floor ablations
 
-What we do *not* claim yet: production finger FAR/FRR (HW still gated), live card-fraud Risk, or synth-CAN behavioural biometrics as fleet-ready.
+What I do not claim yet: production finger FAR/FRR (HW still gated), live card-fraud Risk, or synth-CAN behavioural biometrics as fleet-ready.
 
 Open source + security assumptions + demo:
 https://github.com/couder-04/Drive_auth_edge

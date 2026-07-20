@@ -59,6 +59,7 @@ class DecisionEngine:
         escalation: EscalationPolicy | None = None,
         profile: Any = None,
         driver_id: str = "",
+        ladder_otp: Any = None,
     ):
         self._m = matchers
         self._q = quality
@@ -73,6 +74,8 @@ class DecisionEngine:
         self._escalation = escalation or EscalationPolicy()
         self._profile = profile
         self._driver_id = driver_id
+        # Optional stage-3 Bluetooth OTP lane (identity ladder only).
+        self._ladder_otp = ladder_otp
 
     def _build_risk_ctx(
         self,
@@ -133,6 +136,9 @@ class DecisionEngine:
                 if not self._m.fingerprint_available:
                     return ModalityResult(None, False, available=False)
                 return self._probe_finger(qflags)
+
+            if name == "otp":
+                return self._probe_ladder_otp()
 
             return ModalityResult(None, False, available=False)
         except Exception as exc:
@@ -230,6 +236,18 @@ class DecisionEngine:
         r.quality = q
         return r
 
+    def _probe_ladder_otp(self) -> ModalityResult:
+        lane = self._ladder_otp
+        if lane is None:
+            return ModalityResult(None, False, available=False)
+        try:
+            if hasattr(lane, "probe"):
+                return lane.probe()
+            return ModalityResult(None, False, available=False)
+        except Exception as exc:
+            logger.error("DecisionEngine: ladder OTP probe crashed: %s", exc)
+            return ModalityResult(None, False, available=False)
+
     def authenticate(
         self,
         *,
@@ -287,17 +305,26 @@ class DecisionEngine:
             "voice": ModalityResult(None, False, available=False),
             "face": ModalityResult(None, False, available=False),
             "finger": ModalityResult(None, False, available=False),
+            "otp": ModalityResult(None, False, available=False),
         }
+        otp_available = False
+        if self._ladder_otp is not None:
+            try:
+                otp_available = bool(self._ladder_otp.can_attempt())
+            except Exception:
+                otp_available = False
         available = {
             "voice": expect_voice and audio_np is not None,
             "face": expect_face,
             "finger": self._m.fingerprint_available,
+            "otp": otp_available,
         }
 
         ood_baseline_missing: dict[str, bool] = {}
         trust, confidence, ood_flags, eff_w = 0.0, 0.0, {}, {}
         ladder_decision: Decision | None = None
         ladder_rule: str | None = None
+        stage3_method: str | None = None
 
         if config.ESCALATION_ENABLED and not is_guest:
             plan = self._escalation.plan(
@@ -334,6 +361,10 @@ class DecisionEngine:
                         f"ladder_accept_{nxt}_score_{float(score):.3f}"
                     )
                     explanations.append(f"early_stop_after_{len(probed)}")
+                    if nxt == "finger":
+                        stage3_method = "finger"
+                    elif nxt == "otp":
+                        stage3_method = "otp_bluetooth"
                     break
 
                 # Low / missing score → escalate to next modality
@@ -356,6 +387,7 @@ class DecisionEngine:
             )
 
         voice_r, face_r, finger_r = results["voice"], results["face"], results["finger"]
+        otp_r = results.get("otp", ModalityResult(None, False, available=False))
 
         if expect_voice and audio_np is not None and not qflags.voice_ok:
             explanations.append("voice_quality_rejected")
@@ -400,6 +432,7 @@ class DecisionEngine:
             step_up_fallback="biometric_recapture_pin"
             if step_up_method == "otp_mobile"
             else None,
+            stage3_method=stage3_method,
             policy_rule=rule,
             fraud_state=eff_state.value,
             modality_scores={
@@ -420,6 +453,12 @@ class DecisionEngine:
                     "conf": finger_r.confident,
                     "q": finger_r.quality,
                     "available": finger_r.available,
+                },
+                "otp": {
+                    "score": otp_r.score,
+                    "conf": otp_r.confident,
+                    "q": otp_r.quality,
+                    "available": otp_r.available,
                 },
                 "effective_weights": eff_w,
             },
@@ -469,7 +508,9 @@ class DecisionEngine:
         return results
 
     def _score(self, results, qflags, sensor_gaps):
-        voice_r, face_r, finger_r = results["voice"], results["face"], results["finger"]
+        voice_r = results.get("voice", ModalityResult(None, False, available=False))
+        face_r = results.get("face", ModalityResult(None, False, available=False))
+        finger_r = results.get("finger", ModalityResult(None, False, available=False))
         ood_eval = self._ood.evaluate(
             voice_emb=voice_r.embedding,
             face_emb=face_r.embedding,
@@ -512,8 +553,11 @@ class DecisionEngine:
     def _n_confident(results) -> int:
         return sum(
             1
-            for r in results.values()
-            if r.score is not None and r.confident and r.available
+            for name, r in results.items()
+            if name in ("voice", "face", "finger", "otp")
+            and r.score is not None
+            and r.confident
+            and r.available
         )
 
     @staticmethod

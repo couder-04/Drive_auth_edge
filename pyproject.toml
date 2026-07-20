@@ -10,6 +10,12 @@ dependencies = [
     "PyYAML>=6.0",
 ]
 
+[tool.hatch.build.targets.wheel]
+packages = ["driveauth", "demo", "dashboard", "hardware"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"driveauth/policy.yaml" = "driveauth/policy.yaml"
+
 [project.optional-dependencies]
 onnx = ["onnxruntime>=1.17"]
 train = ["lightgbm>=4.0", "onnxmltools>=1.12", "onnx>=1.15", "scikit-learn>=1.4", "skl2onnx>=1.16"]
@@ -25,21 +31,20 @@ dashboard = [
 standalone = [
     "driveauth-edge[voice,face,onnx,dashboard]",
 ]
-all = ["driveauth-edge[onnx,voice,face,orchestrator,dev,dashboard,train,standalone]"]
+# Optional hardware extras (Pi UART finger + BlueZ Bluetooth OTP).
+finger = ["pyfingerprint>=1.5"]
+bluetooth = ["dbus-python>=1.3"]
+hardware = ["driveauth-edge[finger,bluetooth]"]
+all = ["driveauth-edge[onnx,voice,face,orchestrator,dev,dashboard,train,standalone,hardware]"]
 
 [project.scripts]
 driveauth-demo = "demo.run_demo:main"
 driveauth-dashboard = "dashboard.server:main"
+driveauth-finger-daemon = "hardware.finger_daemon:run_daemon_main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["driveauth", "demo", "dashboard"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"driveauth/policy.yaml" = "driveauth/policy.yaml"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

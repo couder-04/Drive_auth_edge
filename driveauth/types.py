@@ -79,6 +79,9 @@ class DriveAuthResult:
     explanations: list[str] = field(default_factory=list)
     step_up_method: str | None = None
     step_up_fallback: str | None = None
+    # Identity-ladder stage-3 lane that completed (distinct from payment step-up).
+    # "finger" | "otp_bluetooth" | None
+    stage3_method: str | None = None
     policy_rule: str = ""
     fraud_state: str = "normal"
     modality_scores: dict[str, Any] = field(default_factory=dict)

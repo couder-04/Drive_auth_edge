@@ -34,14 +34,27 @@ Out of scope for this release (product / platform responsibility):
 These are **design invariants**, not optional heuristics.
 
 1. **Trust ≠ Risk.** GPS, speed, amount, beneficiary novelty, and CAN behavior enter **Risk only**. They must never raise a biometric Trust score.
-2. **Accept/Reject is ladder-driven.** Voice → Face → Finger decides identity acceptance. Policy applies irreversible hard gates (fraud lock, risk ceiling) and guest PIN handling — it does not invent a fourth biometric.
-3. **Fail closed.** Missing audio/face/finger when needed, missing OOD baselines for a scored modality, matcher crash/timeout, and risk ≥ hard ceiling → deny / escalate, never silent ACCEPT.
+2. **Accept/Reject is ladder-driven.** Voice → Face → stage-3 decides identity acceptance. Stage-3 defaults to fingerprint (`finger_only`); policy may enable `finger_or_otp` / `otp_only` so Bluetooth OTP to the driver's registered paired phone is an alternate lane (OR, not AND). Policy applies irreversible hard gates (fraud lock, risk ceiling) and guest PIN handling — it does not invent a fourth biometric beyond that stage-3 OR.
+3. **Fail closed.** Missing audio/face/finger when needed, missing OOD baselines for a scored modality, matcher crash/timeout, Bluetooth OTP undeliverable / MAC mismatch, and risk ≥ hard ceiling → deny / escalate, never silent ACCEPT.
 4. **Deterministic policy.** Thresholds live in `policy.yaml` / `DRIVEAUTH_*`. Changing rules does not require retraining heads.
 5. **Audit without biometrics.** `AuditLog` stores decision metadata and scores, not raw voice/face/finger templates.
-6. **No OTP mid-ladder.** Cellular OTP / offline PIN are step-up fallbacks (guest / exhausted paths), not substitutes for a failed fingerprint probe in the middle of the ladder.
+6. **Payment OTP ≠ ladder OTP.** Cellular/HTTP `otp_mobile` (`OTPStepUp` + `HTTPProviderDelivery`) remains a payment step-up fallback. Identity-ladder Bluetooth OTP (`BluetoothOTPDelivery`) is a separate `OTPStepUp` instance with independent challenge state, enabled only when `LADDER_STAGE3_MODE` is `otp_only` or `finger_or_otp`.
 
 ---
 
+## 2b. Mocked vs real (Phase 1 hardware surface)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Voice / face matchers | Mock or ONNX | Unchanged this phase |
+| Finger capture daemon (`hardware/finger_daemon.py`) | **Real protocol** | Unix `SCAN\\n` → 256×256 bytes; UART via `PyFingerprintAdapter` (optional extra) or `ManualFingerSensor` |
+| Finger match / templates | Partial | `FingerMatcher` decrypts Fernet `fingers/*.enc`; **Fernet-only at rest remains a known gap** (no TEE / wrapped keys) |
+| `ManualScores(finger=…)` dashboard path | Mock stand-in | Still works; does not require the daemon |
+| Payment `otp_mobile` HTTP OTP | Real HTTP client | Unchanged (`HTTPProviderDelivery`) |
+| Ladder Bluetooth OTP (MAP) | Stubbed BlueZ path | Unit-tested with injected `map_send`; real MAP needs head-unit OBEX agent |
+| Ladder Bluetooth OTP (BLE GATT) | Stubbed + contract | Companion app UUID/payload documented; app itself **not** built this phase |
+| Paired-MAC gate | **Real check** | Refuses delivery unless paired MAC matches `contacts/{id}.bt_mac` |
+| IR capture / liveness / Hailo / GPIO | Mock / absent | Phases 2–5 |
 ## 3. Trust boundary
 
 ```
@@ -105,11 +118,11 @@ Do **not** market or paper these as proven:
 |----------------|---------|
 | “Production FAR/FRR certified” | Current bio numbers are small Phase-3 / Stage-2 eval sets; face EER/ROC still weak vs voice |
 | “Behavioral biometrics production-ready” | Bake-off winner trained on **synth CAN**; re-bake required on recorder dumps |
-| “Fingerprint verification shipping” | Mock / `ManualScores` until vendor SDK + real captures |
+| “Fingerprint verification shipping” | Daemon + UART adapter land in Phase 1; production claims still need vendor SDK captures + FAR/FRR on-device |
 | “Deepfake / ASVspoof complete” | Voice anti-spoof is quality + calibrator depth, not a full countermeasure suite |
 | “PAD stops all replays” | Hand-crafted PAD features; APCER reported in Phase 6 — not ISO PAD certification |
 | “Constant-time by default” | Timing pad is opt-in; default `constant_time_ms: 0` |
-| “OTP comparison proves superiority” | `otp_only` FAR=0 in benches **assumes** OTP channel security |
+| “OTP comparison proves superiority” | `otp_only` FAR=0 in benches **assumes** OTP channel security; ladder BT OTP additionally assumes paired-MAC binding + MAP/BLE integrity |
 | Apply `phase2b_suggested.env` blindly | Policy bars stay conservative until face attack overlap improves |
 
 ---

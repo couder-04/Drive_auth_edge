@@ -1,4 +1,9 @@
-"""OTP step-up via payment provider (§4.3a)."""
+"""OTP step-up via payment provider (§4.3a) + shared challenge lifecycle.
+
+Payment path (``api.py``) keeps ``HTTPProviderDelivery`` by default.
+Identity-ladder Bluetooth OTP constructs a separate ``OTPStepUp`` with
+``BluetoothOTPDelivery`` — never share challenge state across the two.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +13,7 @@ import logging
 import secrets
 import time
 from dataclasses import dataclass
+from typing import Protocol, runtime_checkable
 
 from driveauth import config
 
@@ -23,22 +29,87 @@ class OTPChallenge:
     delivered: bool
 
 
+@runtime_checkable
+class OTPDelivery(Protocol):
+    def deliver(self, mobile_number: str, code: str) -> bool:
+        """Return True when the code was handed off to the transport."""
+        ...
+
+
+class HTTPProviderDelivery:
+    """Cellular/HTTP provider used by payment ``otp_mobile`` step-up."""
+
+    def __init__(
+        self,
+        provider_url: str | None = None,
+        *,
+        timeout_s: float | None = None,
+    ):
+        self._provider = (
+            provider_url if provider_url is not None else config.OTP_PROVIDER_URL
+        )
+        self._timeout_s = (
+            timeout_s if timeout_s is not None else config.OTP_PROVIDER_TIMEOUT_S
+        )
+
+    def deliver(self, mobile_number: str, code: str) -> bool:
+        if not self._provider:
+            return False
+        try:
+            import json
+            import urllib.request
+
+            payload = json.dumps(
+                {
+                    "to": mobile_number,
+                    "code": code,
+                    "ttl_s": int(config.OTP_TTL_S),
+                    "purpose": "driveauth_step_up",
+                }
+            ).encode("utf-8")
+            req = urllib.request.Request(
+                self._provider,
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=self._timeout_s) as resp:
+                return 200 <= resp.status < 300
+        except Exception as exc:
+            logger.warning("OTP: HTTP delivery failed (%s)", type(exc).__name__)
+            return False
+
+
 class OTPStepUp:
-    def __init__(self, provider_url: str = config.OTP_PROVIDER_URL):
+    def __init__(
+        self,
+        provider_url: str = config.OTP_PROVIDER_URL,
+        *,
+        delivery: OTPDelivery | None = None,
+    ):
+        # ``provider_url`` retained for call-site compatibility; ignored when
+        # an explicit ``delivery`` backend is passed.
         self._provider = provider_url
+        self._delivery: OTPDelivery = (
+            delivery if delivery is not None else HTTPProviderDelivery(provider_url)
+        )
         self._active: OTPChallenge | None = None
 
     def _hash(self, code: str, salt: bytes) -> bytes:
         return hmac.new(salt, code.encode("utf-8"), hashlib.sha256).digest()
 
     def send(self, mobile_number: str | None) -> OTPChallenge | None:
-        if not mobile_number or not self._provider:
+        if not mobile_number:
+            logger.warning("OTP: missing mobile")
+            return None
+        # HTTP path still requires a configured provider URL.
+        if isinstance(self._delivery, HTTPProviderDelivery) and not self._provider:
             logger.warning("OTP: missing mobile or provider URL")
             return None
 
         code = "".join(secrets.choice("0123456789") for _ in range(config.OTP_LENGTH))
         return self._activate(
-            code, delivered=self._deliver_via_provider(mobile_number, code)
+            code, delivered=self._delivery.deliver(mobile_number, code)
         )
 
     def create_local_challenge(
@@ -72,31 +143,8 @@ class OTPStepUp:
             self._active.expires_at = time.time() - 1
 
     def _deliver_via_provider(self, mobile_number: str, code: str) -> bool:
-        try:
-            import json
-            import urllib.request
-
-            payload = json.dumps(
-                {
-                    "to": mobile_number,
-                    "code": code,
-                    "ttl_s": int(config.OTP_TTL_S),
-                    "purpose": "driveauth_step_up",
-                }
-            ).encode("utf-8")
-            req = urllib.request.Request(
-                self._provider,
-                data=payload,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(
-                req, timeout=config.OTP_PROVIDER_TIMEOUT_S
-            ) as resp:
-                return 200 <= resp.status < 300
-        except Exception as exc:
-            logger.warning("OTP: delivery failed (%s)", type(exc).__name__)
-            return False
+        """Back-compat wrapper — delegates to the configured delivery backend."""
+        return self._delivery.deliver(mobile_number, code)
 
     def verify(self, code: str) -> bool:
         ch = self._active

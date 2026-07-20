@@ -147,6 +147,19 @@ LADDER_ACCEPT = _as_float(_LADDER.get("accept", TRUST_ACCEPT_MICRO))
 LADDER_ACCEPT_VOICE = _as_float(_LADDER.get("accept_voice", LADDER_ACCEPT))
 LADDER_ACCEPT_FACE = _as_float(_LADDER.get("accept_face", LADDER_ACCEPT))
 LADDER_ACCEPT_FINGER = _as_float(_LADDER.get("accept_finger", LADDER_ACCEPT))
+# Stage-3: fingerprint and/or Bluetooth OTP (identity ladder only).
+_STAGE3_MODE_RAW = str(_LADDER.get("stage3_mode", "finger_only")).strip().lower()
+LADDER_STAGE3_MODE = (
+    _STAGE3_MODE_RAW
+    if _STAGE3_MODE_RAW in ("finger_only", "otp_only", "finger_or_otp")
+    else "finger_only"
+)
+_STAGE3_ORDER_RAW = str(_LADDER.get("stage3_order", "finger,otp"))
+LADDER_STAGE3_ORDER: tuple[str, ...] = tuple(
+    p.strip().lower()
+    for p in _STAGE3_ORDER_RAW.split(",")
+    if p.strip().lower() in ("finger", "otp")
+) or ("finger", "otp")
 
 CONF_FLOOR = _as_float(_P["confidence"]["floor"])
 CONF_DISAGREE_SPREAD = _as_float(_P["confidence"]["disagreement_spread"])
@@ -183,6 +196,7 @@ FALLBACK_MIN_TRUST = _as_float(_P["step_up"]["fallback_min_trust"])
 FINGERPRINT_AVAILABLE = _as_bool01(_P["hardware"]["fingerprint_available"])
 IR_CAMERA_INDEX = _as_int(_P["hardware"]["ir_camera_index"])
 FINGER_SOCKET = str(_P["hardware"]["finger_socket"])
+FINGER_UART = str(_P["hardware"].get("finger_uart", "/dev/ttyUSB0"))
 
 ESCALATION_ENABLED = _as_bool01(_P["escalation"]["enabled"])
 ESCALATION_CONSTANT_TIME_MS = _as_float(_P["escalation"]["constant_time_ms"])

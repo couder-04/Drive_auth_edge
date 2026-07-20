@@ -43,6 +43,10 @@ ladder:
   accept_voice: ${DRIVEAUTH_LADDER_ACCEPT_VOICE:0.72}
   accept_face: ${DRIVEAUTH_LADDER_ACCEPT_FACE:0.70}
   accept_finger: ${DRIVEAUTH_LADDER_ACCEPT_FINGER:0.70}
+  # Stage-3 lane: finger_only (default) | otp_only | finger_or_otp
+  stage3_mode: ${DRIVEAUTH_LADDER_STAGE3_MODE:finger_only}
+  # Probe order when stage3_mode is finger_or_otp (comma-separated).
+  stage3_order: ${DRIVEAUTH_LADDER_STAGE3_ORDER:finger,otp}
 
 confidence:
   floor: ${DRIVEAUTH_CONF_FLOOR:0.55}
@@ -109,6 +113,8 @@ hardware:
   fingerprint_available: ${DRIVEAUTH_FINGERPRINT_AVAILABLE:1}
   ir_camera_index: ${DRIVEAUTH_IR_CAMERA_INDEX:0}
   finger_socket: ${DRIVEAUTH_FINGER_SOCKET:/tmp/driveauth_finger.sock}
+  # UART device for hardware.finger_daemon (optional extras).
+  finger_uart: ${DRIVEAUTH_FINGER_UART:/dev/ttyUSB0}
 
 escalation:
   # Voice → Face → Finger ladder (Accept on high score; Reject if ladder exhausted).
