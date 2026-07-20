@@ -175,7 +175,8 @@ APIs. Until then, demos using mocks or manual scores **do not** prove field FAR/
 | Biometric ladder + per-modality bars | `escalation.py` · `policy.yaml` | voice ≥ 0.72 · face ≥ 0.70 · finger ≥ 0.70 |
 | Fraud ladder rigor / lock | `fraud_state.py` | Bootstrap amount cap; lock → REJECT |
 | Risk hard ceiling | `policy_engine.py` | `DRIVEAUTH_RISK_REJECT` (default 0.80) |
-| Face PAD + calibrators | Stage-2 ONNX heads | Bypass with `DRIVEAUTH_STAGE2_RAW=1` (eval only) |
+| Face PAD + calibrators | Stage-2 ONNX heads | Bypass with `DRIVEAUTH_STAGE2_RAW=1` (eval only). **Per-driver** under `faces/{id}/` and `voices/{id}/` (legacy store-root heads still load with a WARNING). Retraining one driver cannot overwrite another |
+| Face PAD effectiveness | `face_pad.json` `loo_auc` | If LOO AUC ≤ 0.55 (chance), `FaceMatcher` **disables** the PAD gate at load and logs an error — onnx may still be on disk but is not treated as protection |
 | OOD detector | `ood_detector.py` | Missing baseline → OOD / fail closed |
 | OOD refresh gate | `profile_store.can_refresh_ood` | Requires independently strong auth |
 | Decision cache limits | `api.require_auth` | No reuse of REJECT/STEP_UP; tier/fraud/profile epoch checked |
@@ -205,10 +206,20 @@ Do **not** market or paper these as proven:
 | “Fingerprint verification shipping” | Daemon + UART adapter land in Phase 1; production claims still need vendor SDK captures + FAR/FRR on-device |
 | “Deepfake / ASVspoof complete” | Voice anti-spoof is quality + calibrator depth, not a full countermeasure suite |
 | “PAD stops all replays” | Hand-crafted PAD features + optional IR reflectance / Liveness v2 heuristic ensemble; APCER reported in Phase 6 — **not** ISO/IEC 30107-3 certification |
+| “PAD works without usable crops” | Haar-miss center-crop fallbacks (esp. `attack_side`) can collapse PAD LOO to ~0.50. Train with `--exclude-fallback-crops`. Driver7 after exclusion: LOO ≈ **0.81** (enabled). If LOO ≤ 0.55, gate stays **disabled** — do not market disabled PAD as protection |
 | “Constant-time by default” | Timing pad is opt-in; default `constant_time_ms: 0` |
 | “OTP comparison proves superiority” | `otp_only` FAR=0 in benches **assumes** OTP channel security; ladder BT OTP additionally assumes paired-MAC binding + MAP/BLE integrity |
 | “Hailo face certified” | `HailoFaceMatcher` is a swappable backend; latency/accuracy claims require on-device HEF benchmarks |
-| Apply `phase2b_suggested.env` blindly | Policy bars stay conservative until face attack overlap improves |
+| Apply `phase2b_suggested.env` blindly | **Cuts ladder voice 0.72→0.58 and face 0.70→0.36** so weak calibrated scores can ACCEPT — does not raise match quality. Dashboard, API (`DriveAuth.load`), and `driveauth.security` emit a loud WARNING (stock vs deployed + delta + reason). Do not leave sourced in production shells. Demo mode is for UX demos only |
+
+### Demo vs production thresholds
+
+| Bar | Stock (`policy.yaml`) | Demo (`phase2b_suggested.env`) |
+|-----|----------------------|--------------------------------|
+| Ladder voice / face / finger | 0.72 / 0.70 / 0.70 | 0.58 / 0.36 / 0.70 |
+| Trust micro / std / high / reject | 0.70 / 0.78 / 0.85 / 0.48 | 0.554 / 0.584 / 0.614 / 0.419 |
+
+Production should keep stock bars unless re-calibrated on fleet data with documented FAR/FRR. Lowering bars never substitutes for better enrollment or models.
 
 ---
 
@@ -226,13 +237,15 @@ Do **not** market or paper these as proven:
 
 From [review-fixes.md](review-fixes.md) and roadmap deferred items:
 
-1. **Fairness / quality gates** — brightness and blur thresholds unvalidated across skin tones and cabin lighting. Phase I only adds bucketed score logging so a later analysis *can* detect correlated failures; **it does not close this gap** until a diverse field dataset exists and is reviewed.
-2. **Bootstrap duration** — `BOOTSTRAP_MIN_TXNS` / days are defaults, not fleet-tuned.
-3. **Certification path growth** — staged probes widen the state space; set `DRIVEAUTH_ESCALATION_ENABLED=0` for static parallel probes if required.
-4. **Nova GPS wiring** — until live, Risk underestimates location/speed anomalies.
-5. **Store encryption / secure element** — default remains Fernet key on disk (`SoftwareKeyProtector`). Optional `TPMKeyProtector` is an upgrade path; the at-rest gap stays open until hardware-backed protection is enabled on a real SE. Product API secrets can move to Vault via `SecretsProvider`; `HSMSecretsProvider` remains a stub without hardware (see [`key-provisioning.md`](key-provisioning.md)).
-6. **Secure boot** — application manifest check is opt-in; board verified-boot / dm-verity remain OEM integration ([`secure-boot.md`](secure-boot.md)).
-7. **Biometric legal compliance** — consent records are a code gate, not a BIPA/GDPR certification ([`biometric-data-policy.md`](biometric-data-policy.md)).
+1. **Per-driver Stage-2 bio heads (shipped)** — `faces/{id}/face_pad.onnx` (+ calibrator) and `voices/{id}/voice_calibrator.onnx`. Legacy store-root heads still load with a WARNING; migrate with `scripts/migrate_stage2_per_driver.py` then retrain per driver. Migrated-only copies report `mode=per_driver_migrated` / `needs_retrain` until independent fit. See [`stage2-per-driver.md`](stage2-per-driver.md).
+2. **Fairness / quality gates** — brightness and blur thresholds unvalidated across skin tones and cabin lighting. Phase I only adds bucketed score logging so a later analysis *can* detect correlated failures; **it does not close this gap** until a diverse field dataset exists and is reviewed.
+3. **Bootstrap duration** — `BOOTSTRAP_MIN_TXNS` / days are defaults, not fleet-tuned.
+4. **Certification path growth** — staged probes widen the state space; set `DRIVEAUTH_ESCALATION_ENABLED=0` for static parallel probes if required.
+5. **Nova GPS wiring** — until live, Risk underestimates location/speed anomalies.
+6. **Store encryption / secure element** — default remains Fernet key on disk (`SoftwareKeyProtector`). Optional `TPMKeyProtector` is an upgrade path; the at-rest gap stays open until hardware-backed protection is enabled on a real SE. Product API secrets can move to Vault via `SecretsProvider`; `HSMSecretsProvider` remains a stub without hardware (see [`key-provisioning.md`](key-provisioning.md)).
+7. **Secure boot** — application manifest check is opt-in; board verified-boot / dm-verity remain OEM integration ([`secure-boot.md`](secure-boot.md)).
+8. **Biometric legal compliance** — consent records are a code gate, not a BIPA/GDPR certification ([`biometric-data-policy.md`](biometric-data-policy.md)).
+9. **Driver7 voice separation** — calibrated genuine mean ~0.55 still sits below stock ladder 0.72 (and near demo 0.58). Needs more/cleaner enrollment WAVs, not lower thresholds.
 
 ---
 

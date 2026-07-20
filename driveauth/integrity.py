@@ -105,13 +105,17 @@ def load_public_key(raw: bytes) -> Ed25519PublicKey:
 
 
 def default_model_relpaths(store_dir: Path) -> list[str]:
-    """ONNX / model files commonly loaded from a store (if present)."""
+    """ONNX / model files commonly loaded from a store (if present).
+
+    Includes per-driver Stage-2 bio heads under ``faces/{id}/`` and
+    ``voices/{id}/``, plus legacy store-root copies when still present.
+    """
+    from driveauth.stage2_artifacts import default_bio_model_relpaths
+
+    store = Path(store_dir)
     candidates = [
         "risk_gbt.onnx",
         "trust_fusion.onnx",
-        "voice_calibrator.onnx",
-        "face_pad.onnx",
-        "face_calibrator.onnx",
         "orchestrator_mlp.onnx",
         "behavioral_model.onnx",
         "behavioral_lstm_int8.onnx",
@@ -119,7 +123,104 @@ def default_model_relpaths(store_dir: Path) -> list[str]:
         "models/mobilefacenet.onnx",
         "mobilefacenet.onnx",
     ]
-    return [c for c in candidates if (store_dir / c).is_file()]
+    out = [c for c in candidates if (store / c).is_file()]
+    out.extend(default_bio_model_relpaths(store))
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    uniq: list[str] = []
+    for rel in out:
+        if rel not in seen:
+            seen.add(rel)
+            uniq.append(rel)
+    return uniq
+
+
+def check_driver_store(
+    store_dir: Path | str,
+    driver_id: str,
+    *,
+    allow_legacy: bool = True,
+) -> dict[str, Any]:
+    """Per-driver integrity-style checklist (templates + Stage-2 + meta).
+
+    Returns a structured report; does not raise. Compatibility mode accepts
+    legacy shared Stage-2 heads when ``allow_legacy`` is True.
+    """
+    from driveauth.stage2_artifacts import (
+        BIO_ARTIFACTS,
+        stage2_status_for_driver,
+    )
+
+    store = Path(store_dir)
+    errors: list[str] = []
+    warnings: list[str] = []
+    face_enc = store / "faces" / f"{driver_id}.enc"
+    voice_enc = store / "voices" / f"{driver_id}.enc"
+    if not face_enc.is_file():
+        errors.append(f"missing face template: faces/{driver_id}.enc")
+    if not voice_enc.is_file():
+        errors.append(f"missing voice template: voices/{driver_id}.enc")
+
+    s2 = stage2_status_for_driver(store, driver_id, allow_legacy=allow_legacy)
+    for art in BIO_ARTIFACTS:
+        info = s2["artifacts"][art]
+        if not info["present"]:
+            errors.append(f"missing Stage-2 {art} for {driver_id}")
+        elif info["source"] == "legacy_shared":
+            warnings.append(
+                f"{art} for {driver_id} is LEGACY shared (compatibility mode) — "
+                "migrate / retrain per-driver"
+            )
+        elif info.get("training_origin") == "migrated_copy":
+            warnings.append(
+                f"{art} for {driver_id} is a migrated shared snapshot — "
+                "retrain with scripts/train_*.py --driver-id before production use"
+            )
+    if s2.get("needs_retrain"):
+        warnings.append(
+            f"{driver_id} Stage-2 mode={s2.get('mode')} — independent retrain required"
+        )
+
+    # Threshold awareness: stock vs deployed
+    try:
+        from driveauth.config import policy_bar_overrides
+
+        overrides = policy_bar_overrides()
+        if overrides:
+            warnings.append(
+                f"{len(overrides)} policy bar(s) differ from policy.yaml stock"
+            )
+    except Exception as exc:  # pragma: no cover
+        warnings.append(f"could not audit thresholds: {exc}")
+
+    return {
+        "driver_id": driver_id,
+        "ok": len(errors) == 0,
+        "errors": errors,
+        "warnings": warnings,
+        "compatibility_mode": any(
+            s2["artifacts"][a]["source"] == "legacy_shared" for a in BIO_ARTIFACTS
+        ),
+        "stage2": s2,
+        "face_template": face_enc.is_file(),
+        "voice_template": voice_enc.is_file(),
+    }
+
+
+def check_all_drivers(store_dir: Path | str, *, allow_legacy: bool = True) -> dict[str, Any]:
+    from driveauth.stage2_artifacts import list_enrolled_driver_ids
+
+    store = Path(store_dir)
+    drivers = list_enrolled_driver_ids(store)
+    per = {
+        did: check_driver_store(store, did, allow_legacy=allow_legacy) for did in drivers
+    }
+    return {
+        "store": str(store.resolve()),
+        "drivers": drivers,
+        "reports": per,
+        "all_ok": all(r["ok"] for r in per.values()) if per else False,
+    }
 
 
 def verify_store_integrity(

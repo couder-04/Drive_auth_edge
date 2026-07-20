@@ -12,6 +12,12 @@ import numpy as np
 from driveauth import config
 from driveauth.matchers.face_pad_features import extract_face_pad_features
 from driveauth.matchers.onnx_head import OnnxLogitHead
+from driveauth.stage2_artifacts import (
+    FACE_CALIBRATOR,
+    FACE_PAD,
+    load_artifact_meta,
+    resolve_bio_artifact,
+)
 from driveauth.template_store import load_embedding
 from driveauth.types import ModalityResult
 
@@ -122,6 +128,8 @@ class FaceMatcher:
         pad_head: OnnxLogitHead | None = None,
         calibrator: OnnxLogitHead | None = None,
         pad_threshold: float = _DEFAULT_PAD_THRESHOLD,
+        driver_id: str = "driver1",
+        stage2_info: dict | None = None,
     ):
         self._session = session
         self._emb = driver_embedding
@@ -131,6 +139,8 @@ class FaceMatcher:
         self._pad = pad_head
         self._calibrator = calibrator
         self._pad_threshold = pad_threshold
+        self.driver_id = driver_id
+        self.stage2_info = stage2_info or {}
         self.last_pad_score: float | None = None
         self.last_pad_reject: bool = False
 
@@ -141,6 +151,10 @@ class FaceMatcher:
     @property
     def has_pad(self) -> bool:
         return self._pad is not None
+
+    @property
+    def has_calibrator(self) -> bool:
+        return self._calibrator is not None
 
     def inject_bgr(self, frame_bgr: np.ndarray | None) -> None:
         """Phase 2a / Mac: feed a still frame instead of the live camera."""
@@ -173,29 +187,73 @@ class FaceMatcher:
         pad_head = None
         calibrator = None
         pad_thr = _DEFAULT_PAD_THRESHOLD
+        stage2_info: dict = {
+            "driver_id": driver_id,
+            "pad_source": "missing",
+            "calibrator_source": "missing",
+            "pad_enabled": False,
+        }
         if os.getenv("DRIVEAUTH_STAGE2_RAW", "").strip() not in ("1", "true", "yes"):
-            pad_head = OnnxLogitHead.load(store / "face_pad.onnx")
-            calibrator = OnnxLogitHead.load(store / "face_calibrator.onnx")
+            pad_ref = resolve_bio_artifact(store, driver_id, FACE_PAD)
+            cal_ref = resolve_bio_artifact(store, driver_id, FACE_CALIBRATOR)
+            stage2_info["pad_source"] = pad_ref.source
+            stage2_info["calibrator_source"] = cal_ref.source
+            stage2_info["pad_relpath"] = pad_ref.relpath
+            stage2_info["calibrator_relpath"] = cal_ref.relpath
+            if pad_ref.path is not None:
+                pad_head = OnnxLogitHead.load(pad_ref.path)
+            if cal_ref.path is not None:
+                calibrator = OnnxLogitHead.load(cal_ref.path)
             thr_env = os.getenv("DRIVEAUTH_FACE_PAD_THRESHOLD", "").strip()
             if thr_env:
                 try:
                     pad_thr = float(thr_env)
                 except ValueError:
                     pass
-            meta_path = store / "face_pad.json"
-            if meta_path.exists() and not thr_env:
+            pad_meta = load_artifact_meta(pad_ref)
+            if "threshold" in pad_meta and not thr_env:
                 try:
-                    import json
-
-                    meta = json.loads(meta_path.read_text())
-                    if "threshold" in meta:
-                        pad_thr = float(meta["threshold"])
-                except Exception:
+                    pad_thr = float(pad_meta["threshold"])
+                except (TypeError, ValueError):
                     pass
-            if pad_head is not None:
-                logger.info("FaceMatcher: Stage-2 PAD loaded (thr=%.3f)", pad_thr)
+            # Honesty: LOO AUC ≈ 0.5 means chance — do not enforce as a live gate.
+            loo_auc = pad_meta.get("loo_auc")
+            try:
+                loo_f = float(loo_auc) if loo_auc is not None else None
+            except (TypeError, ValueError):
+                loo_f = None
+            stage2_info["pad_loo_auc"] = loo_f
+            stage2_info["pad_threshold"] = pad_thr
+            stage2_info["trained_at"] = pad_meta.get("trained_at") or pad_meta.get(
+                "timestamp"
+            )
+            if pad_head is not None and loo_f is not None and loo_f <= 0.55:
+                logger.error(
+                    "FaceMatcher[%s]: face_pad LOO AUC=%.4f ≈ chance — PAD gate "
+                    "DISABLED (onnx present but not enforced; source=%s). "
+                    "Collect more separable attack data or leave PAD off; "
+                    "see docs/security-assumptions.md.",
+                    driver_id,
+                    loo_f,
+                    pad_ref.source,
+                )
+                pad_head = None
+                stage2_info["pad_enabled"] = False
+                stage2_info["pad_disabled_reason"] = f"loo_auc={loo_f:.4f}<=0.55"
+            elif pad_head is not None:
+                logger.info(
+                    "FaceMatcher[%s]: Stage-2 PAD loaded (thr=%.3f, source=%s)",
+                    driver_id,
+                    pad_thr,
+                    pad_ref.source,
+                )
+                stage2_info["pad_enabled"] = True
             if calibrator is not None:
-                logger.info("FaceMatcher: Stage-2 face calibrator loaded")
+                logger.info(
+                    "FaceMatcher[%s]: Stage-2 face calibrator loaded (source=%s)",
+                    driver_id,
+                    cal_ref.source,
+                )
 
         return cls(
             session,
@@ -203,6 +261,8 @@ class FaceMatcher:
             pad_head=pad_head,
             calibrator=calibrator,
             pad_threshold=pad_thr,
+            driver_id=driver_id,
+            stage2_info=stage2_info,
         )
 
     def _run_pad(self, crop_bgr: np.ndarray) -> tuple[bool, float]:

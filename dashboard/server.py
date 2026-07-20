@@ -51,6 +51,15 @@ def main() -> None:
     except Exception as exc:  # noqa: BLE001
         print(f"note: secrets load skipped ({exc})", file=sys.stderr)
 
+    # Loud marker when ladder/trust bars differ from policy.yaml stock defaults
+    # (e.g. after sourcing phases/phase2b_suggested.env). Impossible to miss.
+    try:
+        from driveauth.config import warn_policy_bar_overrides
+
+        warn_policy_bar_overrides()
+    except Exception as exc:  # noqa: BLE001
+        print(f"note: policy-bar drift check skipped ({exc})", file=sys.stderr)
+
     parser = argparse.ArgumentParser(description="DriveAuth Edge dashboard server")
     parser.add_argument(
         "--host",

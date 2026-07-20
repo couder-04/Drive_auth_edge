@@ -1,0 +1,105 @@
+2026-07-21 04:18:25.028 Python[74680:933206] 2026-07-21 04:18:25.028167 [W:onnxruntime:, coreml_execution_provider.cc:137 GetCapability] CoreMLExecutionProvider::GetCapability, number of partitions supported by CoreML: 2 number of nodes in the graph: 96 number of nodes supported by CoreML: 95
+{
+  "store": "driveauth_store_phase2a",
+  "voice": {
+    "genuine": {
+      "n": 20,
+      "mean": 0.5686,
+      "p10": 0.5549,
+      "p50": 0.5702,
+      "p90": 0.5795,
+      "min": 0.5398,
+      "max": 0.583
+    },
+    "attack": {
+      "n": 13,
+      "mean": 0.4383,
+      "p10": 0.2316,
+      "p50": 0.4945,
+      "p90": 0.5696,
+      "min": 0.2312,
+      "max": 0.5741
+    },
+    "suggest_modality_bars": {
+      "accept_micro": 0.559,
+      "accept_standard": 0.589,
+      "accept_high": 0.619,
+      "reject": 0.509,
+      "note": "Derived from genuine p15/p35/p55 and attack p90; review before shipping.",
+      "ladder": {
+        "eer_thr": 0.56,
+        "eer": 0.215,
+        "ladder_accept": 0.58,
+        "ladder_far": 0.0,
+        "ladder_frr": 0.9,
+        "note": "lowest thr with FAR=0 on this set, ceiled to 2-dp (misses escalate)"
+      }
+    }
+  },
+  "face": {
+    "genuine": {
+      "n": 1,
+      "mean": 0.3693,
+      "p10": 0.3693,
+      "p50": 0.3693,
+      "p90": 0.3693,
+      "min": 0.3693,
+      "max": 0.3693
+    },
+    "attack": {
+      "n": 3,
+      "mean": 0.3482,
+      "p10": 0.3428,
+      "p50": 0.3514,
+      "p90": 0.3524,
+      "min": 0.3407,
+      "max": 0.3526
+    },
+    "suggest_modality_bars": {
+      "accept_micro": 0.55,
+      "accept_standard": 0.58,
+      "accept_high": 0.61,
+      "reject": 0.352,
+      "note": "Derived from genuine p15/p35/p55 and attack p90; review before shipping.",
+      "ladder": {
+        "eer_thr": 0.353,
+        "eer": 0.0,
+        "ladder_accept": 0.36,
+        "ladder_far": 0.0,
+        "ladder_frr": 0.0,
+        "note": "lowest thr with FAR=0 on this set, ceiled to 2-dp (misses escalate)"
+      }
+    }
+  },
+  "current_policy": {
+    "TRUST_ACCEPT_MICRO": 0.7,
+    "TRUST_ACCEPT_STD": 0.78,
+    "TRUST_ACCEPT_HIGH": 0.85,
+    "TRUST_REJECT": 0.48,
+    "LADDER_ACCEPT": 0.7,
+    "LADDER_ACCEPT_VOICE": 0.72,
+    "LADDER_ACCEPT_FACE": 0.7,
+    "LADDER_ACCEPT_FINGER": 0.7,
+    "weights": {
+      "voice": 0.3,
+      "face": 0.4,
+      "finger": 0.3
+    }
+  },
+  "suggested_ladder": {
+    "accept_voice": 0.58,
+    "accept_face": 0.36,
+    "accept_finger": 0.7,
+    "how": "voice/face = lowest FAR=0 thr (ceiled 2-dp); face stays \u22650.70 if no genuine clears FAR=0; finger unchanged until FingerNet+HW"
+  },
+  "suggested_policy_trust": {
+    "accept_micro": 0.554,
+    "accept_standard": 0.584,
+    "accept_high": 0.614,
+    "reject": 0.419,
+    "how": "0.3/0.4 voice/face weight mix of modality percentile suggestions"
+  }
+}
+
+Wrote /Users/par_04/Desktop/staged_driveauth-edge/phases/phase2b_calibration.json
+Wrote /Users/par_04/Desktop/staged_driveauth-edge/phases/phase2b_suggested.env (source it to try; policy.yaml unchanged)

@@ -365,19 +365,22 @@ flowchart TB
 | Trust weights | **PolicyMLP** | `orchestrator.py` · `orchestrator_mlp.onnx` | Context-adaptive voice/face/finger weights + uncertainty | Red — optional ONNX; yellow static weights if absent |
 | Trust fusion | **Logistic regression** | `fusion.py` · `trust_fusion.onnx` | Learned Trust from labeled multimodal scores; static weights if ONNX missing | Blue — Stage 2 / Phase 4 trained |
 | OOD | Stats (z / cosine) | `ood_detector.py` | Fail-closed when baselines missing | Yellow — no neural net; optional AE later |
-| Anti-spoof / PAD | Hand-crafted features → logreg | `matchers/face_pad_features.py` · `face_pad.onnx` | Presentation-attack gate before face match | Blue — Stage 2 (blur/side/screen) |
+| Anti-spoof / PAD | Hand-crafted features → logreg | `matchers/face_pad_features.py` · `faces/{id}/face_pad.onnx` | Presentation-attack gate before face match | Blue — Stage 2 (blur/side/screen) |
 | SmolLM2 | LLM helper | docstring only in `orchestrator.py` | Optional narrative / policy assist | Gray — **not implemented** |
+
+Stage-2 **bio** heads are **per-driver** (`faces/{id}/`, `voices/{id}/`). Store-global: `risk_gbt.onnx`, `trust_fusion.onnx`. See [docs/stage2-per-driver.md](docs/stage2-per-driver.md).
 
 #### Stage 2 heads (wired; frozen ECAPA / MobileFaceNet)
 
 | Head | Artifact | Trainer |
 |------|----------|---------|
-| Voice calibrator | `voice_calibrator.onnx` | `scripts/train_voice_calibrator.py` |
-| Face PAD | `face_pad.onnx` | `scripts/train_face_pad.py` |
-| Face calibrator | `face_calibrator.onnx` | `scripts/train_face_calibrator.py` |
-| Trust fusion logreg | `trust_fusion.onnx` | `scripts/train_trust_fusion.py` |
+| Voice calibrator | `voices/{id}/voice_calibrator.onnx` | `scripts/train_voice_calibrator.py --driver-id` |
+| Face PAD | `faces/{id}/face_pad.onnx` | `scripts/train_face_pad.py --driver-id` |
+| Face calibrator | `faces/{id}/face_calibrator.onnx` | `scripts/train_face_calibrator.py --driver-id` |
+| Trust fusion logreg | `trust_fusion.onnx` (store-global) | `scripts/train_trust_fusion.py` |
 | FAR/FRR eval | `phases/phase2b_bio_eval.json` | `scripts/eval_bio_far_frr.py` |
 | Sprint 6 bench | `phases/phase6_sprint6.json` · `phase6.md` | `scripts/phase6_benchmark.py` |
+| Per-driver migrate | copies legacy → `faces/{id}/` · `voices/{id}/` | `scripts/migrate_stage2_per_driver.py` |
 
 Phase 2a latency profiles: [`phases/phase2a-mac.txt`](phases/phase2a-mac.txt) · [`phases/phase2a-thor.txt`](phases/phase2a-thor.txt) (Thor: ECAPA+face **CUDA**, micro/high p95 ≈ 7.7 / 9.2 ms). Phase 1 mock edge profiles: [`phases/mac.txt`](phases/mac.txt) · [`phases/thor.txt`](phases/thor.txt) ([`phases/phase1.md`](phases/phase1.md)).
 

@@ -1,6 +1,0 @@
-OOD Phase 3 negatives (not the enrolled driver)
-face: other Kaggle identity (real photos, non-driver1)
-voice: macOS say TTS stand-ins (real audio, non-driver1)
-finger: synthetic unknown prints (HW pending)
-Live OOD gating uses store ood_stats/*.npz from enrollment;
-this folder is the Stage-1 negative set for eval/calibration.

@@ -21,7 +21,9 @@ packages = ["driveauth", "demo", "dashboard", "hardware"]
 onnx = ["onnxruntime>=1.17"]
 train = ["lightgbm>=4.0", "onnxmltools>=1.12", "onnx>=1.15", "scikit-learn>=1.4", "skl2onnx>=1.16"]
 voice = ["torch>=2.0", "speechbrain>=1.0"]
-face = ["opencv-python>=4.8", "onnxruntime>=1.17"]
+# OpenCV 5.x removed cv2.CascadeClassifier + stock Haar XMLs; FaceMatcher
+# requires 4.x for detectMultiScale. Keep the floor at 4.8 for API parity.
+face = ["opencv-python>=4.8,<5", "onnxruntime>=1.17"]
 orchestrator = ["onnxruntime>=1.17"]
 dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.15", "psutil>=5.9", "httpx2>=2.0"]
 dashboard = [

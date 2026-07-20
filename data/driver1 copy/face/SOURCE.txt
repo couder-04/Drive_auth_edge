@@ -1,4 +1,0 @@
-Face data: own webcam captures (driver1)
-enroll: 8 JPG stills via /register or capture_own_face.py
-Replaced RDJ Kaggle set on 2026-07-15
-Templates: driveauth_store_phase2a/faces/driver1.enc (re-enrolled)

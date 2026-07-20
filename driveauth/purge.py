@@ -41,6 +41,9 @@ def purge_driver_templates(store_dir: str | Path, driver_id: str) -> list[str]:
         f"behavioral/{driver_id}.enc",
     ):
         _unlink(store / rel, removed)
+    # Per-driver Stage-2 bio heads (faces/{id}/*, voices/{id}/*)
+    _unlink(store / "faces" / driver_id, removed)
+    _unlink(store / "voices" / driver_id, removed)
     return removed
 
 
@@ -102,6 +105,8 @@ def biometric_residue(store_dir: str | Path, driver_id: str) -> list[str]:
         f"behavioral/{driver_id}.enc",
         f"profiles/{driver_id}.json",
         f"consent/{driver_id}.json",
+        f"faces/{driver_id}",
+        f"voices/{driver_id}",
     ):
         if (store / rel).exists():
             hits.append(rel)

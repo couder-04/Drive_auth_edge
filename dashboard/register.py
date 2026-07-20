@@ -522,7 +522,15 @@ def render_register() -> str:
       if (!isForm && opts2.body && typeof opts2.body === "string" && !opts2.headers["Content-Type"]) {
         opts2.headers["Content-Type"] = "application/json";
       }
-      const res = await fetch(path, opts2);
+      let res;
+      try {
+        res = await fetch(path, opts2);
+      } catch (err) {
+        const why = (err && err.message) || "network error";
+        throw new Error(
+          `${why} — is driveauth-dashboard still running on this host/port?`
+        );
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const detail = data.detail || data.error || res.statusText;

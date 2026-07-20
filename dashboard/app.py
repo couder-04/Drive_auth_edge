@@ -1365,6 +1365,60 @@ def audit_demo_tamper(_admin: AdminAuth, request: Request) -> dict[str, Any]:
     }
 
 
+def _stage2_dashboard_status(auth) -> dict[str, Any]:
+    """Per-driver Stage-2 snapshot for dashboard banners."""
+    from driveauth.stage2_artifacts import stage2_status_for_driver
+
+    store = Path(auth._store)
+    s2 = stage2_status_for_driver(store, auth.driver_id)
+    face_info = getattr(auth._engine._m.face, "stage2_info", {}) or {}
+    voice_info = getattr(auth._engine._m.voice, "stage2_info", {}) or {}
+    return {
+        **s2,
+        "face_runtime": face_info,
+        "voice_runtime": voice_info,
+        "pad_enabled_runtime": bool(getattr(auth._engine._m.face, "has_pad", False)),
+    }
+
+
+def _threshold_dashboard_status() -> dict[str, Any]:
+    from driveauth import config
+    from driveauth.config import policy_bar_overrides
+
+    overrides = policy_bar_overrides()
+    return {
+        "mode": "demo_override" if overrides else "stock",
+        "demo_banner": bool(overrides) or _demo_mode_enabled(),
+        "stock": {
+            "ladder_voice": 0.72,
+            "ladder_face": 0.70,
+            "ladder_finger": 0.70,
+        },
+        "current": {
+            "ladder_voice": float(config.LADDER_ACCEPT_VOICE),
+            "ladder_face": float(config.LADDER_ACCEPT_FACE),
+            "ladder_finger": float(config.LADDER_ACCEPT_FINGER),
+            "trust_micro": float(config.TRUST_ACCEPT_MICRO),
+            "trust_std": float(config.TRUST_ACCEPT_STD),
+            "trust_high": float(config.TRUST_ACCEPT_HIGH),
+            "trust_reject": float(config.TRUST_REJECT),
+        },
+        "overrides": overrides,
+    }
+
+
+@app.get("/api/stage2_status")
+def stage2_status(request: Request) -> dict[str, Any]:
+    """Current driver Stage-2 artifact source, PAD, calibration, threshold mode."""
+    auth = get_auth(use_mock=_want_mock(), request=request)
+    return {
+        "driver_id": auth.driver_id,
+        "demo_mode": _demo_mode_enabled(),
+        "stage2": _stage2_dashboard_status(auth),
+        "thresholds": _threshold_dashboard_status(),
+    }
+
+
 @app.get("/api/modality_sources")
 def modality_sources(request: Request) -> dict[str, Any]:
     """Real-vs-simulated labels from live config + reachability (not hardcoded)."""
@@ -1402,20 +1456,30 @@ def modality_sources(request: Request) -> dict[str, Any]:
         "demo_mode": _demo_mode_enabled(),
         "use_mock": _want_mock(),
         "face_backend": face_backend,
+        "driver_id": auth.driver_id,
         "hailo_status": (
             "configured (hailo)"
             if face_backend == "hailo" and not face_mock
             else "Hailo bench pending hardware"
         ),
+        "stage2": _stage2_dashboard_status(auth),
+        "thresholds": _threshold_dashboard_status(),
         "modalities": {
             "voice": {
                 "label": _bio_label(voice_mock),
                 "mock": voice_mock,
+                "calibrator": getattr(m.voice, "has_calibrator", False),
+                "calibrator_source": (getattr(m.voice, "stage2_info", {}) or {}).get(
+                    "calibrator_source"
+                ),
             },
             "face": {
                 "label": _bio_label(face_mock),
                 "mock": face_mock,
                 "backend": face_backend,
+                "pad_enabled": getattr(m.face, "has_pad", False),
+                "calibrator": getattr(m.face, "has_calibrator", False),
+                "stage2": getattr(m.face, "stage2_info", {}) or {},
             },
             "finger": {
                 "label": finger_label,

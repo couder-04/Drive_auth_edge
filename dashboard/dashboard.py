@@ -1180,6 +1180,11 @@ def render_dashboard(*, mode: str = "manual") -> str:
           <div class="pitch-banner" role="note">
             <strong>DriveAuth Edge</strong> — cabin biometric auth + payment step-up · offline · auditable · fail-closed
           </div>
+          <div id="stage2-banner" class="pitch-banner" role="status" style="margin-top:0.5rem;font-size:0.85rem">
+            Stage-2: loading…
+          </div>
+          <div id="threshold-banner" class="pitch-banner" role="alert" style="display:none;margin-top:0.5rem;border-color:var(--warn,#e6a23c);color:var(--warn,#e6a23c)">
+          </div>
           <div class="pipeline-head">
             <div>
               <h2>Live security pipeline</h2>
@@ -2044,6 +2049,54 @@ def render_dashboard(*, mode: str = "manual") -> str:
         }
         if (data.hailo_status) {
           window.__hailoStatus = data.hailo_status;
+        }
+        // Stage-2 / threshold banners
+        const s2 = data.stage2 || {};
+        const thr = data.thresholds || {};
+        const faceDetail = document.getElementById("rung-face-detail");
+        const padOn = !!(mods.face && mods.face.pad_enabled);
+        if (faceDetail) {
+          faceDetail.innerHTML =
+            "MobileFaceNet · PAD " +
+            (padOn ? "<span class='mod-badge real'>PAD on</span>" : "<span class='mod-badge standin'>PAD off</span>") +
+            " <span class='mod-badge' id='badge-liveness'>liveness…</span>";
+          const live2 = document.getElementById("badge-liveness");
+          if (live2 && mods.liveness) {
+            live2.textContent = "liveness · " + mods.liveness.label;
+            live2.className = "mod-badge " + badgeClass(mods.liveness.label);
+          }
+        }
+        const s2el = document.getElementById("stage2-banner");
+        if (s2el) {
+          const mode = s2.mode || "unknown";
+          const cal = s2.calibration_timestamps || {};
+          const calTs = cal.face_calibrator || cal.voice_calibrator || cal.face_pad || "—";
+          const retrain = s2.needs_retrain
+            ? ` · <span class="badge warn">needs retrain</span>`
+            : "";
+          s2el.innerHTML =
+            `<strong>Driver ${data.driver_id || s2.driver_id || "?"}</strong>` +
+            ` · Stage-2 <code>${mode}</code>` +
+            ` · PAD ${padOn ? "enabled" : "disabled"}` +
+            (s2.pad_loo_auc != null ? ` (LOO ${Number(s2.pad_loo_auc).toFixed(3)})` : "") +
+            ` · cal ${calTs}` +
+            retrain;
+        }
+        const thrEl = document.getElementById("threshold-banner");
+        if (thrEl) {
+          if (thr.mode === "demo_override" || thr.demo_banner) {
+            const cur = thr.current || {};
+            const stock = thr.stock || {};
+            thrEl.style.display = "";
+            thrEl.innerHTML =
+              "<strong>DEMO / OVERRIDE THRESHOLDS</strong> — not stock policy.yaml. " +
+              `voice ${stock.ladder_voice}→${cur.ladder_voice} · ` +
+              `face ${stock.ladder_face}→${cur.ladder_face}. ` +
+              "Lower bars do not improve match quality.";
+          } else {
+            thrEl.style.display = "none";
+            thrEl.textContent = "";
+          }
         }
       } catch (e) { /* ignore */ }
     }

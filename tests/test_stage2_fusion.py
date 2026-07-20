@@ -50,7 +50,10 @@ def test_trust_fusion_logreg_not_static_only():
 
 
 @pytest.mark.skipif(
-    not (STORE / "face_pad.onnx").exists()
+    (
+        not (STORE / "face_pad.onnx").exists()
+        and not (STORE / "faces" / "driver1" / "face_pad.onnx").exists()
+    )
     or not _has_mod("cv2")
     or not _has_mod("onnxruntime"),
     reason="face_pad.onnx / OpenCV / onnxruntime extras missing",
@@ -91,7 +94,10 @@ def test_face_pad_rejects_blur_attack():
 
 
 @pytest.mark.skipif(
-    not (STORE / "voice_calibrator.onnx").exists()
+    (
+        not (STORE / "voice_calibrator.onnx").exists()
+        and not (STORE / "voices" / "driver1" / "voice_calibrator.onnx").exists()
+    )
     or not _has_mod("speechbrain")
     or not _has_mod("onnxruntime"),
     reason="voice_calibrator.onnx / speechbrain / onnxruntime extras missing",
@@ -102,7 +108,7 @@ def test_voice_calibrator_loaded():
     vm = VoiceMatcher.load(str(STORE / "enroll"), "driver1", store_dir=str(STORE))
     assert vm.ready
     assert vm.has_calibrator
-
+    assert vm.stage2_info.get("calibrator_source") in ("per_driver", "legacy_shared")
 
 @pytest.mark.skipif(
     not _has_mod("cv2"),

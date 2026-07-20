@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Stage 2 — train voice score calibrator (frozen ECAPA + logreg).
 
+Writes **only** under ``voices/{driver_id}/`` — never overwrites shared legacy
+store-root artifacts or another driver's heads.
+
 Usage:
   python scripts/train_voice_calibrator.py \\
-    --store driveauth_store_phase2a --data data/driver1
+    --store driveauth_store_phase2a --data data/driver1 --driver-id driver1
 """
 
 from __future__ import annotations
@@ -11,6 +14,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -19,6 +23,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from driveauth.stage2_artifacts import (  # noqa: E402
+    VOICE_CALIBRATOR,
+    trainer_json_path,
+    trainer_onnx_path,
+)
 from scripts._bio_train_common import (  # noqa: E402
     export_logreg_onnx,
     load_wav,
@@ -89,22 +98,28 @@ def main() -> None:
 
     X = np.stack(xs)
     y = np.asarray(ys, dtype=np.int32)
-    print(f"voice calibrator: n={len(y)} pos={int(y.sum())} neg={int((1 - y).sum())}")
+    print(
+        f"voice calibrator [{args.driver_id}]: n={len(y)} "
+        f"pos={int(y.sum())} neg={int((1 - y).sum())}"
+    )
 
     clf, meta = train_logreg_loo(X, y, seed=args.seed)
-    out_onnx = args.store / "voice_calibrator.onnx"
+    out_onnx = trainer_onnx_path(args.store, args.driver_id, VOICE_CALIBRATOR)
+    out_json = trainer_json_path(args.store, args.driver_id, VOICE_CALIBRATOR)
     export_logreg_onnx(clf, out_onnx, n_features=X.shape[1])
     ort_smoke(out_onnx, X.shape[1])
 
     meta.update(
         {
+            "driver_id": args.driver_id,
             "feature_keys": list(VOICE_FEATURE_KEYS),
             "files": paths,
             "onnx": str(out_onnx),
-            "note": "Frozen ECAPA + logreg score calibrator (Stage 2)",
+            "trained_at": datetime.now(timezone.utc).isoformat(),
+            "note": "Frozen ECAPA + logreg score calibrator (Stage 2, per-driver)",
         }
     )
-    write_json(args.store / "voice_calibrator.json", meta)
+    write_json(out_json, meta)
     print(f"Wrote {out_onnx}")
     print(f"LOO AUC={meta['loo_auc']} gap={meta['gap']}")
 

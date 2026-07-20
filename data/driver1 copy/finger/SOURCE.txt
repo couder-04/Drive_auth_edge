@@ -1,5 +1,0 @@
-Fingerprint Phase 3 — SYNTHETIC (pre-hardware)
-Generator: scripts/generate_phase3_synth.py
-enroll: 8  genuine: 20  attack: wrong/partial/wet/dry/spoof (4 each)
-Replace with real sensor captures when HW arrives; keep folder layout.
-Matcher stays mock until fingernet_lite_int8.onnx + sensor socket exist.

@@ -46,24 +46,69 @@ from driveauth.types import Decision, DriveAuthResult, RiskContext
 
 logger = logging.getLogger("driveauth.api")
 
-_STAGE2_ARTIFACTS = (
+_STAGE2_GLOBAL = (
     "risk_gbt.onnx",
     "trust_fusion.onnx",
+)
+
+_STAGE2_BIO = (
     "face_pad.onnx",
     "face_calibrator.onnx",
     "voice_calibrator.onnx",
 )
 
+# Backward-compat alias used by tests / external callers
+_STAGE2_ARTIFACTS = _STAGE2_GLOBAL + _STAGE2_BIO
 
-def _announce_stage2(store: Path) -> None:
-    """Log Stage-2 head presence; optionally fail closed."""
-    missing = [n for n in _STAGE2_ARTIFACTS if not (store / n).is_file()]
-    if not missing:
-        logger.info("DriveAuth: Stage-2 ONNX heads present (%s)", ", ".join(_STAGE2_ARTIFACTS))
+
+def _announce_stage2(store: Path, driver_id: str = "driver1") -> None:
+    """Log Stage-2 head presence (global + per-driver bio); optionally fail closed."""
+    from driveauth.config import warn_policy_bar_overrides
+    from driveauth.stage2_artifacts import stage2_status_for_driver
+
+    # Impossible-to-miss threshold drift (stderr + security logger)
+    try:
+        warn_policy_bar_overrides()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("DriveAuth: policy-bar drift check skipped (%s)", exc)
+
+    missing_global = [n for n in _STAGE2_GLOBAL if not (store / n).is_file()]
+    s2 = stage2_status_for_driver(store, driver_id)
+    missing_bio = [
+        name
+        for name, info in s2["artifacts"].items()
+        if not info["present"]
+    ]
+    legacy = [
+        name
+        for name, info in s2["artifacts"].items()
+        if info["source"] == "legacy_shared"
+    ]
+
+    if not missing_global and not missing_bio:
+        logger.info(
+            "DriveAuth[%s]: Stage-2 complete (global OK; bio mode=%s; pad_enabled=%s)",
+            driver_id,
+            s2["mode"],
+            s2["pad_enabled"],
+        )
+        if legacy:
+            logger.warning(
+                "DriveAuth[%s]: Stage-2 bio heads still LEGACY shared: %s — "
+                "run scripts/migrate_stage2_per_driver.py then retrain per driver",
+                driver_id,
+                ", ".join(legacy),
+            )
         return
+
+    parts = []
+    if missing_global:
+        parts.append("global: " + ", ".join(missing_global))
+    if missing_bio:
+        parts.append(f"bio[{driver_id}]: " + ", ".join(missing_bio))
     msg = (
         "DriveAuth: Stage-2 heads missing: "
-        + ", ".join(missing)
+        + "; ".join(parts)
         + ". Run `python scripts/bootstrap.py --check-only` then train/copy heads. "
         "Stage-1 static/additive paths remain available until heads exist."
     )
@@ -294,7 +339,7 @@ class DriveAuth:
 
         # Stage-2 visibility — never silent. Missing heads are OK for Stage-1,
         # but REQUIRE_STAGE2=1 fails closed with bootstrap instructions.
-        _announce_stage2(store)
+        _announce_stage2(store, driver_id)
 
         auth = cls(
             driver_id=driver_id,

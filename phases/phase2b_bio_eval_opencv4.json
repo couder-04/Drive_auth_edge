@@ -1,0 +1,195 @@
+{
+  "tag": "opencv4_recheck",
+  "store": "driveauth_store_phase2a",
+  "raw": false,
+  "voice": {
+    "genuine": {
+      "n": 20,
+      "mean": 0.6233,
+      "p10": 0.5751,
+      "p50": 0.6286,
+      "p90": 0.6602,
+      "min": 0.5207,
+      "max": 0.6719
+    },
+    "attack": {
+      "n": 13,
+      "mean": 0.3767,
+      "p10": 0.1654,
+      "p50": 0.3289,
+      "p90": 0.628,
+      "min": 0.1621,
+      "max": 0.6419
+    },
+    "metrics": {
+      "eer_thr": 0.593,
+      "eer": 0.2154,
+      "eer_far": 0.2308,
+      "eer_frr": 0.2
+    },
+    "by_class": {
+      "attack_replay": {
+        "scores": {
+          "n": 5,
+          "mean": 0.581,
+          "p10": 0.5046,
+          "p50": 0.5967,
+          "p90": 0.6395,
+          "min": 0.4616,
+          "max": 0.6419
+        },
+        "metrics": {
+          "eer_thr": 0.626,
+          "eer": 0.4,
+          "eer_far": 0.4,
+          "eer_frr": 0.4
+        },
+        "far_at_eer_thr": 0.6
+      },
+      "attack_silent": {
+        "scores": {
+          "n": 3,
+          "mean": 0.1643,
+          "p10": 0.1627,
+          "p50": 0.1653,
+          "p90": 0.1655,
+          "min": 0.1621,
+          "max": 0.1655
+        },
+        "metrics": {
+          "eer_thr": 0.166,
+          "eer": 0.0,
+          "eer_far": 0.0,
+          "eer_frr": 0.0
+        },
+        "far_at_eer_thr": 0.0
+      },
+      "attack_other_speaker": {
+        "scores": {
+          "n": 5,
+          "mean": 0.2997,
+          "p10": 0.2332,
+          "p50": 0.3132,
+          "p90": 0.3502,
+          "min": 0.1818,
+          "max": 0.3645
+        },
+        "metrics": {
+          "eer_thr": 0.365,
+          "eer": 0.0,
+          "eer_far": 0.0,
+          "eer_frr": 0.0
+        },
+        "far_at_eer_thr": 0.0
+      }
+    }
+  },
+  "face": {
+    "genuine": {
+      "n": 20,
+      "mean": 0.4292,
+      "p10": 0.0,
+      "p50": 0.4876,
+      "p90": 0.5438,
+      "min": 0.0,
+      "max": 0.5754
+    },
+    "attack": {
+      "n": 23,
+      "mean": 0.0913,
+      "p10": 0.0,
+      "p50": 0.0,
+      "p90": 0.519,
+      "min": 0.0,
+      "max": 0.5323
+    },
+    "metrics": {
+      "eer_thr": 0.001,
+      "eer": 0.162,
+      "eer_far": 0.1739,
+      "eer_frr": 0.15
+    },
+    "by_class": {
+      "attack_blur": {
+        "scores": {
+          "n": 8,
+          "mean": 0.0,
+          "p10": 0.0,
+          "p50": 0.0,
+          "p90": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "metrics": {
+          "eer_thr": 0.001,
+          "eer": 0.075,
+          "eer_far": 0.0,
+          "eer_frr": 0.15
+        },
+        "far_at_eer_thr": 0.0
+      },
+      "attack_side": {
+        "scores": {
+          "n": 8,
+          "mean": 0.2625,
+          "p10": 0.0,
+          "p50": 0.2588,
+          "p90": 0.5314,
+          "min": 0.0,
+          "max": 0.5323
+        },
+        "metrics": {
+          "eer_thr": 0.485,
+          "eer": 0.5,
+          "eer_far": 0.5,
+          "eer_frr": 0.5
+        },
+        "far_at_eer_thr": 0.5
+      },
+      "attack_replay_screen": {
+        "scores": {
+          "n": 7,
+          "mean": 0.0,
+          "p10": 0.0,
+          "p50": 0.0,
+          "p90": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "metrics": {
+          "eer_thr": 0.001,
+          "eer": 0.075,
+          "eer_far": 0.0,
+          "eer_frr": 0.15
+        },
+        "far_at_eer_thr": 0.0
+      }
+    },
+    "pad_attack_reject_rate": 0.8261,
+    "pad_genuine_reject_rate": 0.15,
+    "n_scored_attack": 23,
+    "n_scored_genuine": 20
+  },
+  "vs_baseline": {
+    "compared": true,
+    "voice": {
+      "baseline_eer": 0.2154,
+      "current_eer": 0.2154,
+      "improved_eer": false,
+      "improved_far_at_eer": false,
+      "improved_attack_mean": false,
+      "pad_attack_reject_rate": null,
+      "beats": false
+    },
+    "face": {
+      "baseline_eer": 0.838,
+      "current_eer": 0.162,
+      "improved_eer": true,
+      "improved_far_at_eer": true,
+      "improved_attack_mean": true,
+      "pad_attack_reject_rate": 0.8261,
+      "beats": true
+    },
+    "beats_2a": true
+  }
+}

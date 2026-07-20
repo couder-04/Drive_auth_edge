@@ -1,0 +1,200 @@
+{
+  "driver1": {
+    "driver_id": "driver1",
+    "face": {
+      "n": 43,
+      "n_genuine": 20,
+      "n_attack": 23,
+      "raw_genuine_mean": 0.473532098531723,
+      "raw_attack_mean": 0.398581484089727,
+      "raw_separation": 0.07495061444199602,
+      "raw_auc": 0.6869565217391305,
+      "cal_genuine_mean": 0.6130540639162063,
+      "cal_attack_mean": 0.16636451560518015,
+      "cal_separation": 0.44668954831102614,
+      "cal_auc": 0.8847826086956522
+    },
+    "voice": {
+      "n": 38,
+      "n_genuine": 20,
+      "n_attack": 18,
+      "raw_genuine_mean": 0.6703698009252548,
+      "raw_attack_mean": 0.3635417435111271,
+      "raw_separation": 0.30682805741412766,
+      "raw_auc": 0.7944444444444444,
+      "cal_genuine_mean": 0.6232968747615815,
+      "cal_attack_mean": 0.44371529916922253,
+      "cal_separation": 0.17958157559235893,
+      "cal_auc": 0.8
+    },
+    "pad": {
+      "enabled": true,
+      "loo_auc": 0.8373,
+      "threshold": 0.39,
+      "excluded_fallback": [
+        "face/genuine/genuine_01.jpg",
+        "face/genuine/genuine_02.jpg",
+        "face/genuine/genuine_03.jpg",
+        "face/genuine/genuine_04.jpg",
+        "face/genuine/genuine_05.jpg",
+        "face/genuine/genuine_06.jpg",
+        "face/genuine/genuine_08.jpg",
+        "face/genuine/genuine_09.jpg",
+        "face/genuine/genuine_10.jpg",
+        "face/genuine/genuine_13.jpg",
+        "face/genuine/genuine_14.jpg",
+        "face/genuine/genuine_15.jpg",
+        "face/genuine/genuine_16.jpg",
+        "face/genuine/genuine_17.jpg",
+        "face/genuine/genuine_18.jpg",
+        "face/genuine/genuine_19.jpg",
+        "face/genuine/genuine_20.jpg",
+        "face/attack_side/side_01.jpg",
+        "face/attack_side/side_03.jpg",
+        "face/attack_side/side_04.jpg",
+        "face/attack_side/side_08.jpg"
+      ],
+      "recommendation": "enable",
+      "eval_auc": 0.6521739130434783,
+      "confusion": {
+        "tp": 20,
+        "tn": 15,
+        "fp": 8,
+        "fn": 0
+      },
+      "source": "per_driver",
+      "training_origin": "independent"
+    },
+    "trust": {
+      "stock": {
+        "tag": "stock",
+        "genuine_voice_mean": 0.6232968747615815,
+        "genuine_face_mean": 0.6130540639162063,
+        "ladder_voice": 0.72,
+        "ladder_face": 0.7,
+        "voice_pass": false,
+        "face_pass": false,
+        "ladder_decision": "REJECT",
+        "fused_trust": 0.6181754693388939,
+        "trust_std_bar": 0.78,
+        "trust_decision": "REJECT",
+        "note": "ladder_decision uses early-stop OR across voice/face mean scores; trust_decision uses equal-weight mean of cal means vs TRUST_ACCEPT_STD (proxy \u2014 live path also uses trust_fusion.onnx + risk)."
+      },
+      "demo_phase2b": {
+        "tag": "demo_phase2b",
+        "genuine_voice_mean": 0.6232968747615815,
+        "genuine_face_mean": 0.6130540639162063,
+        "ladder_voice": 0.58,
+        "ladder_face": 0.36,
+        "voice_pass": true,
+        "face_pass": true,
+        "ladder_decision": "ACCEPT",
+        "fused_trust": 0.6181754693388939,
+        "trust_std_bar": 0.584,
+        "trust_decision": "ACCEPT",
+        "note": "ladder_decision uses early-stop OR across voice/face mean scores; trust_decision uses equal-weight mean of cal means vs TRUST_ACCEPT_STD (proxy \u2014 live path also uses trust_fusion.onnx + risk)."
+      }
+    },
+    "voice_diagnosis": {
+      "n_enroll": 8,
+      "n_genuine": 20,
+      "n_attack": 18,
+      "raw_genuine_std": 0.08296856179322891,
+      "cal_loo": 0.8308
+    },
+    "face_pad_meta_loo": 0.8373,
+    "face_cal_loo": 0.7609,
+    "voice_cal_loo": 0.8308
+  },
+  "driver7": {
+    "driver_id": "driver7",
+    "face": {
+      "n": 34,
+      "n_genuine": 10,
+      "n_attack": 24,
+      "raw_genuine_mean": 0.7417457938194275,
+      "raw_attack_mean": 0.5260627927879492,
+      "raw_separation": 0.2156830010314783,
+      "raw_auc": 0.7333333333333333,
+      "cal_genuine_mean": 0.485970801115036,
+      "cal_attack_mean": 0.13454369579752287,
+      "cal_separation": 0.3514271053175131,
+      "cal_auc": 0.8958333333333334
+    },
+    "voice": {
+      "n": 23,
+      "n_genuine": 8,
+      "n_attack": 15,
+      "raw_genuine_mean": 0.5383873283863068,
+      "raw_attack_mean": 0.438477224111557,
+      "raw_separation": 0.09991010427474978,
+      "raw_auc": 0.8666666666666667,
+      "cal_genuine_mean": 0.5523885861039162,
+      "cal_attack_mean": 0.44760940670967103,
+      "cal_separation": 0.10477917939424514,
+      "cal_auc": 0.9
+    },
+    "pad": {
+      "enabled": true,
+      "loo_auc": 0.8132,
+      "threshold": 0.5,
+      "excluded_fallback": [
+        "face/attack_blur/blur_08.jpg",
+        "face/attack_side/side_04.jpg",
+        "face/attack_side/side_06.jpg",
+        "face/attack_side/side_07.jpg",
+        "face/attack_side/side_08.jpg"
+      ],
+      "recommendation": "enable",
+      "eval_auc": 0.725,
+      "confusion": {
+        "tp": 9,
+        "tn": 16,
+        "fp": 8,
+        "fn": 1
+      },
+      "source": "per_driver",
+      "training_origin": "independent"
+    },
+    "trust": {
+      "stock": {
+        "tag": "stock",
+        "genuine_voice_mean": 0.5523885861039162,
+        "genuine_face_mean": 0.485970801115036,
+        "ladder_voice": 0.72,
+        "ladder_face": 0.7,
+        "voice_pass": false,
+        "face_pass": false,
+        "ladder_decision": "REJECT",
+        "fused_trust": 0.5191796936094761,
+        "trust_std_bar": 0.78,
+        "trust_decision": "REJECT",
+        "note": "ladder_decision uses early-stop OR across voice/face mean scores; trust_decision uses equal-weight mean of cal means vs TRUST_ACCEPT_STD (proxy \u2014 live path also uses trust_fusion.onnx + risk)."
+      },
+      "demo_phase2b": {
+        "tag": "demo_phase2b",
+        "genuine_voice_mean": 0.5523885861039162,
+        "genuine_face_mean": 0.485970801115036,
+        "ladder_voice": 0.58,
+        "ladder_face": 0.36,
+        "voice_pass": false,
+        "face_pass": true,
+        "ladder_decision": "ACCEPT",
+        "fused_trust": 0.5191796936094761,
+        "trust_std_bar": 0.584,
+        "trust_decision": "REJECT",
+        "note": "ladder_decision uses early-stop OR across voice/face mean scores; trust_decision uses equal-weight mean of cal means vs TRUST_ACCEPT_STD (proxy \u2014 live path also uses trust_fusion.onnx + risk)."
+      }
+    },
+    "voice_diagnosis": {
+      "n_enroll": 12,
+      "n_genuine": 8,
+      "n_attack": 15,
+      "raw_genuine_std": 0.06970975696282182,
+      "cal_loo": 0.775
+    },
+    "face_pad_meta_loo": 0.8132,
+    "face_cal_loo": 0.6875,
+    "voice_cal_loo": 0.775
+  }
+}

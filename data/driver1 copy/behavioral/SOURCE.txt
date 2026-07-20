@@ -1,6 +1,0 @@
-Behavioral Phase 3 — SYNTHETIC CAN/IMU windows (pre-hardware)
-Schema matches BEHAVIORAL_FEATURE_KEYS + t_ms + label:
-  steering_angle_deg, steering_rate_dps, throttle_pct, brake_pedal_pct,
-  longitudinal_accel_g, lateral_accel_g, yaw_rate_dps, vehicle_speed_kmh
-genuine: 20 × 50 rows  attack: 6 × 50 rows
-Replace with real recorder dumps when HW arrives.

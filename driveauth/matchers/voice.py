@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 
 from driveauth.matchers.onnx_head import OnnxLogitHead
+from driveauth.stage2_artifacts import VOICE_CALIBRATOR, resolve_bio_artifact
 from driveauth.template_store import load_embedding
 from driveauth.types import ModalityResult
 
@@ -44,11 +45,16 @@ class VoiceMatcher:
         driver_embedding: np.ndarray | None,
         device: str,
         calibrator: OnnxLogitHead | None = None,
+        *,
+        driver_id: str = "driver1",
+        stage2_info: dict | None = None,
     ):
         self._model = ecapa_model
         self._emb = driver_embedding
         self._device = device
         self._calibrator = calibrator
+        self.driver_id = driver_id
+        self.stage2_info = stage2_info or {}
 
     @property
     def ready(self) -> bool:
@@ -131,12 +137,31 @@ class VoiceMatcher:
             logger.warning("VoiceMatcher: ECAPA load failed (%s)", exc)
 
         calibrator = None
+        stage2_info: dict = {
+            "driver_id": driver_id,
+            "calibrator_source": "missing",
+        }
         if os.getenv("DRIVEAUTH_STAGE2_RAW", "").strip() not in ("1", "true", "yes"):
-            calibrator = OnnxLogitHead.load(store_path / "voice_calibrator.onnx")
+            cal_ref = resolve_bio_artifact(store_path, driver_id, VOICE_CALIBRATOR)
+            stage2_info["calibrator_source"] = cal_ref.source
+            stage2_info["calibrator_relpath"] = cal_ref.relpath
+            if cal_ref.path is not None:
+                calibrator = OnnxLogitHead.load(cal_ref.path)
             if calibrator is not None:
-                logger.info("VoiceMatcher: Stage-2 calibrator loaded")
+                logger.info(
+                    "VoiceMatcher[%s]: Stage-2 calibrator loaded (source=%s)",
+                    driver_id,
+                    cal_ref.source,
+                )
 
-        return cls(ecapa_model, driver_embedding, device, calibrator=calibrator)
+        return cls(
+            ecapa_model,
+            driver_embedding,
+            device,
+            calibrator=calibrator,
+            driver_id=driver_id,
+            stage2_info=stage2_info,
+        )
 
     def embed(self, audio_f32: np.ndarray, sample_rate: int = 16_000) -> np.ndarray | None:
         if self._model is None or audio_f32 is None or len(audio_f32) < sample_rate // 2:

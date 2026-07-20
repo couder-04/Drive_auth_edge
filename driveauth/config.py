@@ -243,3 +243,131 @@ RISK_STRICT_LOAD = _as_bool01(_P["risk"]["strict_load"])
 
 # Raw resolved tree for audit / dashboard introspection.
 POLICY: dict[str, Any] = _P
+
+# Stock defaults from policy.yaml placeholders (env ignored) — used for drift warnings.
+_STOCK_BAR_KEYS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("DRIVEAUTH_LADDER_ACCEPT_VOICE", "ladder.accept_voice", ("ladder", "accept_voice")),
+    ("DRIVEAUTH_LADDER_ACCEPT_FACE", "ladder.accept_face", ("ladder", "accept_face")),
+    ("DRIVEAUTH_LADDER_ACCEPT_FINGER", "ladder.accept_finger", ("ladder", "accept_finger")),
+    ("DRIVEAUTH_TRUST_ACCEPT_MICRO", "trust.accept_micro", ("trust", "accept_micro")),
+    ("DRIVEAUTH_TRUST_ACCEPT_STD", "trust.accept_standard", ("trust", "accept_standard")),
+    ("DRIVEAUTH_TRUST_ACCEPT_HIGH", "trust.accept_high", ("trust", "accept_high")),
+    ("DRIVEAUTH_TRUST_REJECT", "trust.reject", ("trust", "reject")),
+)
+
+
+def _yaml_placeholder_default(raw: dict[str, Any], path: tuple[str, ...]) -> float | None:
+    node: Any = raw
+    for key in path:
+        if not isinstance(node, dict) or key not in node:
+            return None
+        node = node[key]
+    if not isinstance(node, str):
+        try:
+            return float(node)
+        except (TypeError, ValueError):
+            return None
+    m = _PLACEHOLDER.match(node.strip())
+    if not m or m.group(2) is None:
+        return None
+    try:
+        return float(m.group(2))
+    except ValueError:
+        return None
+
+
+def policy_bar_overrides(path: Path | None = None) -> list[dict[str, Any]]:
+    """Return ladder/trust bars whose resolved value differs from YAML stock default."""
+    p = path or _policy_path()
+    with p.open(encoding="utf-8") as f:
+        raw = yaml.safe_load(f) or {}
+    if not isinstance(raw, dict):
+        return []
+    resolved = {
+        "DRIVEAUTH_LADDER_ACCEPT_VOICE": LADDER_ACCEPT_VOICE,
+        "DRIVEAUTH_LADDER_ACCEPT_FACE": LADDER_ACCEPT_FACE,
+        "DRIVEAUTH_LADDER_ACCEPT_FINGER": LADDER_ACCEPT_FINGER,
+        "DRIVEAUTH_TRUST_ACCEPT_MICRO": TRUST_ACCEPT_MICRO,
+        "DRIVEAUTH_TRUST_ACCEPT_STD": TRUST_ACCEPT_STD,
+        "DRIVEAUTH_TRUST_ACCEPT_HIGH": TRUST_ACCEPT_HIGH,
+        "DRIVEAUTH_TRUST_REJECT": TRUST_REJECT,
+    }
+    out: list[dict[str, Any]] = []
+    for env_name, _label, ypath in _STOCK_BAR_KEYS:
+        stock = _yaml_placeholder_default(raw, ypath)
+        if stock is None:
+            continue
+        cur = float(resolved[env_name])
+        if abs(cur - stock) > 1e-9:
+            out.append(
+                {
+                    "env": env_name,
+                    "stock": stock,
+                    "deployed": cur,
+                    "delta": round(cur - stock, 4),
+                    "env_set": _env_lookup(env_name) is not None,
+                }
+            )
+    return out
+
+
+def warn_policy_bar_overrides(*, stream=None) -> list[dict[str, Any]]:
+    """Loud stderr + security-log banner when deployed bars ≠ ``policy.yaml`` stock.
+
+    ``phases/phase2b_suggested.env`` lowers bars for demo UX — that must never be
+    silent. Call after secrets/env load and before serving traffic.
+    """
+    import logging
+    import sys
+
+    overrides = policy_bar_overrides()
+    if not overrides:
+        return []
+    out = stream if stream is not None else sys.stderr
+    lines = [
+        "",
+        "!" * 72,
+        "WARNING: POLICY BARS DIFFER FROM policy.yaml STOCK DEFAULTS",
+        "!" * 72,
+        "Deployed accept/reject thresholds are NOT the repo stock bars.",
+        "If you sourced phases/phase2b_suggested.env (or set DRIVEAUTH_* bars),",
+        "you are lowering the security floor for demo UX — not raising scores.",
+        "",
+        "Default (stock) thresholds vs current (deployed):",
+        "",
+    ]
+    for row in overrides:
+        lines.append(
+            f"  {row['env']}: stock={row['stock']} → deployed={row['deployed']} "
+            f"(delta={row['delta']:+.4f}"
+            f"{', via env' if row['env_set'] else ', via policy file'})"
+        )
+    lines.extend(
+        [
+            "",
+            "Reason: demo / calibration override (not a production security improvement).",
+            "Stock ladder defaults: voice=0.72 face=0.70 finger=0.70",
+            "Expected production: keep policy.yaml stock unless re-calibrated on "
+            "fleet data with documented FAR/FRR.",
+            "See docs/security-assumptions.md §6 (phase2b_suggested.env).",
+            "!" * 72,
+            "",
+        ]
+    )
+    text = "\n".join(lines)
+    print(text, file=out, flush=True)
+    sec = logging.getLogger("driveauth.security")
+    sec.warning(
+        "POLICY BAR OVERRIDE: %d bar(s) differ from policy.yaml stock — demo mode risk. "
+        "Details: %s",
+        len(overrides),
+        "; ".join(
+            f"{r['env']} stock={r['stock']} deployed={r['deployed']} Δ={r['delta']:+.4f}"
+            for r in overrides
+        ),
+    )
+    return overrides
+
+
+# Call ``warn_policy_bar_overrides()`` after secrets/env load (see dashboard.server).
+# Do not auto-emit at import — config often loads before secrets.env is applied.
