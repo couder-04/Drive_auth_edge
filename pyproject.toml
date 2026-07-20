@@ -43,6 +43,7 @@ all = ["driveauth-edge[onnx,voice,face,orchestrator,dev,dashboard,train,standalo
 driveauth-demo = "demo.run_demo:main"
 driveauth-dashboard = "dashboard.server:main"
 driveauth-finger-daemon = "hardware.finger_daemon:run_daemon_main"
+driveauth-ble-gatt = "hardware.ble_gatt_server:main"
 
 [build-system]
 requires = ["hatchling"]
