@@ -177,17 +177,30 @@ class DecisionEngine:
 
     def _probe_face(self, qflags) -> ModalityResult:
         face = self._m.face
-        # Phase 3: IR liveness before trusting the face matcher (fail-closed).
+        # Phase 3 / Phase 8: IR liveness before trusting the face matcher
+        # (fail-closed). Ensemble mode optionally captures a short burst for
+        # blink / micro-motion; default remains single-frame reflectance.
         if self._ir_liveness is not None:
             ir_crop = None
-            if self._ir_capture is not None and hasattr(self._ir_capture, "capture_gray"):
+            frames = None
+            if self._ir_capture is not None:
                 try:
                     if getattr(self._ir_capture, "started", True):
-                        ir_crop = self._ir_capture.capture_gray()
+                        if getattr(self._ir_liveness, "ensemble", False) and hasattr(
+                            self._ir_capture, "capture_gray_burst"
+                        ):
+                            frames = self._ir_capture.capture_gray_burst(3)
+                            ir_crop = frames[0] if frames else None
+                        elif hasattr(self._ir_capture, "capture_gray"):
+                            ir_crop = self._ir_capture.capture_gray()
                 except Exception as exc:
                     logger.warning("DecisionEngine: IR capture failed: %s", exc)
                     ir_crop = None
+                    frames = None
             try:
+                live = self._ir_liveness.check(ir_crop, frames=frames)
+            except TypeError:
+                # Older checker without frames kwarg.
                 live = self._ir_liveness.check(ir_crop)
             except Exception as exc:
                 logger.error("DecisionEngine: IR liveness crashed: %s", exc)

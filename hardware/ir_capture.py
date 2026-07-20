@@ -215,6 +215,16 @@ class IRCameraCapture(_CameraCaptureBase):
         # BGR/RGB → luminance
         return crop.astype(np.float32).mean(axis=2)
 
+    def capture_gray_burst(self, n: int = 3) -> list[np.ndarray]:
+        """Capture ``n`` successive gray crops for blink / micro-motion."""
+        n = max(1, int(n))
+        out: list[np.ndarray] = []
+        for _ in range(n):
+            frame = self.capture_gray()
+            if frame is not None:
+                out.append(frame)
+        return out
+
 
 class RGBCameraCapture(_CameraCaptureBase):
     """USB RGB camera → face crop for cross-check against the IR crop."""

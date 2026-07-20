@@ -719,10 +719,13 @@ class DriveAuth:
                 capture.start()
             self._engine._ir_capture = capture
             self._engine._ir_liveness = IRLivenessChecker(
-                threshold=config.IR_LIVENESS_THRESHOLD
+                threshold=config.IR_LIVENESS_THRESHOLD,
+                ensemble=config.IR_LIVENESS_ENSEMBLE,
             )
             logger.info(
-                "DriveAuth: IR liveness enabled (thr=%.3f)", config.IR_LIVENESS_THRESHOLD
+                "DriveAuth: IR liveness enabled (thr=%.3f ensemble=%s)",
+                config.IR_LIVENESS_THRESHOLD,
+                config.IR_LIVENESS_ENSEMBLE,
             )
         except Exception as exc:
             logger.warning("DriveAuth: IR liveness unavailable (%s)", exc)
