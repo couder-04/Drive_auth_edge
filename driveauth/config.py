@@ -203,6 +203,7 @@ FACE_BACKEND = _FACE_BACKEND_RAW if _FACE_BACKEND_RAW in ("onnx", "hailo") else 
 HAILO_HEF = str(_P["hardware"].get("hailo_hef", "") or "")
 IR_LIVENESS_ENABLED = _as_bool01(_P["hardware"].get("ir_liveness_enabled", 0))
 IR_LIVENESS_THRESHOLD = _as_float(_P["hardware"].get("ir_liveness_threshold", 0.55))
+IR_LIVENESS_ENSEMBLE = _as_bool01(_P["hardware"].get("ir_liveness_ensemble", 0))
 RELAY_GPIO_PIN = _as_int(_P["hardware"].get("relay_gpio_pin", 17))
 
 ESCALATION_ENABLED = _as_bool01(_P["escalation"]["enabled"])

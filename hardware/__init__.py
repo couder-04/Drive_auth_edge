@@ -19,7 +19,13 @@ from hardware.finger_daemon import FingerDaemon
 from hardware.finger_uart import FingerSensorAdapter, ManualFingerSensor, PyFingerprintAdapter
 from hardware.hailo_face import HailoFaceMatcher
 from hardware.ir_capture import IRCameraCapture, MicArrayCapture, RGBCameraCapture
-from hardware.ir_liveness import IRLivenessChecker, LivenessResult
+from hardware.ir_liveness import (
+    IRLivenessChecker,
+    LivenessResult,
+    combine_liveness_scores,
+    score_blink_motion,
+    score_moire,
+)
 from hardware.ladder_otp import LadderOTPLane
 from hardware.telematics import TelematicsIngest, sanitize_vehicle_fields
 
@@ -46,5 +52,8 @@ __all__ = [
     "RGBCameraCapture",
     "TXN_CSV_COLUMNS",
     "TelematicsIngest",
+    "combine_liveness_scores",
     "sanitize_vehicle_fields",
+    "score_blink_motion",
+    "score_moire",
 ]

@@ -122,6 +122,8 @@ hardware:
   # IR liveness gate (independent of Stage-2 PAD logreg).
   ir_liveness_enabled: ${DRIVEAUTH_IR_LIVENESS_ENABLED:0}
   ir_liveness_threshold: ${DRIVEAUTH_IR_LIVENESS_THRESHOLD:0.55}
+  # Liveness v2: reflectance + blink + moiré ensemble (off = Phase-3 reflectance only).
+  ir_liveness_ensemble: ${DRIVEAUTH_IR_LIVENESS_ENSEMBLE:0}
   # GPIO relay BCM pin for ACCEPT actuation (optional).
   relay_gpio_pin: ${DRIVEAUTH_RELAY_GPIO_PIN:17}
 

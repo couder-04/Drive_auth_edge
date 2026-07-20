@@ -55,7 +55,7 @@ These are **design invariants**, not optional heuristics.
 | Ladder Bluetooth OTP (BLE GATT) | Stubbed + contract | Companion app UUID/payload documented; app itself **not** built this phase |
 | Paired-MAC gate | **Real check** | Refuses delivery unless paired MAC matches `contacts/{id}.bt_mac` |
 | IR / RGB / mic capture (`hardware/ir_capture.py` et al.) | **Real service API** | OpenCV / inject backends; unit-tested shapes (112² crop, 16 kHz mono) |
-| IR liveness (`hardware/ir_liveness.py`) | Heuristic | Reflectance stats; opt-in via `DRIVEAUTH_IR_LIVENESS_ENABLED`; **not** ISO PAD certified; Stage-2 PAD logreg still separate |
+| IR liveness (`hardware/ir_liveness.py`) | Heuristic ensemble | Reflectance-only by default (`DRIVEAUTH_IR_LIVENESS_ENABLED`); optional Liveness v2 via `DRIVEAUTH_IR_LIVENESS_ENSEMBLE=1` (reflectance + blink/micro-motion + moiré). **Not** ISO/IEC 30107-3 certified; Stage-2 PAD logreg still separate |
 | Hailo face (`hardware/hailo_face.py`) | Optional | `DRIVEAUTH_FACE_BACKEND=hailo` + `.hef`; fail-closed without device; IR liveness stays on CPU |
 | Actuation (`hardware/actuation.py`) | **Real API** | Relay defaults open; closes only on fresh ACCEPT; optional `RPi.GPIO` |
 | GPS/CAN ingest (`hardware/telematics.py`) | **Real API** | Sanitizes then calls `update_vehicle_context`; malformed frames skipped |
@@ -76,6 +76,18 @@ usable Fernet key on disk; this is an upgrade path, not a closed TEE gap.
 logs drop-in usable. **Still open:** models remain trained only on synthetic
 data until a pilot fleet produces logs and a bakeoff/train run reports
 `n_real > 0`. See [`data-collection.md`](data-collection.md).
+
+### Phase 8 note — Liveness v2 (heuristic ensemble, not certified PAD)
+
+Liveness v2 is a stronger heuristic ensemble; still not independently
+certified anti-spoofing. Certification requires third-party PAD testing
+against ISO/IEC 30107-3, which is out of scope.
+
+What landed: weighted combination of (a) existing IR reflectance, (b) short-burst
+blink / micro-motion, (c) FFT moiré / screen-grid check. Default remains
+reflectance-only so integrators see no behaviour change until they opt in.
+**Not closed:** presentation-attack robustness claims; synthetic unit tests
+only exercise each signal, not a PAD corpus.
 
 ### Phase 0 note — `dist_from_home` retired as a risk feature
 
@@ -154,7 +166,7 @@ Do **not** market or paper these as proven:
 | “Behavioral biometrics production-ready” | Bake-off winner trained on **synth CAN**; re-bake required on recorder dumps |
 | “Fingerprint verification shipping” | Daemon + UART adapter land in Phase 1; production claims still need vendor SDK captures + FAR/FRR on-device |
 | “Deepfake / ASVspoof complete” | Voice anti-spoof is quality + calibrator depth, not a full countermeasure suite |
-| “PAD stops all replays” | Hand-crafted PAD features + optional IR reflectance heuristic; APCER reported in Phase 6 — **not** ISO PAD certification |
+| “PAD stops all replays” | Hand-crafted PAD features + optional IR reflectance / Liveness v2 heuristic ensemble; APCER reported in Phase 6 — **not** ISO/IEC 30107-3 certification |
 | “Constant-time by default” | Timing pad is opt-in; default `constant_time_ms: 0` |
 | “OTP comparison proves superiority” | `otp_only` FAR=0 in benches **assumes** OTP channel security; ladder BT OTP additionally assumes paired-MAC binding + MAP/BLE integrity |
 | “Hailo face certified” | `HailoFaceMatcher` is a swappable backend; latency/accuracy claims require on-device HEF benchmarks |
