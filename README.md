@@ -1,8 +1,29 @@
 # DriveAuth Edge
 
+[![CI](https://github.com/couder-04/Drive_auth_edge/actions/workflows/ci.yml/badge.svg)](https://github.com/couder-04/Drive_auth_edge/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
+[![Coverage](https://img.shields.io/badge/coverage-≥55%25-brightgreen.svg)](.github/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](CHANGELOG.md)
+
 Trust/Risk-separated biometric authorization for in-vehicle payments and sensitive commands. Extracted from [Nova AI](https://github.com/Senthi1Kumar/nova_ai) `pipeline_mp/driveauth/`.
 
-**Requires Python 3.11+**
+**Requires Python 3.11+ · MVP 1.0.0**
+
+## Fresh clone → run
+
+```bash
+python3.11 -m venv .venv && source .venv/bin/activate
+make install
+cp secrets.env.example secrets.env
+# Set DRIVEAUTH_DASHBOARD_API_KEY=...  (or ALLOW_INSECURE for localhost only)
+make bootstrap          # Stage-1 models + Stage-2 checklist (never silent)
+make test
+DRIVEAUTH_USE_MOCK=1 DRIVEAUTH_ALLOW_INSECURE_DASHBOARD=1 make demo
+# → http://127.0.0.1:8765
+```
+
+OpenAPI: [`docs/openapi/openapi.json`](docs/openapi/openapi.json) · Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md) · Security: [`SECURITY.md`](SECURITY.md)
 
 > **Tech stack**
 >
@@ -16,7 +37,7 @@ Trust/Risk-separated biometric authorization for in-vehicle payments and sensiti
 > | Risk / fusion / PAD | LightGBM → ONNX · scikit-learn / logreg → ONNX |
 > | Orchestrator | PolicyMLP ONNX (static trust weights if absent) |
 > | Train / export | LightGBM, scikit-learn, onnxmltools, skl2onnx, onnx |
-> | Dev | pytest, ruff |
+> | Dev | pytest, ruff, pytest-cov |
 >
 > Policy is deterministic YAML rules (not another ML head). Extras: `.[dashboard]`, `.[voice,face,onnx]`, `.[standalone]`, `.[all]`.
 

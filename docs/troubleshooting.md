@@ -3,6 +3,22 @@
 Grounded in the log lines and fail-closed paths the code actually emits.
 Search logs for the quoted strings.
 
+## Dashboard returns 401 / 503 on admin routes
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `401 Invalid or missing dashboard API key` | Missing/wrong `X-API-Key` or Bearer | Set `DRIVEAUTH_DASHBOARD_API_KEY` and send header; UI injects key when pages are served from the same process |
+| `503 … API_KEY is not set` | No key and insecure mode off | Configure key in `secrets.env`, or `DRIVEAUTH_ALLOW_INSECURE_DASHBOARD=1` for localhost only |
+
+## Matcher not ready / bootstrap
+
+| Symptom / log | Cause | Fix |
+|---------------|-------|-----|
+| `DriveAuth: voice matcher not ready` | No ECAPA / no enroll template | `python scripts/bootstrap.py` then enroll |
+| `DriveAuth: face matcher not ready` | No MobileFaceNet / no face template | Same as above |
+| `Stage-2 heads missing` | PAD/calibrator/risk/trust ONNX absent | Train scripts or copy a complete store; optional `DRIVEAUTH_REQUIRE_STAGE2=1` |
+| Unexpected mock behaviour | Silent fallback removed | Use `DRIVEAUTH_USE_MOCK=1` or explicit `DRIVEAUTH_ALLOW_MOCK_FALLBACK=1` |
+
 ## Fingerprint sensor not detected
 
 | Symptom / log | Cause | Fix |

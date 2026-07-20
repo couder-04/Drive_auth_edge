@@ -9,9 +9,14 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
+
+from dashboard.security import AdminAuth, admin_key_js_bootstrap
+from dashboard.state import DashboardState
 
 from driveauth import DriveAuth
 from driveauth.audio_io import wav_bytes_to_float32
@@ -52,8 +57,6 @@ from dashboard.register import render_register
 ensure_secrets_loaded()
 
 _ROOT = Path(__file__).resolve().parents[1]
-_auth: DriveAuth | None = None
-_auth_key: tuple[str, str, bool] | None = None
 
 
 def _data_root() -> Path:
@@ -114,33 +117,49 @@ def _load_auth(
     return auth
 
 
+def _state(request: Request | None = None) -> DashboardState:
+    """Resolve dashboard state from the FastAPI app (thread-safe cache)."""
+    if request is None:
+        raise RuntimeError(
+            "DashboardState requires a FastAPI Request — pass request= from the endpoint"
+        )
+    state = getattr(request.app.state, "dashboard", None)
+    if state is None:
+        # TestClient without lifespan edge-case: install lazily.
+        state = DashboardState()
+        request.app.state.dashboard = state
+    return state
+
+
 def get_auth(
+    request: Request | None = None,
     driver_id: str | None = None,
     *,
     use_mock: bool | None = None,
     mature: bool = True,
 ) -> DriveAuth:
-    global _auth, _auth_key
+    state = _state(request)
     did = validate_driver_id(driver_id or _default_driver())
     mock = _want_mock() if use_mock is None else use_mock
     store = str(_unified_store())
     key = (store, did, mock)
-    if _auth is None or _auth_key != key:
-        _auth = _load_auth(mature=mature, driver_id=did, use_mock=mock)
-        _auth_key = key
-    return _auth
+    with state.lock:
+        if state.auth is None or state.auth_key != key:
+            state.auth = _load_auth(mature=mature, driver_id=did, use_mock=mock)
+            state.auth_key = key
+        return state.auth
 
 
 def reset_auth(
+    request: Request | None = None,
     *,
     mature: bool = True,
     driver_id: str | None = None,
     use_mock: bool | None = None,
 ) -> DriveAuth:
-    global _auth, _auth_key
-    _auth = None
-    _auth_key = None
-    return get_auth(driver_id, use_mock=use_mock, mature=mature)
+    state = _state(request)
+    state.clear()
+    return get_auth(driver_id, use_mock=use_mock, mature=mature, request=request)
 
 
 def _decode_face_jpeg(raw: bytes) -> np.ndarray:
@@ -435,14 +454,14 @@ def _pipeline_trace(result) -> dict[str, Any]:
             else:
                 status = "escalate"
                 detail = (
-                    f"below bar · try other lane"
+                    "below bar · try other lane"
                     if score is not None
                     else "no score · try other lane"
                 )
                 if lane == "finger" and otp_probed:
                     stage3_fallback = True
                     detail = (
-                        f"below bar · OR → OTP"
+                        "below bar · OR → OTP"
                         if score is not None
                         else "no score · OR → OTP"
                     )
@@ -662,36 +681,55 @@ def _apply_mock_scores(auth: DriveAuth, scores: MockScores) -> None:
     )
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    app.state.dashboard = DashboardState()
+    yield
+    app.state.dashboard.clear()
+
+
 app = FastAPI(
     title="DriveAuth Edge Dashboard",
-    description="Live Trust/Risk/Confidence pipeline tester with Nova I/O contract.",
-    version="0.3.0",
+    description=(
+        "Live Trust/Risk/Confidence pipeline tester with Nova I/O contract. "
+        "Mutating admin endpoints require ``DRIVEAUTH_DASHBOARD_API_KEY`` "
+        "(Bearer or X-API-Key)."
+    ),
+    version="1.0.0",
+    lifespan=_lifespan,
 )
+
+
+def _with_admin_bootstrap(html: str) -> str:
+    boot = admin_key_js_bootstrap()
+    if "</head>" in html:
+        return html.replace("</head>", boot + "\n</head>", 1)
+    return boot + html
 
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
-    return render_dashboard(mode="manual")
+    return _with_admin_bootstrap(render_dashboard(mode="manual"))
 
 
 @app.get("/manual", response_class=HTMLResponse)
 def manual_page() -> str:
-    return render_dashboard(mode="manual")
+    return _with_admin_bootstrap(render_dashboard(mode="manual"))
 
 
 @app.get("/standalone", response_class=HTMLResponse)
 def standalone_page() -> str:
-    return render_dashboard(mode="standalone")
+    return _with_admin_bootstrap(render_dashboard(mode="standalone"))
 
 
 @app.get("/register", response_class=HTMLResponse)
 def register_page() -> str:
-    return render_register()
+    return _with_admin_bootstrap(render_register())
 
 
 @app.get("/fleet", response_class=HTMLResponse)
 def fleet_page() -> str:
-    return render_fleet()
+    return _with_admin_bootstrap(render_fleet())
 
 
 @app.get("/api/fleet/health")
@@ -758,7 +796,11 @@ def _assert_register_writable(driver_id: str) -> None:
 
 
 @app.post("/api/register/init")
-def register_init(req: RegisterDriverRequest) -> dict[str, Any]:
+def register_init(
+    _admin: AdminAuth,
+    request: Request,
+    req: RegisterDriverRequest,
+) -> dict[str, Any]:
     try:
         driver_id = validate_driver_id(req.driver_id)
     except ValueError as exc:
@@ -778,6 +820,8 @@ def register_init(req: RegisterDriverRequest) -> dict[str, Any]:
 
 @app.post("/api/register/face")
 async def register_face(
+    _admin: AdminAuth,
+    request: Request,
     driver_id: str = Form(...),
     file: UploadFile = File(...),
 ) -> dict[str, Any]:
@@ -801,6 +845,8 @@ async def register_face(
 
 @app.post("/api/register/voice")
 async def register_voice(
+    _admin: AdminAuth,
+    request: Request,
     driver_id: str = Form(...),
     file: UploadFile = File(...),
 ) -> dict[str, Any]:
@@ -833,7 +879,11 @@ class RegisterCompleteRequest(BaseModel):
 
 
 @app.post("/api/register/complete")
-def register_complete(req: RegisterCompleteRequest) -> dict[str, Any]:
+def register_complete(
+    _admin: AdminAuth,
+    request: Request,
+    req: RegisterCompleteRequest,
+) -> dict[str, Any]:
     try:
         driver_id = validate_driver_id(req.driver_id)
     except ValueError as exc:
@@ -867,7 +917,11 @@ def register_complete(req: RegisterCompleteRequest) -> dict[str, Any]:
 
 
 @app.post("/api/register/purge")
-def register_purge(req: RegisterDriverRequest) -> dict[str, Any]:
+def register_purge(
+    _admin: AdminAuth,
+    request: Request,
+    req: RegisterDriverRequest,
+) -> dict[str, Any]:
     """Delete biometric templates + OOD + consent for a driver (Phase E)."""
     try:
         driver_id = validate_driver_id(req.driver_id)
@@ -883,7 +937,11 @@ def register_purge(req: RegisterDriverRequest) -> dict[str, Any]:
 
 
 @app.post("/api/register/clear")
-def register_clear(req: RegisterDriverRequest) -> dict[str, Any]:
+def register_clear(
+    _admin: AdminAuth,
+    request: Request,
+    req: RegisterDriverRequest,
+) -> dict[str, Any]:
     try:
         driver_id = validate_driver_id(req.driver_id)
     except ValueError as exc:
@@ -915,8 +973,8 @@ def register_face_preview(driver_id: str, filename: str) -> FileResponse:
 
 
 @app.get("/api/status")
-def status() -> dict[str, Any]:
-    auth = get_auth(use_mock=True)
+def status(request: Request) -> dict[str, Any]:
+    auth = get_auth(use_mock=True, request=request)
     mature = auth._profile.is_mature()
     rigor = auth._fraud.effective_rigor(mature)
     home_lat, home_lon, home_n = auth._profile.home_coords()
@@ -946,7 +1004,11 @@ class HomeRequest(BaseModel):
 
 
 @app.post("/api/register/home")
-def register_home(req: HomeRequest) -> dict[str, Any]:
+def register_home(
+    _admin: AdminAuth,
+    request: Request,
+    req: HomeRequest,
+) -> dict[str, Any]:
     try:
         driver_id = validate_driver_id(req.driver_id)
     except ValueError as exc:
@@ -994,7 +1056,11 @@ class IntentRequest(BaseModel):
 
 
 @app.post("/api/standalone/intent")
-def standalone_intent(req: IntentRequest) -> dict[str, Any]:
+def standalone_intent(
+    _admin: AdminAuth,
+    request: Request,
+    req: IntentRequest,
+) -> dict[str, Any]:
     prior = IntentSlots(
         amount=req.amount,
         beneficiary=req.beneficiary,
@@ -1013,6 +1079,8 @@ def standalone_intent(req: IntentRequest) -> dict[str, Any]:
 
 @app.post("/api/standalone/transcribe")
 async def standalone_transcribe(
+    _admin: AdminAuth,
+    request: Request,
     file: UploadFile = File(...),
     amount: float = Form(0.0),
     beneficiary: str = Form(""),
@@ -1053,6 +1121,8 @@ async def standalone_transcribe(
 
 @app.post("/api/standalone/auth")
 async def standalone_auth(
+    _admin: AdminAuth,
+    request: Request,
     driver_id: str = Form(None),
     amount: float = Form(...),
     beneficiary: str = Form(...),
@@ -1092,7 +1162,7 @@ async def standalone_auth(
             face_bgr = _decode_face_jpeg(face_raw)
 
     try:
-        auth = get_auth(did, use_mock=False, mature=True)
+        auth = get_auth(did, use_mock=False, mature=True, request=request)
     except Exception as exc:
         raise HTTPException(
             status_code=503,
@@ -1149,8 +1219,12 @@ async def standalone_auth(
 
 
 @app.post("/api/context")
-def update_context(ctx: VehicleContext) -> dict[str, Any]:
-    auth = get_auth(use_mock=True)
+def update_context(
+    _admin: AdminAuth,
+    request: Request,
+    ctx: VehicleContext,
+) -> dict[str, Any]:
+    auth = get_auth(use_mock=True, request=request)
     data = {k: v for k, v in ctx.model_dump().items() if v is not None}
     # When GPS is provided without an explicit distance override, keep
     # dist_from_home_km=0 / in_trusted_zone=True so ProfileStore fills them.
@@ -1170,8 +1244,12 @@ def update_context(ctx: VehicleContext) -> dict[str, Any]:
 
 
 @app.post("/api/authenticate")
-def authenticate(req: AuthenticateRequest) -> dict[str, Any]:
-    auth = get_auth(use_mock=True)
+def authenticate(
+    _admin: AdminAuth,
+    request: Request,
+    req: AuthenticateRequest,
+) -> dict[str, Any]:
+    auth = get_auth(use_mock=True, request=request)
     _apply_mock_scores(auth, req.mock_scores)
     if req.fingerprint_available is not None:
         auth._engine._m.fingerprint_available = bool(req.fingerprint_available)
@@ -1218,8 +1296,11 @@ def authenticate(req: AuthenticateRequest) -> dict[str, Any]:
 
 
 @app.get("/api/audit")
-def audit(limit: int = 50) -> list[dict[str, Any]]:
-    auth = get_auth(use_mock=True)
+def audit(
+    request: Request,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    auth = get_auth(use_mock=True, request=request)
     path = Path(auth._store) / "audit" / "driveauth_events.jsonl"
     if not path.exists():
         return []
@@ -1234,22 +1315,22 @@ def audit(limit: int = 50) -> list[dict[str, Any]]:
 
 
 @app.get("/api/audit/verify")
-def audit_verify() -> dict[str, Any]:
+def audit_verify(request: Request) -> dict[str, Any]:
     """Read-only hash-chain check via AuditLog.verify_chain()."""
-    auth = get_auth(use_mock=True)
+    auth = get_auth(use_mock=True, request=request)
     ok, reason = auth._audit.verify_chain()
     return {"ok": bool(ok), "reason": reason, "demo_mode": _demo_mode_enabled()}
 
 
 @app.post("/api/audit/demo_tamper")
-def audit_demo_tamper() -> dict[str, Any]:
+def audit_demo_tamper(_admin: AdminAuth, request: Request) -> dict[str, Any]:
     """Corrupt one byte of the audit file — only when DRIVEAUTH_DEMO_MODE=1."""
     if not _demo_mode_enabled():
         raise HTTPException(
             status_code=403,
             detail="demo tamper disabled — set DRIVEAUTH_DEMO_MODE=1",
         )
-    auth = get_auth(use_mock=True)
+    auth = get_auth(use_mock=True, request=request)
     path = Path(auth._store) / "audit" / "driveauth_events.jsonl"
     if not path.is_file() or path.stat().st_size < 2:
         raise HTTPException(status_code=400, detail="audit log empty — run authenticate first")
@@ -1281,7 +1362,7 @@ def audit_demo_tamper() -> dict[str, Any]:
 
 
 @app.get("/api/modality_sources")
-def modality_sources() -> dict[str, Any]:
+def modality_sources(request: Request) -> dict[str, Any]:
     """Real-vs-simulated labels from live config + reachability (not hardcoded)."""
     from driveauth import config
     from driveauth.matchers.mock import (
@@ -1291,7 +1372,7 @@ def modality_sources() -> dict[str, Any]:
         MockVoiceMatcher,
     )
 
-    auth = get_auth(use_mock=_want_mock())
+    auth = get_auth(use_mock=_want_mock(), request=request)
     m = auth._engine._m
     voice_mock = isinstance(m.voice, MockVoiceMatcher)
     face_mock = isinstance(m.face, MockFaceMatcher)
@@ -1355,29 +1436,37 @@ def modality_sources() -> dict[str, Any]:
 
 
 @app.post("/api/fraud/soft-flag")
-def fraud_soft_flag(reason: str = "dashboard_test") -> dict[str, Any]:
-    auth = get_auth(use_mock=True)
+def fraud_soft_flag(
+    _admin: AdminAuth,
+    request: Request,
+    reason: str = "dashboard_test",
+) -> dict[str, Any]:
+    auth = get_auth(use_mock=True, request=request)
     state = auth._fraud.record_soft_flag(reason)
     return {"fraud_state": state.value, "rigor": auth._fraud.rigor()}
 
 
 @app.post("/api/fraud/clean")
-def fraud_clean() -> dict[str, Any]:
-    auth = get_auth(use_mock=True)
+def fraud_clean(_admin: AdminAuth, request: Request) -> dict[str, Any]:
+    auth = get_auth(use_mock=True, request=request)
     state = auth._fraud.record_clean()
     return {"fraud_state": state.value, "rigor": auth._fraud.rigor()}
 
 
 @app.post("/api/fraud/reset")
-def fraud_reset() -> dict[str, Any]:
-    auth = get_auth(use_mock=True)
+def fraud_reset(_admin: AdminAuth, request: Request) -> dict[str, Any]:
+    auth = get_auth(use_mock=True, request=request)
     auth._fraud.reset()
     return {"fraud_state": auth._fraud.state.value, "rigor": auth._fraud.rigor()}
 
 
 @app.post("/api/reset")
-def reset_session(mature: bool = True) -> dict[str, Any]:
-    auth = reset_auth(mature=mature, use_mock=True)
+def reset_session(
+    _admin: AdminAuth,
+    request: Request,
+    mature: bool = True,
+) -> dict[str, Any]:
+    auth = reset_auth(mature=mature, use_mock=True, request=request)
     return {
         "status": "ok",
         "store_dir": auth._store,
@@ -1387,8 +1476,8 @@ def reset_session(mature: bool = True) -> dict[str, Any]:
 
 
 @app.post("/api/profile/mature")
-def profile_mature() -> dict[str, Any]:
-    auth = get_auth(use_mock=True)
+def profile_mature(_admin: AdminAuth, request: Request) -> dict[str, Any]:
+    auth = get_auth(use_mock=True, request=request)
     auth._profile.seed_mature()
     mature = True
     return {
@@ -1399,8 +1488,8 @@ def profile_mature() -> dict[str, Any]:
 
 
 @app.post("/api/profile/bootstrap")
-def profile_bootstrap() -> dict[str, Any]:
-    auth = get_auth(use_mock=True)
+def profile_bootstrap(_admin: AdminAuth, request: Request) -> dict[str, Any]:
+    auth = get_auth(use_mock=True, request=request)
     auth._profile.reset_bootstrap()
     mature = False
     return {

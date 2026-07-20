@@ -23,7 +23,6 @@ if str(ROOT) not in sys.path:
 from driveauth.integrity import (  # noqa: E402
     MANIFEST_NAME,
     SIG_NAME,
-    build_manifest,
     default_model_relpaths,
     dump_private_key,
     dump_public_key,

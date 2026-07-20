@@ -26,7 +26,7 @@ def mature(auth: DriveAuth) -> None:
 
 
 def make_auth(**kwargs) -> DriveAuth:
-    store = tempfile.mkdtemp(prefix="driveauth_test_")
+    store = kwargs.pop("store_dir", None) or tempfile.mkdtemp(prefix="driveauth_test_")
     auth = DriveAuth.load(store_dir=store, use_mock_matchers=True, **kwargs)
     return auth
 

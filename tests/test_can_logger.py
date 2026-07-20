@@ -5,7 +5,6 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-import numpy as np
 
 from driveauth.matchers.behavioral import BEHAVIORAL_FEATURE_KEYS
 from hardware.can_logger import (

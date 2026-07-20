@@ -187,7 +187,7 @@ def main() -> None:
 
     def fuse(vs, fs):
         out = []
-        n = min(len(vs), len(fs)) if fs and vs else 0
+        min(len(vs), len(fs)) if fs and vs else 0
         # Also report modality-only suggestions
         return out
 

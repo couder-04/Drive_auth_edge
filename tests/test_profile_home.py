@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from driveauth import config
-from driveauth.profile_store import DriverProfile, ProfileStore, _migrate
+from driveauth.profile_store import ProfileStore, _migrate
 from driveauth.types import RiskContext
 
 

@@ -8,6 +8,13 @@ driveauth_store_phase2a/
 example_store/
 .pytest_cache/
 .ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.DS_Store
+**/.DS_Store
+*.swp
+*~
 
 # Product secrets (never commit)
 secrets.env

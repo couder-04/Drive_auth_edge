@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,16 +10,13 @@ from dashboard.app import app
 
 
 @pytest.fixture()
-def client(tmp_path, monkeypatch):
+def client(tmp_path, monkeypatch, admin_headers):
     monkeypatch.setenv("DRIVEAUTH_USE_MOCK", "1")
     monkeypatch.setenv("DRIVEAUTH_DASHBOARD_STORE", str(tmp_path / "store"))
     monkeypatch.delenv("DRIVEAUTH_DEMO_MODE", raising=False)
-    # Fresh module-level auth cache between tests.
-    import dashboard.app as dash
-
-    dash._auth = None
-    dash._auth_key = None
-    return TestClient(app)
+    with TestClient(app) as c:
+        c.headers.update(admin_headers)
+        yield c
 
 
 def test_authenticate_payload_includes_stage3_and_driver(client):
@@ -101,10 +96,6 @@ def test_demo_tamper_gated(client, monkeypatch):
     assert blocked.status_code == 403
 
     monkeypatch.setenv("DRIVEAUTH_DEMO_MODE", "1")
-    import dashboard.app as dash
-
-    dash._auth = None
-    dash._auth_key = None
     ok = client.post("/api/audit/demo_tamper")
     assert ok.status_code == 200
     body = ok.json()

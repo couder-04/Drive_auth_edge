@@ -10,7 +10,6 @@ import numpy as np
 
 from driveauth import config
 from driveauth import DriveAuth
-from driveauth.matchers.mock import MockFaceMatcher, MockFingerMatcher, MockVoiceMatcher
 from driveauth.matchers.score_provider import ManualScores, apply_manual_scores
 from driveauth.ood_detector import OODDetector
 from driveauth.profile_store import ProfileStore

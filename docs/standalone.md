@@ -46,6 +46,8 @@ Restrict the Google Maps key by HTTP referrer to your public host + `localhost`.
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -e ".[standalone]"
 python scripts/phase2a_setup.py --store ./driveauth_store_phase2a
+# Preferred (reports Stage-2 status, never silent):
+python scripts/bootstrap.py --store ./driveauth_store_phase2a
 python scripts/phase2a_enroll.py --store ./driveauth_store_phase2a --data ./data/driver1
 driveauth-dashboard --host 127.0.0.1 --port 8765
 ```

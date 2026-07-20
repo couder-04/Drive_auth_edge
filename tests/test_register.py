@@ -20,6 +20,14 @@ from driveauth.enrollment import (
     validate_driver_id,
 )
 
+ADMIN_HEADERS = {"X-API-Key": "test-dashboard-key"}
+
+
+def _client():
+    c = TestClient(app)
+    c.headers.update(ADMIN_HEADERS)
+    return c
+
 
 def _tiny_wav_bytes(seconds: float = 0.5, sr: int = 16_000) -> bytes:
     n = int(sr * seconds)
@@ -108,7 +116,7 @@ def test_register_complete_rejects_without_home(tmp_path: Path, monkeypatch) -> 
     monkeypatch.setattr(app_mod, "_register_store", lambda: store)
     monkeypatch.setattr(app_mod, "_unified_store", lambda: store)
 
-    client = TestClient(app)
+    client = _client()
     client.post("/api/register/init", json={"driver_id": "noHome"})
     r = client.post(
         "/api/register/complete",
@@ -127,7 +135,7 @@ def test_register_complete_rejects_without_consent(tmp_path: Path, monkeypatch) 
     monkeypatch.setattr(app_mod, "_register_store", lambda: store)
     monkeypatch.setattr(app_mod, "_unified_store", lambda: store)
 
-    client = TestClient(app)
+    client = _client()
     client.post("/api/register/init", json={"driver_id": "noConsent"})
     r = client.post("/api/register/complete", json={"driver_id": "noConsent"})
     assert r.status_code == 400
@@ -149,7 +157,7 @@ def test_enrolled_driver_is_locked_from_mutation(tmp_path: Path, monkeypatch) ->
     monkeypatch.setattr(app_mod, "_register_store", lambda: store)
     monkeypatch.setattr(app_mod, "_unified_store", lambda: store)
 
-    client = TestClient(app)
+    client = _client()
     st = client.get("/api/register/status", params={"driver_id": "driverLock"})
     assert st.status_code == 200
     assert st.json()["locked"] is True
@@ -181,7 +189,7 @@ def test_register_api_init_and_uploads(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(app_mod, "_register_store", lambda: store)
     monkeypatch.setattr(app_mod, "_unified_store", lambda: store)
 
-    client = TestClient(app)
+    client = _client()
     r = client.post("/api/register/init", json={"driver_id": "driverNew"})
     assert r.status_code == 200
     assert (tmp_path / "driverNew" / "face" / "enroll").is_dir()

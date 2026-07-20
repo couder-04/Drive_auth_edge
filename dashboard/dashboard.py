@@ -1402,6 +1402,19 @@ def render_dashboard(*, mode: str = "manual") -> str:
   </div>
 
   <script>
+    function adminHeaders(extra = {}) {
+      const headers = Object.assign({}, extra || {});
+      if (window.__DRIVEAUTH_ADMIN_KEY__) {
+        headers["X-API-Key"] = window.__DRIVEAUTH_ADMIN_KEY__;
+      }
+      return headers;
+    }
+    async function adminFetch(path, opts = {}) {
+      const opts2 = Object.assign({}, opts);
+      opts2.headers = adminHeaders(opts2.headers || {});
+      return fetch(path, opts2);
+    }
+
     const PHASES = [
       { id: "P0", title: "Zone-only geo risk", state: "done", label: "Done" },
       { id: "P1–6", title: "Ladder · models · eval", state: "done", label: "Done" },
@@ -1916,7 +1929,7 @@ def render_dashboard(*, mode: str = "manual") -> str:
       document.getElementById("decision-banner").textContent = "…";
       document.getElementById("decision-banner").className = "decision-banner";
 
-      const res = await fetch("/api/authenticate", {
+      const res = await adminFetch("/api/authenticate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -1964,7 +1977,7 @@ def render_dashboard(*, mode: str = "manual") -> str:
     }
 
     async function demoTamperAudit() {
-      const res = await fetch("/api/audit/demo_tamper", { method: "POST" });
+      const res = await adminFetch("/api/audit/demo_tamper", { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
         alert(data.detail || res.statusText);
@@ -2056,7 +2069,7 @@ def render_dashboard(*, mode: str = "manual") -> str:
 
     async function ensureProfile(mode) {
       const path = mode === "bootstrap" ? "/api/profile/bootstrap" : "/api/profile/mature";
-      await fetch(path, { method: "POST" });
+      await adminFetch(path, { method: "POST" });
     }
 
     async function applyScenario(s) {
@@ -2070,19 +2083,19 @@ def render_dashboard(*, mode: str = "manual") -> str:
     }
 
     async function fraudFlag() {
-      await fetch("/api/fraud/soft-flag", { method: "POST" });
+      await adminFetch("/api/fraud/soft-flag", { method: "POST" });
       loadStatus();
     }
     async function fraudClean() {
-      await fetch("/api/fraud/clean", { method: "POST" });
+      await adminFetch("/api/fraud/clean", { method: "POST" });
       loadStatus();
     }
     async function fraudReset() {
-      await fetch("/api/fraud/reset", { method: "POST" });
+      await adminFetch("/api/fraud/reset", { method: "POST" });
       loadStatus();
     }
     async function resetSession() {
-      await fetch("/api/reset?mature=true", { method: "POST" });
+      await adminFetch("/api/reset?mature=true", { method: "POST" });
       loadStatus();
       loadAudit();
       resetPipelineVisual();

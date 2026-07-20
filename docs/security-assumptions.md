@@ -36,10 +36,11 @@ These are **design invariants**, not optional heuristics.
 1. **Trust ≠ Risk.** GPS, speed, amount, beneficiary novelty, and CAN behavior enter **Risk only**. They must never raise a biometric Trust score.
 2. **Accept/Reject is ladder-driven.** Voice → Face → stage-3 decides identity acceptance. Stage-3 defaults to fingerprint (`finger_only`); policy may enable `finger_or_otp` / `otp_only` so Bluetooth OTP to the driver's registered paired phone is an alternate lane (OR, not AND). Policy applies irreversible hard gates (fraud lock, risk ceiling) and guest PIN handling — it does not invent a fourth biometric beyond that stage-3 OR.
 3. **Fail closed.** Missing audio/face/finger when needed, missing OOD baselines for a scored modality, matcher crash/timeout, Bluetooth OTP undeliverable / MAC mismatch, and risk ≥ hard ceiling → deny / escalate, never silent ACCEPT.
-4. **Deterministic policy.** Thresholds live in `policy.yaml` / `DRIVEAUTH_*`. Changing rules does not require retraining heads.
-5. **Audit without biometrics.** `AuditLog` stores decision metadata and scores, not raw voice/face/finger templates.
-6. **Payment OTP ≠ ladder OTP.** Cellular/HTTP `otp_mobile` (`OTPStepUp` + `HTTPProviderDelivery`) remains a payment step-up fallback. Identity-ladder Bluetooth OTP (`BluetoothOTPDelivery`) is a separate `OTPStepUp` instance with independent challenge state, enabled only when `LADDER_STAGE3_MODE` is `otp_only` or `finger_or_otp`.
-
+4. **No silent mock fallback.** When `DRIVEAUTH_USE_MOCK` is off, unready voice/face raise unless `DRIVEAUTH_ALLOW_MOCK_FALLBACK=1` is set explicitly. Prefer `python scripts/bootstrap.py`.
+5. **Dashboard admin auth.** Mutating HTTP routes require `DRIVEAUTH_DASHBOARD_API_KEY` (Bearer or X-API-Key). `DRIVEAUTH_ALLOW_INSECURE_DASHBOARD=1` is localhost-demo only.
+6. **Deterministic policy.** Thresholds live in `policy.yaml` / `DRIVEAUTH_*`. Changing rules does not require retraining heads.
+7. **Audit without biometrics.** `AuditLog` stores decision metadata and scores, not raw voice/face/finger templates.
+8. **Payment OTP ≠ ladder OTP.** Cellular/HTTP `otp_mobile` (`OTPStepUp` + `HTTPProviderDelivery`) remains a payment step-up fallback. Identity-ladder Bluetooth OTP (`BluetoothOTPDelivery`) is a separate `OTPStepUp` instance with independent challenge state, enabled only when `LADDER_STAGE3_MODE` is `otp_only` or `finger_or_otp`.
 ---
 
 ## 2b. Mocked vs real (hardware surface)

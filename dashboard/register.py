@@ -507,8 +507,22 @@ def render_register() -> str:
       return new Blob([buffer], { type: "audio/wav" });
     }
 
+    function adminHeaders(extra = {}) {
+      const headers = Object.assign({}, extra || {});
+      if (window.__DRIVEAUTH_ADMIN_KEY__) {
+        headers["X-API-Key"] = window.__DRIVEAUTH_ADMIN_KEY__;
+      }
+      return headers;
+    }
+
     async function api(path, opts = {}) {
-      const res = await fetch(path, opts);
+      const opts2 = Object.assign({}, opts);
+      const isForm = (typeof FormData !== "undefined") && opts2.body instanceof FormData;
+      opts2.headers = adminHeaders(opts2.headers || {});
+      if (!isForm && opts2.body && typeof opts2.body === "string" && !opts2.headers["Content-Type"]) {
+        opts2.headers["Content-Type"] = "application/json";
+      }
+      const res = await fetch(path, opts2);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const detail = data.detail || data.error || res.statusText;

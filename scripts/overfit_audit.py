@@ -26,7 +26,6 @@ from __future__ import annotations
 import csv
 import subprocess
 import sys
-from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
@@ -200,7 +199,8 @@ def check_6_feature_ablation(X, y):
     print(f"  baseline (all features): val_auc={base_auc:.4f}")
     drops = []
     for j, name in enumerate(FEATURE_ORDER):
-        mask = np.ones(len(FEATURE_ORDER), bool); mask[j] = False
+        mask = np.ones(len(FEATURE_ORDER), bool)
+        mask[j] = False
         m = train_one(Xt[:, mask], yt, Xv[:, mask], yv)
         auc = roc_auc_score(yv, m.predict_proba(Xv[:, mask])[:, 1])
         delta = base_auc - auc

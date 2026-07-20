@@ -53,7 +53,11 @@ risk:
 ```bash
 DRIVEAUTH_STORE_DIR=./driveauth_store
 DRIVEAUTH_ENROLL_DIR=./enroll          # voiceprints (L-3 compatible)
-DRIVEAUTH_USE_MOCK=1                   # mock matchers for dev/test
+DRIVEAUTH_USE_MOCK=1                   # mock matchers for dev/test (explicit)
+DRIVEAUTH_ALLOW_MOCK_FALLBACK=0        # if 1, unready voice/face become mock
+DRIVEAUTH_REQUIRE_STAGE2=0             # if 1, missing Stage-2 ONNX heads raise
+DRIVEAUTH_DASHBOARD_API_KEY=           # required for mutating dashboard routes
+DRIVEAUTH_ALLOW_INSECURE_DASHBOARD=0   # localhost demos only when no API key
 DRIVEAUTH_FINGERPRINT_AVAILABLE=0      # trim without fingerprint sensor
 DRIVEAUTH_POLICY_FILE=                 # optional alternate policy.yaml
 

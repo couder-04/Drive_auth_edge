@@ -4,6 +4,10 @@ Public surface for embedding DriveAuth Edge in Nova or a standalone product.
 Integration narrative lives in [integration.md](integration.md); this page is
 the method/field contract.
 
+**HTTP dashboard:** FastAPI app in `dashboard/app.py`. Versioned OpenAPI at
+[`docs/openapi/openapi.json`](openapi/openapi.json). Mutating admin routes
+require `DRIVEAUTH_DASHBOARD_API_KEY` (`Authorization: Bearer …` or `X-API-Key`).
+
 ```python
 from driveauth import DriveAuth, DriveAuthResult, Decision
 ```

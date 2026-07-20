@@ -117,7 +117,7 @@ def test_bluez_backend_fail_closed_without_dbus(monkeypatch):
 def test_bluez_backend_register_application_mocked():
     """Exercise BlueZ start path with dbus/gi fully mocked."""
     dbus = MagicMock()
-    glib_mod = MagicMock()
+    MagicMock()
     gi_repo = MagicMock()
 
     # Minimal dbus.service.Object so class bodies can decorate methods.

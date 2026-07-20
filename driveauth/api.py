@@ -46,6 +46,31 @@ from driveauth.types import Decision, DriveAuthResult, RiskContext
 
 logger = logging.getLogger("driveauth.api")
 
+_STAGE2_ARTIFACTS = (
+    "risk_gbt.onnx",
+    "trust_fusion.onnx",
+    "face_pad.onnx",
+    "face_calibrator.onnx",
+    "voice_calibrator.onnx",
+)
+
+
+def _announce_stage2(store: Path) -> None:
+    """Log Stage-2 head presence; optionally fail closed."""
+    missing = [n for n in _STAGE2_ARTIFACTS if not (store / n).is_file()]
+    if not missing:
+        logger.info("DriveAuth: Stage-2 ONNX heads present (%s)", ", ".join(_STAGE2_ARTIFACTS))
+        return
+    msg = (
+        "DriveAuth: Stage-2 heads missing: "
+        + ", ".join(missing)
+        + ". Run `python scripts/bootstrap.py --check-only` then train/copy heads. "
+        "Stage-1 static/additive paths remain available until heads exist."
+    )
+    if os.getenv("DRIVEAUTH_REQUIRE_STAGE2", "0") == "1":
+        raise RuntimeError(msg + " (DRIVEAUTH_REQUIRE_STAGE2=1)")
+    logger.warning(msg)
+
 
 class DriveAuth:
     """
@@ -134,12 +159,26 @@ class DriveAuth:
             enroll = enroll_dir or os.getenv(
                 "DRIVEAUTH_ENROLL_DIR", str(store / "enroll")
             )
-            # Phase 2a hybrid: use real matchers when ready, otherwise mock that
-            # modality so the rest of the pipeline still runs on Mac/Thor.
+            allow_mock_fallback = os.getenv("DRIVEAUTH_ALLOW_MOCK_FALLBACK", "0") == "1"
+
+            def _require_or_mock(modality: str, ready: bool, factory):
+                if ready:
+                    return None
+                msg = (
+                    f"DriveAuth: {modality} matcher not ready. "
+                    "Run `python scripts/bootstrap.py` (or phase2a_setup + enroll), "
+                    "or set DRIVEAUTH_USE_MOCK=1 for demos, "
+                    "or DRIVEAUTH_ALLOW_MOCK_FALLBACK=1 to explicitly allow mock."
+                )
+                if allow_mock_fallback:
+                    logger.warning("%s — ALLOW_MOCK_FALLBACK=1, using mock %s", msg, modality)
+                    return factory()
+                raise RuntimeError(msg)
+
             voice = VoiceMatcher.load(enroll, driver_id, store_dir=str(store))
-            if not voice.ready:
-                logger.warning("DriveAuth: voice not ready — using mock voice")
-                voice = MockVoiceMatcher()
+            mocked = _require_or_mock("voice", voice.ready, MockVoiceMatcher)
+            if mocked is not None:
+                voice = mocked
 
             face = FaceMatcher.load(str(store), driver_id)
             if config.FACE_BACKEND == "hailo":
@@ -152,24 +191,34 @@ class DriveAuth:
                         logger.info("DriveAuth: using HailoFaceMatcher")
                     else:
                         logger.warning(
-                            "DriveAuth: Hailo backend requested but not ready — ONNX/mock face"
+                            "DriveAuth: Hailo backend requested but not ready — "
+                            "continuing with ONNX face"
                         )
                 except Exception as exc:
                     logger.warning("DriveAuth: Hailo face load failed (%s)", exc)
-            if not getattr(face, "ready", True):
-                logger.warning("DriveAuth: face not ready — using mock face")
-                face = MockFaceMatcher()
+            mocked = _require_or_mock(
+                "face", getattr(face, "ready", True), MockFaceMatcher
+            )
+            if mocked is not None:
+                face = mocked
 
             finger_path = Path(store) / "fingernet_lite_int8.onnx"
             if finger_path.exists() and config.FINGERPRINT_AVAILABLE:
                 finger = FingerMatcher.load(str(store), driver_id)
             else:
-                logger.info("DriveAuth: fingerprint model/HW absent — mock finger")
+                # Finger HW is optional on MVP hosts — mock is expected, not silent.
+                logger.info(
+                    "DriveAuth: fingerprint model/HW absent — using mock finger "
+                    "(set FINGERPRINT_AVAILABLE + fingernet ONNX for real finger)"
+                )
                 finger = MockFingerMatcher()
 
             behavioral = BehavioralMonitor.load(str(store), driver_id)
             if not getattr(behavioral, "available", False):
-                logger.info("DriveAuth: behavioral model absent — mock behavioural")
+                logger.info(
+                    "DriveAuth: behavioral model absent — using mock behavioural "
+                    "(run scripts/train_behavioral_bakeoff.py or bootstrap)"
+                )
                 behavioral = MockBehavioralMonitor()
 
             matchers = MatcherBundle(
@@ -242,6 +291,10 @@ class DriveAuth:
             profile=profile,
             driver_id=driver_id,
         )
+
+        # Stage-2 visibility — never silent. Missing heads are OK for Stage-1,
+        # but REQUIRE_STAGE2=1 fails closed with bootstrap instructions.
+        _announce_stage2(store)
 
         auth = cls(
             driver_id=driver_id,

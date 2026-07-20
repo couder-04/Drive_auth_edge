@@ -405,7 +405,7 @@ def run_qa_gates(df):
     results = {}
     failures = []
 
-    n = len(df)
+    len(df)
     susp_rate = float((df["label"] == "suspicious").mean())
     results["suspicious_rate"] = susp_rate
     if not (0.20 <= susp_rate <= 0.35):

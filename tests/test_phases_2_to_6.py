@@ -293,7 +293,7 @@ def test_telematics_malformed_frames_do_not_crash_or_inject():
     with auth._ctx_lock:
         auth._risk_ctx.speed_kmh = 10.0
     gps = MockGPSReader({"gps_lat": "not-a-float", "speed_kmh": 9999})
-    can = MockCANReader(None)
+    MockCANReader(None)
 
     class Boom:
         def read(self):

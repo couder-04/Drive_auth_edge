@@ -586,7 +586,7 @@ def panel_script() -> str:
         fd.append("beneficiary", document.getElementById("pay-beneficiary").value || "");
         fd.append("action", document.getElementById("pay-action").value || "pay");
         fd.append("currency", document.getElementById("pay-currency").value || "INR");
-        const res = await fetch("/api/standalone/transcribe", { method: "POST", body: fd });
+        const res = await adminFetch("/api/standalone/transcribe", { method: "POST", body: fd });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || res.statusText);
         await handleIntentResponse(data);
@@ -665,7 +665,7 @@ def panel_script() -> str:
       fd.append("gps_lat", String(pay.gps.lat));
       fd.append("gps_lon", String(pay.gps.lon));
       fd.append("gps_accuracy_m", "25");
-      const res = await fetch("/api/standalone/auth", { method: "POST", body: fd });
+      const res = await adminFetch("/api/standalone/auth", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) {
         document.getElementById("pay-prompt").textContent =
@@ -725,7 +725,7 @@ def panel_script() -> str:
       document.getElementById("pay-rec").onclick = () => recordPayClip();
       document.getElementById("pay-intent-refresh").onclick = async () => {
         const transcript = document.getElementById("pay-transcript").textContent || "";
-        const res = await fetch("/api/standalone/intent", {
+        const res = await adminFetch("/api/standalone/intent", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

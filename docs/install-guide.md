@@ -11,13 +11,34 @@ CAN / Bluetooth wiring is listed at the end — scripts cannot do that part.
 ## Quick start (laptop / CI)
 
 ```bash
-git clone <this-repo> && cd Drive_auth_edge   # or staged_driveauth-edge
-bash scripts/install.sh
+git clone <this-repo> && cd staged_driveauth-edge
+make install                 # or: bash scripts/install.sh
 source .venv/bin/activate
-driveauth-dashboard   # http://127.0.0.1:8765
+cp secrets.env.example secrets.env
+# Required for mutating dashboard routes:
+#   DRIVEAUTH_DASHBOARD_API_KEY=<secret>
+# Localhost demos without a key (never on a public bind):
+#   DRIVEAUTH_ALLOW_INSECURE_DASHBOARD=1
+make bootstrap               # Stage-1 download + Stage-2 checklist
+make test
+DRIVEAUTH_USE_MOCK=1 DRIVEAUTH_ALLOW_INSECURE_DASHBOARD=1 driveauth-dashboard
+# http://127.0.0.1:8765
 ```
 
-Flags:
+### Model bootstrap (no silent fallback)
+
+```bash
+python scripts/bootstrap.py --store ./driveauth_store_phase2a
+python scripts/bootstrap.py --check-only
+```
+
+- Real matchers require Stage-1 ECAPA + MobileFaceNet (and enrollment).
+- Missing voice/face raises unless `DRIVEAUTH_USE_MOCK=1` or explicit
+  `DRIVEAUTH_ALLOW_MOCK_FALLBACK=1`.
+- Stage-2 heads (`risk_gbt.onnx`, `trust_fusion.onnx`, PAD/calibrators) are
+  reported clearly; set `DRIVEAUTH_REQUIRE_STAGE2=1` to fail closed when absent.
+
+Flags for `scripts/install.sh`:
 
 | Flag | Effect |
 |------|--------|

@@ -248,7 +248,7 @@ def main() -> None:
 
     # SOURCE.txt provenance
     lines = [
-        f"Face data from Kaggle vasukipatel/face-recognition-dataset",
+        "Face data from Kaggle vasukipatel/face-recognition-dataset",
         f"Identity: {IDENTITY} (same person for enroll + genuine + attacks)",
         f"Source: {args.src}",
         f"enroll: {N_ENROLL} best sharpness/eye-visible",
@@ -270,7 +270,7 @@ def main() -> None:
     print(f"genuine:      {len(genuine_out)}")
     print(f"attack_blur:  {len(blur_out)}")
     print(f"attack_side:  {len(side_out)}")
-    print(f"SOURCE.txt + manifest.csv updated")
+    print("SOURCE.txt + manifest.csv updated")
 
 
 if __name__ == "__main__":
