@@ -5,10 +5,12 @@ This is the v2 trainer that closes findings #1, #2, #4/#6, #5, #7, #10 from
 docs/pipeline-review-2026-07.md plus writes the two sidecar JSONs consumed by
 the v2 RiskModel (for #8 and #9). Changes vs. the v1 trainer:
 
-  #1  Reads the FULL feature schema from the CSV -- dist_from_home_km,
-      ignition_on, is_tunnel, behavioral_score are now real training inputs
-      instead of hardcoded zeros. Missing columns default gracefully so v1
-      CSVs still train.
+  #1  Reads the FULL feature schema from the CSV -- ignition_on, is_tunnel,
+      behavioral_score are real training inputs instead of hardcoded zeros.
+      ``dist_from_home_km`` remains raw CSV telemetry (feeds ``out_of_zone``
+      via ``in_trusted_zone``) but is not a model feature (Phase 0: retired
+      after /50 scale mismatch vs 3–15 km training zones). Missing columns
+      default gracefully so v1 CSVs still train.
   #2  Stratified train/val split with early stopping. Reports both train
       AND val AUC / accuracy; val is what should be published.
   #4/#6  Per-driver amount_z (using ``driver_id`` when the CSV supplies it)
@@ -86,7 +88,8 @@ def _row_to_features(
     speed_kmh = float(row["speed_kmh"])
     in_trusted_zone = int(row["in_trusted_zone"])
 
-    dist_km = float(_get(row, "dist_from_home_km", "0.0"))
+    # dist_from_home_km stays on the CSV for telemetry / QA; geo risk uses
+    # out_of_zone (from in_trusted_zone) only — see RiskModel module docstring.
     ignition_on = int(_get(row, "ignition_on", "1"))
     is_tunnel = int(_get(row, "is_tunnel", "0"))
     beh_raw = _get(row, "behavioral_score", "")
@@ -104,7 +107,6 @@ def _row_to_features(
         "amount_z": amount_z,
         "amount_norm": _clip01(amount / 100_000.0),
         "beneficiary_novel": 0.0 if beneficiary_known else 1.0,
-        "dist_from_home": _clip01(dist_km / 50.0),
         "out_of_zone": 0.0 if in_trusted_zone else 1.0,
         "night": night,
         "moving_fast": moving_fast,

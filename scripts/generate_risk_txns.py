@@ -385,7 +385,9 @@ def engineer_features(df):
     out["amount_z"] = ((df["amount"] - amount_mean) / amount_std).clip(-3, 6)
     out["amount_norm"] = (df["amount"] / 100000.0).clip(upper=1.0)
     out["beneficiary_novel"] = 1 - df["beneficiary_known"]
-    out["dist_from_home"] = (df["dist_from_home_km"] / 50.0).clip(upper=1.0)
+    # Phase 0: dist_from_home (km/50) retired as a model feature — scale
+    # mismatched the 3–15 km trusted-zone radii and duplicated out_of_zone.
+    # Raw dist_from_home_km stays on the CSV for telemetry / QA gates.
     out["out_of_zone"] = 1 - df["in_trusted_zone"]
     out["night"] = ((df["hour"] < 5) | (df["hour"] >= 23)).astype(int)
     out["moving_fast"] = ((df["speed_kmh"] - 20) / 80.0).clip(lower=0, upper=1.0)
