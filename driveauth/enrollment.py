@@ -13,7 +13,8 @@ from driveauth.matchers.face import FaceMatcher
 from driveauth.matchers.voice import VoiceMatcher
 from driveauth.ood_detector import OODDetector
 from driveauth.profile_store import ProfileStore
-from driveauth.template_store import ensure_key, save_embedding
+from driveauth.key_protection import KeyProtector, SoftwareKeyProtector
+from driveauth.template_store import TemplateStore, ensure_key, save_embedding
 
 logger = logging.getLogger("driveauth.enrollment")
 
@@ -187,7 +188,11 @@ def _load_wav(path: Path, sr: int = 16_000) -> np.ndarray:
 
 
 def mean_embed_voice(
-    store: Path, wavs: list[Path], driver_id: str
+    store: Path,
+    wavs: list[Path],
+    driver_id: str,
+    *,
+    protector: KeyProtector | None = None,
 ) -> np.ndarray:
     vm = VoiceMatcher.load(str(store / "enroll"), driver_id, store_dir=str(store))
     if vm._model is None:
@@ -204,12 +209,16 @@ def mean_embed_voice(
     if not embs:
         raise RuntimeError("no voice embeddings produced")
     mean = np.mean(np.stack(embs), axis=0).astype(np.float32)
-    save_embedding(store, f"voices/{driver_id}.enc", mean)
+    save_embedding(store, f"voices/{driver_id}.enc", mean, protector=protector)
     return mean
 
 
 def mean_embed_face(
-    store: Path, images: list[Path], driver_id: str
+    store: Path,
+    images: list[Path],
+    driver_id: str,
+    *,
+    protector: KeyProtector | None = None,
 ) -> np.ndarray:
     import cv2  # type: ignore
 
@@ -231,7 +240,7 @@ def mean_embed_face(
     if not embs:
         raise RuntimeError("no face embeddings produced")
     mean = np.mean(np.stack(embs), axis=0).astype(np.float32)
-    save_embedding(store, f"faces/{driver_id}.enc", mean)
+    save_embedding(store, f"faces/{driver_id}.enc", mean, protector=protector)
     return mean
 
 
@@ -365,12 +374,18 @@ def enroll_driver(
     driver_id: str,
     *,
     require_minimums: bool = True,
+    key_protector: KeyProtector | None = None,
 ) -> dict:
-    """Embed enroll samples and write encrypted templates + OOD baselines."""
+    """Embed enroll samples and write encrypted templates + OOD baselines.
+
+    ``key_protector`` defaults to :class:`SoftwareKeyProtector` (Fernet key
+    on disk, unchanged). Pass a TPM-backed protector to seal the Fernet key.
+    """
     driver_id = validate_driver_id(driver_id)
     store = Path(store_dir)
     data = Path(data_dir)
-    ensure_key(store)
+    protector = key_protector or SoftwareKeyProtector()
+    TemplateStore(store, protector=protector).ensure_key()
 
     wavs = list_enroll_wavs(data)
     images = list_enroll_images(data)
@@ -388,8 +403,8 @@ def enroll_driver(
     if not images:
         raise RuntimeError("no face enroll images")
 
-    v_emb = mean_embed_voice(store, wavs, driver_id)
-    f_emb = mean_embed_face(store, images, driver_id)
+    v_emb = mean_embed_voice(store, wavs, driver_id, protector=protector)
+    f_emb = mean_embed_face(store, images, driver_id, protector=protector)
 
     OODDetector.seed_baselines(
         str(store),
@@ -417,4 +432,5 @@ def enroll_driver(
         "face_template": f"faces/{driver_id}.enc",
         "store_dir": str(store),
         "data_dir": str(data),
+        "key_protector": type(protector).__name__,
     }
