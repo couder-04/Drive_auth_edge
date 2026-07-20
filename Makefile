@@ -10,7 +10,7 @@ help:
 install:
 	$(PIP) install -U pip
 	$(PIP) install -e ".[dev,dashboard,onnx]"
-	$(PIP) install "httpx>=0.27" "pytest-cov>=5.0"
+	$(PIP) install "httpx2>=2.0" "pytest-cov>=5.0"
 
 bootstrap:
 	$(PYTHON) scripts/bootstrap.py
