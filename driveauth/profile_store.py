@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 import time
 from dataclasses import asdict, dataclass
@@ -29,6 +30,21 @@ from driveauth import config, geo
 from driveauth.types import RiskContext
 
 logger = logging.getLogger("driveauth.profile")
+
+# Serialize atomic read-modify-write across ProfileStore instances that share
+# the same on-disk path (dashboard mock vs live auth both touch profiles/).
+_FILE_LOCKS: dict[str, threading.Lock] = {}
+_FILE_LOCKS_GUARD = threading.Lock()
+
+
+def _file_lock_for(path: Path) -> threading.Lock:
+    key = str(path.resolve())
+    with _FILE_LOCKS_GUARD:
+        lock = _FILE_LOCKS.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _FILE_LOCKS[key] = lock
+        return lock
 
 
 @dataclass
@@ -92,7 +108,8 @@ class ProfileStore:
         except Exception as exc:
             logger.warning("ProfileStore: load failed (%s) — starting fresh", exc)
 
-    def _save(self) -> None:
+    def _write_unlocked(self) -> None:
+        """Persist ``self._p``; caller must hold ``_file_lock_for(self._path)``."""
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             alldata = {}
@@ -102,11 +119,34 @@ class ProfileStore:
                 except Exception:
                     alldata = {}
             alldata[self._driver] = asdict(self._p)
-            tmp = self._path.with_suffix(".tmp")
+            # Unique tmp per write — shared ``driver1.tmp`` raced under load
+            # (Errno 2 on replace + occasional concatenated JSON).
+            tmp = self._path.with_name(
+                f"{self._path.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+            )
             tmp.write_text(json.dumps(alldata))
             tmp.replace(self._path)  # atomic write — no half-written schema (fix #7)
         except Exception as exc:
             logger.warning("ProfileStore: save failed (%s)", exc)
+            try:
+                if "tmp" in locals() and tmp.exists():
+                    tmp.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+    def _save(self) -> None:
+        # Per-path lock (not self._lock): callers may already hold self._lock,
+        # and distinct ProfileStore instances can share one JSON file.
+        with _file_lock_for(self._path):
+            self._write_unlocked()
+
+    def _mutate(self, fn) -> None:
+        """Reload from disk, apply ``fn(self._p)``, write — under the file lock."""
+        with _file_lock_for(self._path):
+            with self._lock:
+                self._load()
+                fn(self._p)
+            self._write_unlocked()
 
     # ── maturity (fix #6) ────────────────────────────────────────────────────
 
@@ -152,20 +192,24 @@ class ProfileStore:
         """
         n = max(int(config.BOOTSTRAP_MIN_TXNS), 1)
         age_s = max(float(config.BOOTSTRAP_MIN_DAYS), 1.0) * 86400.0 + 3600.0
-        with self._lock:
-            self._p.created_at = time.time() - age_s
-            self._p.txn_count = 0
-            self._p.amount_mean = 0.0
-            self._p.amount_m2 = 0.0
-            self._p.last_txn_at = 0.0
+
+        def _reset(p: DriverProfile) -> None:
+            p.created_at = time.time() - age_s
+            p.txn_count = 0
+            p.amount_mean = 0.0
+            p.amount_m2 = 0.0
+            p.last_txn_at = 0.0
+
+        self._mutate(_reset)
         for _ in range(n):
             self.record_transaction(typical_amount)
 
     def reset_bootstrap(self) -> None:
         """Clear history so the next auth sees an immature (bootstrap) profile."""
-        with self._lock:
-            self._p = DriverProfile(driver_id=self._driver, created_at=time.time())
-            self._save()
+        with _file_lock_for(self._path):
+            with self._lock:
+                self._p = DriverProfile(driver_id=self._driver, created_at=time.time())
+            self._write_unlocked()
 
     def apply_to_context(self, ctx: RiskContext) -> RiskContext:
         """Populate the RiskContext's per-user history fields from the profile.
@@ -201,22 +245,26 @@ class ProfileStore:
 
     def record_transaction(self, amount: float) -> None:
         """Welford online update of amount stats after a completed transaction."""
-        with self._lock:
-            self._p.txn_count += 1
-            delta = amount - self._p.amount_mean
-            self._p.amount_mean += delta / self._p.txn_count
-            self._p.amount_m2 += delta * (amount - self._p.amount_mean)
-            self._p.last_txn_at = time.time()
-            self._save()
+
+        def _apply(p: DriverProfile) -> None:
+            p.txn_count += 1
+            delta = amount - p.amount_mean
+            p.amount_mean += delta / p.txn_count
+            p.amount_m2 += delta * (amount - p.amount_mean)
+            p.last_txn_at = time.time()
+
+        self._mutate(_apply)
 
     def set_home(self, lat: float, lon: float) -> None:
         """Explicit home pin (register Maps picker) — distance live immediately."""
-        with self._lock:
-            self._p.home_lat = float(lat)
-            self._p.home_lon = float(lon)
-            self._p.home_n = max(int(self._p.home_n), int(config.HOME_LEARN_MIN_SAMPLES))
-            self._p.home_last_update_at = time.time()
-            self._save()
+
+        def _apply(p: DriverProfile) -> None:
+            p.home_lat = float(lat)
+            p.home_lon = float(lon)
+            p.home_n = max(int(p.home_n), int(config.HOME_LEARN_MIN_SAMPLES))
+            p.home_last_update_at = time.time()
+
+        self._mutate(_apply)
 
     def home_coords(self) -> tuple[float | None, float | None, int]:
         with self._lock:
@@ -243,17 +291,19 @@ class ProfileStore:
             return
         if not geo.valid_gps_accuracy(gps_accuracy_m, config.HOME_LEARN_MAX_ACCURACY_M):
             return
-        with self._lock:
-            n = self._p.home_n + 1
-            if self._p.home_lat is None or self._p.home_lon is None:
-                self._p.home_lat = float(gps_lat)
-                self._p.home_lon = float(gps_lon)
+
+        def _apply(p: DriverProfile) -> None:
+            n = p.home_n + 1
+            if p.home_lat is None or p.home_lon is None:
+                p.home_lat = float(gps_lat)
+                p.home_lon = float(gps_lon)
             else:
-                self._p.home_lat += (float(gps_lat) - self._p.home_lat) / n
-                self._p.home_lon += (float(gps_lon) - self._p.home_lon) / n
-            self._p.home_n = n
-            self._p.home_last_update_at = time.time()
-            self._save()
+                p.home_lat += (float(gps_lat) - p.home_lat) / n
+                p.home_lon += (float(gps_lon) - p.home_lon) / n
+            p.home_n = n
+            p.home_last_update_at = time.time()
+
+        self._mutate(_apply)
 
     def location_context(
         self, gps_lat: float | None, gps_lon: float | None
@@ -290,11 +340,15 @@ class ProfileStore:
         return bool(strong_auth_passed)
 
     def bump_ood_version(self) -> int:
-        with self._lock:
-            self._p.ood_version += 1
-            self._p.ood_last_refresh_at = time.time()
-            self._save()
-            return self._p.ood_version
+        out = {"v": 0}
+
+        def _apply(p: DriverProfile) -> None:
+            p.ood_version += 1
+            p.ood_last_refresh_at = time.time()
+            out["v"] = p.ood_version
+
+        self._mutate(_apply)
+        return int(out["v"])
 
     @property
     def ood_version(self) -> int:
