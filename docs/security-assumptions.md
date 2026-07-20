@@ -55,6 +55,19 @@ These are **design invariants**, not optional heuristics.
 | Ladder Bluetooth OTP (BLE GATT) | Stubbed + contract | Companion app UUID/payload documented; app itself **not** built this phase |
 | Paired-MAC gate | **Real check** | Refuses delivery unless paired MAC matches `contacts/{id}.bt_mac` |
 | IR capture / liveness / Hailo / GPIO | Mock / absent | Phases 2–5 |
+
+### Phase 0 note — `dist_from_home` retired as a risk feature
+
+`RiskModel` no longer includes a scaled `dist_from_home` feature
+(`clip01(dist_from_home_km / 50)` with a `far_from_home` reason at 0.6 ≈ 30 km).
+That threshold sat far above the synthetic trainer’s 3–15 km trusted-zone
+radii, so ordinary commute distances looked anomalous, and the signal
+duplicated `out_of_zone` (same Haversine in `geo.py`). **Closed for the
+model/feature schema:** `out_of_zone` is the sole geo-anomaly input.
+`RiskContext.dist_from_home_km` and CSV `dist_from_home_km` remain as raw
+telemetry. Do not re-add a `/50`-scaled feature without re-aligning the
+reason threshold to the training zone distribution.
+
 ## 3. Trust boundary
 
 ```

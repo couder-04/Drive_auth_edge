@@ -44,7 +44,7 @@ class TestFallbackWeightsSidecar:
         custom = {
             "amount_z_scaled": 0.5,
             "behavior_anomaly": 0.3,
-            "dist_from_home": 0.2,
+            "out_of_zone": 0.2,
         }
         (tmp_path / "risk_gbt_fallback_weights.json").write_text(
             json.dumps({"weights": custom})
@@ -153,3 +153,36 @@ class TestImportanceAwareReasons:
         )
         _, reasons = m.score(ctx)
         assert "unusual_hour" in reasons
+
+
+class TestDistFromHomeRetired:
+    """Phase 0: dist_from_home is no longer a risk feature."""
+
+    def test_feature_order_excludes_dist_from_home(self) -> None:
+        assert "dist_from_home" not in RiskModel._FEATURE_ORDER
+        assert "out_of_zone" in RiskModel._FEATURE_ORDER
+
+    def test_default_weights_exclude_dist_from_home(self) -> None:
+        assert "dist_from_home" not in _DEFAULT_FALLBACK_WEIGHTS
+        assert "out_of_zone" in _DEFAULT_FALLBACK_WEIGHTS
+        # Prior dist_from_home mass (0.12) folded into out_of_zone.
+        assert abs(sum(_DEFAULT_FALLBACK_WEIGHTS.values()) - 1.0) < 1e-9
+
+    def test_far_from_home_reason_never_emitted(self, tmp_path: Path) -> None:
+        m = RiskModel.load(str(tmp_path), strict=False)
+        # Large raw distance telemetry must not resurrect far_from_home;
+        # only out_of_zone (via in_trusted_zone) is the geo signal.
+        ctx = RiskContext(
+            amount=100.0, amount_mean=100.0, amount_std=50.0,
+            dist_from_home_km=80.0,
+            in_trusted_zone=False,
+        )
+        _, reasons = m.score(ctx)
+        assert "far_from_home" not in reasons
+        assert "unfamiliar_location" in reasons
+
+    def test_features_dict_excludes_dist_from_home(self, tmp_path: Path) -> None:
+        m = RiskModel.load(str(tmp_path), strict=False)
+        feats = m._features(RiskContext(dist_from_home_km=40.0, in_trusted_zone=True))
+        assert "dist_from_home" not in feats
+        assert feats["out_of_zone"] == 0.0

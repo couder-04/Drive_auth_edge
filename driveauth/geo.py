@@ -1,12 +1,16 @@
 """
 Geographic helpers for the risk pipeline (review fix #3).
 
-Two features consumed by ``RiskModel`` -- ``dist_from_home`` and ``out_of_zone``
--- had no runtime producer: they were declared on ``RiskContext`` and read by
-``_features()``, but nothing in the codebase ever computed them from live GPS.
-So in production they were permanently at their dataclass defaults
-(``dist_from_home_km=0.0``, ``in_trusted_zone=True``), meaning two of the top
-features from the trained model went dead at inference.
+``RiskContext.dist_from_home_km`` and ``in_trusted_zone`` are produced here
+from live GPS. Phase 0: only ``out_of_zone`` (from ``in_trusted_zone``) is a
+``RiskModel`` feature; raw ``dist_from_home_km`` remains telemetry. The scaled
+``dist_from_home`` feature was retired after a /50 clip + 30 km reason
+threshold mismatched the 3–15 km training zone radii (see
+``driveauth.risk_model`` module docstring).
+
+Before this module, nothing in the codebase ever computed those fields from
+live GPS, so in production they were permanently at their dataclass defaults
+(``dist_from_home_km=0.0``, ``in_trusted_zone=True``).
 
 This module supplies the producer: a pure Haversine distance and a
 zone-membership check. It has no state -- home learning lives on

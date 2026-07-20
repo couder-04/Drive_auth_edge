@@ -1,4 +1,17 @@
-"""Adaptive risk model — GPS/CAN/behaviour/transaction context (§7)."""
+"""Adaptive risk model — GPS/CAN/behaviour/transaction context (§7).
+
+Geo anomaly signal
+------------------
+``out_of_zone`` is the sole geographic risk feature. ``dist_from_home`` was
+retired (Phase 0): it was ``clip01(dist_from_home_km / 50)`` with a
+``far_from_home`` reason at feature value 0.6 (30 km), while the synthetic
+trainer draws trusted-zone radii from 3–15 km. That scale mismatch flagged
+ordinary commute-distance driving as anomalous, and the feature was largely
+redundant with ``out_of_zone`` (both derive from the same Haversine call in
+``geo.py``). Raw ``RiskContext.dist_from_home_km`` is retained as telemetry;
+do not re-add a scaled ``dist_from_home`` feature at the old /50 clip without
+re-aligning the reason threshold to the training zone distribution.
+"""
 
 from __future__ import annotations
 
@@ -21,12 +34,13 @@ RISK_REJECT = config.RISK_REJECT
 # When the trainer writes ``risk_gbt_fallback_weights.json`` these are
 # overridden per deployment so the fallback reflects what the trained model
 # actually learned instead of a hand-tuned prior (review fix #8).
+# Phase 0: ``dist_from_home`` retired; its prior 0.12 weight is folded into
+# ``out_of_zone`` so the sole geo signal keeps the same total geo mass.
 _DEFAULT_FALLBACK_WEIGHTS = {
     "amount_z_scaled": 0.22,   # amount_z is transformed via clip01(x/4) below
     "amount_norm": 0.14,
     "beneficiary_novel": 0.16,
-    "dist_from_home": 0.12,
-    "out_of_zone": 0.12,
+    "out_of_zone": 0.24,
     "night": 0.06,
     "moving_fast": 0.06,
     "ignition_off_anomaly": 0.04,
@@ -40,7 +54,6 @@ class RiskModel:
         "amount_z",
         "amount_norm",
         "beneficiary_novel",
-        "dist_from_home",
         "out_of_zone",
         "night",
         "moving_fast",
@@ -170,7 +183,6 @@ class RiskModel:
             "amount_z": amount_z,
             "amount_norm": clip01(ctx.amount / 100_000.0),
             "beneficiary_novel": 0.0 if ctx.beneficiary_known else 1.0,
-            "dist_from_home": clip01(ctx.dist_from_home_km / 50.0),
             "out_of_zone": 0.0 if ctx.in_trusted_zone else 1.0,
             "night": night,
             "moving_fast": moving_fast,
@@ -224,7 +236,6 @@ class RiskModel:
             w.get("amount_z_scaled", 0.0) * clip01(feats["amount_z"] / 4.0)
             + w.get("amount_norm", 0.0) * feats["amount_norm"]
             + w.get("beneficiary_novel", 0.0) * feats["beneficiary_novel"]
-            + w.get("dist_from_home", 0.0) * feats["dist_from_home"]
             + w.get("out_of_zone", 0.0) * feats["out_of_zone"]
             + w.get("night", 0.0) * feats["night"]
             + w.get("moving_fast", 0.0) * feats["moving_fast"]
@@ -242,7 +253,6 @@ class RiskModel:
         "amount_norm": (0.5, "large_absolute_amount"),
         "beneficiary_novel": (0.5, "first_time_beneficiary"),
         "out_of_zone": (0.5, "unfamiliar_location"),
-        "dist_from_home": (0.6, "far_from_home"),
         "night": (0.5, "unusual_hour"),
         "moving_fast": (0.3, "transaction_while_moving"),
         "behavior_anomaly": (0.4, "driving_style_anomaly"),
