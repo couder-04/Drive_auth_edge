@@ -308,6 +308,7 @@ class DecisionEngine:
         session_id: str = "",
         voice_expected: bool | None = None,
         face_expected: bool | None = None,
+        stage3_mode: str | None = None,
     ) -> DriveAuthResult:
         t_start = time.monotonic()
         self._last_liveness_ms = None
@@ -379,6 +380,7 @@ class DecisionEngine:
                 fraud_rigor=rigor,
                 profile_mature=profile_mature,
                 fingerprint_available=self._m.fingerprint_available,
+                stage3_mode=stage3_mode,
             )
             explanations.append(f"escalation_{plan.reason}")
             for mod, bar in plan.accept_bars.items():

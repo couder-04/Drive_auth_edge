@@ -397,7 +397,8 @@ def render_register() -> str:
       <h3>4 · Home (required)</h3>
       <p style="color:var(--muted);font-size:0.85rem;margin-bottom:0.5rem">
         Pin this driver’s home on the map before enroll. Linked to the driver
-        profile and used as <code>dist_from_home_km</code> during authorization.
+        profile and used to derive <code>in_trusted_zone</code> during authorization
+        (raw distance is telemetry only — not a risk feature).
       </p>
       <div class="row">
         <button id="btn_home_geo" class="secondary" type="button">Use my location</button>

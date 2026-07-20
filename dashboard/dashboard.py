@@ -666,9 +666,185 @@ def render_dashboard(*, mode: str = "manual") -> str:
     }
     .stair-step[data-rung="voice"]  { --indent: 0%; }
     .stair-step[data-rung="face"]   { --indent: 14%; }
-    .stair-step[data-rung="finger"] { --indent: 28%; }
+    .stair-step[data-rung="stage3"] { --indent: 28%; }
     .stair-riser[data-after="voice"] { --indent: 7%; }
     .stair-riser[data-after="face"]  { --indent: 21%; }
+    .stage3-lanes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.45rem;
+      margin-top: 0.45rem;
+    }
+    .stair-sub {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.45rem 0.5rem;
+      background: rgba(0,0,0,0.25);
+      opacity: 0.45;
+      transition: opacity 0.3s, border-color 0.3s, background 0.3s, box-shadow 0.3s;
+    }
+    .stair-sub.on { opacity: 1; }
+    .stair-sub.probing {
+      opacity: 1;
+      border-color: rgba(56, 189, 248, 0.55);
+      background: rgba(56, 189, 248, 0.1);
+      animation: stair-pulse 0.9s ease-in-out infinite;
+    }
+    .stair-sub.accept {
+      border-color: rgba(52,211,153,0.55);
+      background: rgba(52,211,153,0.12);
+      box-shadow: 0 0 12px rgba(52,211,153,0.2);
+    }
+    .stair-sub.escalate {
+      border-color: rgba(251,191,36,0.5);
+      background: rgba(251,191,36,0.1);
+    }
+    .stair-sub.reject, .stair-sub.unavailable {
+      border-color: rgba(248,113,113,0.45);
+      background: rgba(248,113,113,0.08);
+    }
+    .stair-sub.not_attempted, .stair-sub.skipped, .stair-sub.locked {
+      opacity: 0.35;
+      border-style: dashed;
+    }
+    .stair-sub .s-top { margin-bottom: 0.15rem; }
+    .stair-sub .s-label { font-size: 0.72rem; }
+    .stair-sub .s-score { font-size: 0.85rem; }
+    .stair-sub .s-detail { font-size: 0.62rem; min-height: 1.4em; }
+    .stage3-or {
+      grid-column: 1 / -1;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--faint);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.5;
+      transition: opacity 0.3s, color 0.3s;
+    }
+    .stage3-or.on {
+      opacity: 1;
+      color: var(--stepup);
+    }
+    .stage3-or.fallback {
+      color: var(--stepup);
+      animation: stair-pulse 0.8s ease-in-out 2;
+    }
+    .mod-badge {
+      display: inline-block;
+      margin-left: 0.35rem;
+      padding: 0.08rem 0.4rem;
+      border-radius: 999px;
+      font-size: 0.58rem;
+      font-family: var(--mono);
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      vertical-align: middle;
+    }
+    .mod-badge.real { color: var(--accept); border-color: rgba(52,211,153,0.4); }
+    .mod-badge.daemon { color: var(--sky); border-color: rgba(56,189,248,0.4); }
+    .mod-badge.standin { color: var(--stepup); border-color: rgba(251,191,36,0.4); }
+    .pitch-banner {
+      margin: 0 0 0.85rem;
+      padding: 0.55rem 0.85rem;
+      border: 1px solid rgba(45, 212, 191, 0.35);
+      border-radius: 10px;
+      background: rgba(45, 212, 191, 0.07);
+      font-size: 0.82rem;
+      color: var(--text);
+      line-height: 1.35;
+    }
+    .pitch-banner strong { color: var(--cyan); font-weight: 600; }
+    .scenario-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 0.85rem;
+    }
+    .scenario-row .scenario-btn {
+      font-size: 0.72rem;
+      padding: 0.4rem 0.65rem;
+    }
+    .driver-callout {
+      margin: 0.55rem 0 0.35rem;
+      padding: 0.45rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: rgba(0,0,0,0.25);
+    }
+    .driver-callout.trust { border-color: rgba(52,211,153,0.45); color: var(--accept); }
+    .driver-callout.risk { border-color: rgba(248,113,113,0.45); color: var(--reject); }
+    .driver-callout.fraud { border-color: rgba(248,113,113,0.55); color: var(--reject); }
+    .driver-callout.policy { border-color: rgba(251,191,36,0.45); color: var(--stepup); }
+    .policy-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.45rem; }
+    .policy-tags .tag {
+      background: rgba(251,191,36,0.12);
+      border-color: rgba(251,191,36,0.35);
+      color: var(--stepup);
+    }
+    .score-card.driver {
+      outline: 1px solid rgba(45, 212, 191, 0.45);
+      box-shadow: 0 0 14px rgba(45, 212, 191, 0.12);
+    }
+    .perf-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+      gap: 0.4rem;
+      margin-top: 0.65rem;
+      padding-top: 0.65rem;
+      border-top: 1px solid var(--border);
+    }
+    .perf-strip .pm {
+      background: rgba(0,0,0,0.28);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.4rem 0.45rem;
+    }
+    .perf-strip .pm .pl {
+      font-size: 0.58rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .perf-strip .pm .pv {
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      margin-top: 0.15rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .perf-meta {
+      font-size: 0.68rem;
+      color: var(--faint);
+      margin-top: 0.4rem;
+      font-family: var(--mono);
+    }
+    .audit-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+      margin-bottom: 0.55rem;
+    }
+    .chain-badge {
+      font-size: 0.68rem;
+      font-family: var(--mono);
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .chain-badge.ok { color: var(--accept); border-color: rgba(52,211,153,0.45); }
+    .chain-badge.bad { color: var(--reject); border-color: rgba(248,113,113,0.45); }
+    .flow-stage.reject .flow-card {
+      border-color: rgba(248,113,113,0.65);
+      background: rgba(248,113,113,0.14);
+      box-shadow: 0 0 18px rgba(248,113,113,0.18);
+    }
+    .flow-stage.reject .fc-title { color: var(--reject); }
     .stair-step.on {
       opacity: 1;
       transform: none;
@@ -938,7 +1114,7 @@ def render_dashboard(*, mode: str = "manual") -> str:
       <div class="shipped-intro">
         <h2>July 2026</h2>
         <strong>Shipped stack</strong>
-        <p>Phases 1→6 live. Finger / real CAN still HW-gated.</p>
+        <p>Code-side MVP through stage 11 (UART finger adapter · Docker · install · perf/fleet). Real Pi / sensor soak still HW-gated.</p>
       </div>
       <div class="phase-strip" id="phase-strip" aria-label="Delivery status"></div>
     </section>
@@ -1001,6 +1177,9 @@ def render_dashboard(*, mode: str = "manual") -> str:
       <!-- Col 2: live pipeline -->
       <div class="col-stack pipeline-col">
         <section class="panel pipeline-panel">
+          <div class="pitch-banner" role="note">
+            <strong>DriveAuth Edge</strong> — cabin biometric auth + payment step-up · offline · auditable · fail-closed
+          </div>
           <div class="pipeline-head">
             <div>
               <h2>Live security pipeline</h2>
@@ -1009,6 +1188,15 @@ def render_dashboard(*, mode: str = "manual") -> str:
             <div id="live-pill" class="live-pill idle"><span class="dot"></span> Idle</div>
           </div>
           <div id="path-summary">Set inputs or pick a preset, then run authenticate.</div>
+          <div class="perf-strip" id="perf-strip" aria-label="Inference latency">
+            <div class="pm"><div class="pl">Voice ms</div><div class="pv" id="perf-voice">—</div></div>
+            <div class="pm"><div class="pl">Face ms</div><div class="pv" id="perf-face">—</div></div>
+            <div class="pm"><div class="pl">Finger ms</div><div class="pv" id="perf-finger">—</div></div>
+            <div class="pm"><div class="pl">Total ms</div><div class="pv" id="perf-total">—</div></div>
+            <div class="pm"><div class="pl">CPU %</div><div class="pv" id="perf-cpu">—</div></div>
+            <div class="pm"><div class="pl">RAM %</div><div class="pv" id="perf-ram">—</div></div>
+          </div>
+          <div class="perf-meta" id="perf-meta">Backend: — · Hailo: —</div>
           <div class="flow" id="pipeline-flow">
             <div class="flow-stage" data-stage="intent">
               <div class="flow-rail"><div class="flow-node"></div><div class="flow-line"></div></div>
@@ -1035,14 +1223,13 @@ def render_dashboard(*, mode: str = "manual") -> str:
               <div class="flow-rail"><div class="flow-node"></div><div class="flow-line"></div></div>
               <div class="flow-card">
                 <div class="fc-title">4 · Biometric ladder<div class="fc-status">—</div></div>
-                <div class="fc-detail">Voice → Face → Finger (early-stop on accept)</div>
+                <div class="fc-detail">Voice → Face → Stage-3 OR (Finger | Bluetooth OTP)</div>
                 <div class="stair" id="escalation-stair" aria-label="Escalation staircase">
                   <div class="stair-caption">Escalation staircase</div>
                   <div class="stair-steps">
-                    <!-- column-reverse: voice renders as the lowest tread -->
                     <div class="stair-step" data-rung="voice" data-step="1">
                       <div class="s-top">
-                        <div class="s-label"><span class="s-n">1</span> Voice</div>
+                        <div class="s-label"><span class="s-n">1</span> Voice <span class="mod-badge" id="badge-voice">…</span></div>
                         <div class="s-badge" id="stair-voice-badge">idle</div>
                       </div>
                       <div class="s-score" id="rung-voice-score">—</div>
@@ -1052,22 +1239,40 @@ def render_dashboard(*, mode: str = "manual") -> str:
                     <div class="stair-riser" data-after="voice"><span class="arrow">↑</span> escalate</div>
                     <div class="stair-step" data-rung="face" data-step="2">
                       <div class="s-top">
-                        <div class="s-label"><span class="s-n">2</span> Face</div>
+                        <div class="s-label"><span class="s-n">2</span> Face <span class="mod-badge" id="badge-face">…</span></div>
                         <div class="s-badge" id="stair-face-badge">idle</div>
                       </div>
                       <div class="s-score" id="rung-face-score">—</div>
-                      <div class="s-detail" id="rung-face-detail">MobileFaceNet · PAD</div>
+                      <div class="s-detail" id="rung-face-detail">MobileFaceNet · PAD <span class="mod-badge" id="badge-liveness">liveness…</span></div>
                       <div class="s-bar"><i id="rung-face-bar"></i></div>
                     </div>
                     <div class="stair-riser" data-after="face"><span class="arrow">↑</span> escalate</div>
-                    <div class="stair-step" data-rung="finger" data-step="3">
+                    <div class="stair-step" data-rung="stage3" data-step="3">
                       <div class="s-top">
-                        <div class="s-label"><span class="s-n">3</span> Fingerprint</div>
-                        <div class="s-badge" id="stair-finger-badge">idle</div>
+                        <div class="s-label"><span class="s-n">3</span> Stage-3 OR</div>
+                        <div class="s-badge" id="stair-stage3-badge">idle</div>
                       </div>
-                      <div class="s-score" id="rung-finger-score">—</div>
-                      <div class="s-detail" id="rung-finger-detail">SDK / mock until HW · highest assurance</div>
-                      <div class="s-bar"><i id="rung-finger-bar"></i></div>
+                      <div class="stage3-lanes">
+                        <div class="stage3-or" id="stage3-or">finger OR bluetooth OTP</div>
+                        <div class="stair-sub" data-rung="finger" id="sub-finger">
+                          <div class="s-top">
+                            <div class="s-label">Fingerprint <span class="mod-badge" id="badge-finger">…</span></div>
+                            <div class="s-badge" id="stair-finger-badge">idle</div>
+                          </div>
+                          <div class="s-score" id="rung-finger-score">—</div>
+                          <div class="s-detail" id="rung-finger-detail">UART / ManualScores</div>
+                          <div class="s-bar"><i id="rung-finger-bar"></i></div>
+                        </div>
+                        <div class="stair-sub" data-rung="otp" id="sub-otp">
+                          <div class="s-top">
+                            <div class="s-label">Bluetooth OTP</div>
+                            <div class="s-badge" id="stair-otp-badge">idle</div>
+                          </div>
+                          <div class="s-score" id="rung-otp-score">—</div>
+                          <div class="s-detail" id="rung-otp-detail">Paired-phone ladder lane</div>
+                          <div class="s-bar"><i id="rung-otp-bar"></i></div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <div class="stair-foot" id="stair-foot">Idle — run authenticate to climb</div>
@@ -1097,6 +1302,8 @@ def render_dashboard(*, mode: str = "manual") -> str:
             Mimic sensors Nova will feed automatically (mic, camera, fingerprint, CAN, GPS).
             Same schema — different source in production.
           </p>
+          <div class="manual-block-title">Demo scenarios</div>
+          <div class="scenario-row" id="scenario-row"></div>
           <div class="manual-block-title">Biometric match scores</div>
           <label>Voice <span id="voice-val">0.92</span></label>
           <input id="voice" type="range" min="0" max="1" step="0.01" value="0.92" />
@@ -1104,10 +1311,11 @@ def render_dashboard(*, mode: str = "manual") -> str:
           <input id="face" type="range" min="0" max="1" step="0.01" value="0.88" />
           <label>Finger <span id="finger-val">0.85</span></label>
           <input id="finger" type="range" min="0" max="1" step="0.01" value="0.85" />
-          <label>Behavioral <span id="behavioral-val">0.95</span></label>
+          <label>Behavioral <span id="behavioral-val">0.95</span> <span class="mod-badge" id="badge-can">…</span></label>
           <input id="behavioral" type="range" min="0" max="1" step="0.01" value="0.95" />
 
           <div class="manual-block-title">GPS (vehicle / telematics)</div>
+          <p class="hint">Risk uses trusted-zone only (Phase 0). Distance is telemetry / override.</p>
           <div class="row">
             <div>
               <label>gps_lat</label>
@@ -1120,12 +1328,12 @@ def render_dashboard(*, mode: str = "manual") -> str:
           </div>
           <label>gps_accuracy_m</label>
           <input id="gps_accuracy_m" type="number" value="50" min="0" step="1" />
-          <label>dist_from_home_km</label>
-          <input id="dist_home" type="number" value="0" min="0" step="0.1" />
           <div class="checkbox-row">
             <input id="trusted_zone" type="checkbox" checked />
             <label for="trusted_zone" style="margin:0">in_trusted_zone</label>
           </div>
+          <label>dist_from_home_km <span style="color:var(--faint);font-weight:400">(telemetry / override · not a risk feature)</span></label>
+          <input id="dist_home" type="number" value="0" min="0" step="0.1" />
 
           <div class="manual-block-title">Vehicle / CAN</div>
           <label>speed_kmh</label>
@@ -1146,26 +1354,29 @@ def render_dashboard(*, mode: str = "manual") -> str:
         <section class="panel">
           <h2>Result</h2>
           <div id="decision-banner" class="decision-banner">—</div>
+          <div id="driver-callout" class="driver-callout" style="display:none"></div>
           <div class="scores">
-            <div class="score-card">
+            <div class="score-card" id="trust-card">
               <div class="label">Trust</div>
               <div class="value" id="trust-val">—</div>
               <div class="bar-wrap"><div class="bar" id="trust-bar" style="background:var(--accept)"></div></div>
             </div>
-            <div class="score-card">
+            <div class="score-card" id="risk-card">
               <div class="label">Risk</div>
               <div class="value" id="risk-val">—</div>
               <div class="bar-wrap"><div class="bar" id="risk-bar" style="background:var(--risk)"></div></div>
             </div>
-            <div class="score-card">
+            <div class="score-card" id="conf-card">
               <div class="label">Confidence</div>
               <div class="value" id="conf-val">—</div>
               <div class="bar-wrap"><div class="bar" id="conf-bar" style="background:var(--sky)"></div></div>
             </div>
           </div>
+          <div class="policy-tags" id="policy-tags"></div>
           <dl class="meta">
             <dt>Tier</dt><dd id="tier">—</dd>
             <dt>Policy rule</dt><dd id="policy">—</dd>
+            <dt>Stage-3</dt><dd id="stage3-method">—</dd>
             <dt>Step-up</dt><dd id="stepup">—</dd>
             <dt>Legacy (Nova)</dt><dd id="legacy">—</dd>
             <dt>Explanations</dt>
@@ -1177,6 +1388,12 @@ def render_dashboard(*, mode: str = "manual") -> str:
 
         <section class="panel">
           <h2>Audit log</h2>
+          <div class="audit-toolbar">
+            <button class="btn-secondary" type="button" onclick="verifyAuditChain()">Verify chain</button>
+            <span class="chain-badge" id="chain-badge">chain · unchecked</span>
+            <button class="btn-danger" type="button" id="btn-demo-tamper" style="display:none"
+              onclick="demoTamperAudit()">Demo only · tamper last entry</button>
+          </div>
           <div class="audit-list" id="audit-list">No events yet.</div>
         </section>
       </div>
@@ -1186,14 +1403,12 @@ def render_dashboard(*, mode: str = "manual") -> str:
 
   <script>
     const PHASES = [
-      { id: "P1", title: "Edge Thor/Mac", state: "done", label: "Done" },
-      { id: "P2a", title: "ECAPA · MFN · Risk", state: "done", label: "Done" },
-      { id: "P2b", title: "PAD · calibrators", state: "done", label: "Done" },
-      { id: "P3", title: "Datasets", state: "done", label: "Done" },
-      { id: "P4", title: "ONNX heads", state: "done", label: "Done" },
-      { id: "P5", title: "155+ tests", state: "done", label: "Done" },
-      { id: "P6", title: "FAR/FRR/EER", state: "done", label: "Done" },
-      { id: "HW", title: "Finger · real CAN", state: "partial", label: "HW" },
+      { id: "P0", title: "Zone-only geo risk", state: "done", label: "Done" },
+      { id: "P1–6", title: "Ladder · models · eval", state: "done", label: "Done" },
+      { id: "P5", title: "160+ tests", state: "done", label: "Done" },
+      { id: "P7–10", title: "Liveness · BLE · keys · CAN", state: "done", label: "Done" },
+      { id: "P11", title: "UART · Docker · perf", state: "done", label: "Done" },
+      { id: "HW", title: "Pi · Hailo · live bus", state: "partial", label: "HW" },
     ];
 
     const SOURCES = [
@@ -1220,16 +1435,16 @@ def render_dashboard(*, mode: str = "manual") -> str:
         name: "Fingerprint",
         lane: "trust",
         input: "ModalityResult.score ∈ [0,1]",
-        source: "<strong>Finger SDK</strong> (mock / ManualScores until HW)",
+        source: "<strong>UART adapter + daemon</strong> shipped · ManualScores stand-in here · real sensor still HW",
         nowKey: "finger",
-        format: (p) => `slider ${Number(p.mock_scores.finger).toFixed(2)} (awaiting HW)`,
+        format: (p) => `slider ${Number(p.mock_scores.finger).toFixed(2)} (ManualScores)`,
       },
       {
         id: "behavioral",
         name: "Behavioral / CAN",
         lane: "risk",
         input: "update_behavioral({8 CAN features})",
-        source: "<strong>CAN recorder</strong> → behavioral ONNX (synth bake-off today)",
+        source: "<strong>CAN logger harness</strong> · synth bake-off ONNX today · live bus still HW",
         nowKey: "behavioral",
         format: (p) => `slider ${Number(p.mock_scores.behavioral).toFixed(2)} · speed ${p.context.speed_kmh}`,
       },
@@ -1246,15 +1461,19 @@ def render_dashboard(*, mode: str = "manual") -> str:
         id: "gps",
         name: "GPS / zone",
         lane: "risk",
-        input: "update_vehicle_context(gps_*)",
-        source: "<strong>Vehicle telematics</strong> (manual in dashboard until Nova wire)",
+        input: "update_vehicle_context(gps_*) · in_trusted_zone",
+        source: "<strong>Vehicle telematics</strong> · risk = zone only (Phase 0) · dist is telemetry",
         nowKey: "gps",
         format: (p) => {
           const c = p.context;
           const g = (c.gps_lat != null && c.gps_lon != null)
             ? `${c.gps_lat}, ${c.gps_lon}`
-            : `home ${c.dist_from_home_km} km`;
-          return `${g} · zone ${c.in_trusted_zone ? "trusted" : "outside"}`;
+            : "no GPS fix";
+          const zone = c.in_trusted_zone ? "trusted" : "outside";
+          const dist = c.dist_from_home_km != null
+            ? ` · dist ${c.dist_from_home_km} km (telemetry)`
+            : "";
+          return `${g} · zone ${zone}${dist}`;
         },
       },
       {
@@ -1319,6 +1538,9 @@ def render_dashboard(*, mode: str = "manual") -> str:
           gps_lon: numOrNull("gps_lon"),
           gps_accuracy_m: parseFloat(document.getElementById("gps_accuracy_m").value) || 50,
         },
+        fingerprint_available: window.__demoFingerAvail,
+        stage3_mode: window.__demoStage3Mode || null,
+        otp_demo: !!window.__demoOtp,
       };
     }
 
@@ -1335,6 +1557,9 @@ def render_dashboard(*, mode: str = "manual") -> str:
         if (m[k] != null) {
           document.getElementById(k).value = m[k];
           document.getElementById(k + "-val").textContent = m[k];
+        } else if (k === "finger" && m[k] === null) {
+          document.getElementById("finger").value = 0;
+          document.getElementById("finger-val").textContent = "0";
         }
       });
       const c = p.context || {};
@@ -1346,6 +1571,9 @@ def render_dashboard(*, mode: str = "manual") -> str:
       document.getElementById("gps_lat").value = c.gps_lat ?? "";
       document.getElementById("gps_lon").value = c.gps_lon ?? "";
       document.getElementById("gps_accuracy_m").value = c.gps_accuracy_m ?? 50;
+      window.__demoFingerAvail = (p.fingerprint_available === undefined) ? null : p.fingerprint_available;
+      window.__demoStage3Mode = p.stage3_mode || null;
+      window.__demoOtp = !!p.otp_demo;
       refreshSources();
     }
 
@@ -1392,18 +1620,29 @@ def render_dashboard(*, mode: str = "manual") -> str:
       document.querySelectorAll(".stair-step").forEach(el => {
         el.className = "stair-step";
       });
+      document.querySelectorAll(".stair-sub").forEach(el => {
+        el.className = "stair-sub";
+      });
       document.querySelectorAll(".stair-riser").forEach(el => {
         el.classList.remove("on");
       });
-      ["voice","face","finger"].forEach(m => {
-        document.getElementById("rung-" + m + "-score").textContent = "—";
-        document.getElementById("rung-" + m + "-bar").style.width = "0%";
+      const orEl = document.getElementById("stage3-or");
+      if (orEl) { orEl.className = "stage3-or"; orEl.textContent = "finger OR bluetooth OTP"; }
+      ["voice","face","finger","otp"].forEach(m => {
+        const score = document.getElementById("rung-" + m + "-score");
+        const bar = document.getElementById("rung-" + m + "-bar");
         const badge = document.getElementById("stair-" + m + "-badge");
+        if (score) score.textContent = "—";
+        if (bar) bar.style.width = "0%";
         if (badge) badge.textContent = "idle";
       });
+      const s3b = document.getElementById("stair-stage3-badge");
+      if (s3b) s3b.textContent = "idle";
       document.getElementById("rung-voice-detail").textContent = "ECAPA · QualityGate · lowest friction";
       document.getElementById("rung-face-detail").textContent = "MobileFaceNet · PAD";
-      document.getElementById("rung-finger-detail").textContent = "SDK / mock until HW · highest assurance";
+      document.getElementById("rung-finger-detail").textContent = "UART / ManualScores";
+      const otpDetail = document.getElementById("rung-otp-detail");
+      if (otpDetail) otpDetail.textContent = "Paired-phone ladder lane";
       const foot = document.getElementById("stair-foot");
       if (foot) foot.textContent = "Idle — run authenticate to climb";
     }
@@ -1450,9 +1689,12 @@ def render_dashboard(*, mode: str = "manual") -> str:
     async function animateStaircase(rungs, pipeline) {
       const probed = (pipeline && pipeline.probed) || [];
       const foot = document.getElementById("stair-foot");
-      const climb = probed.length
-        ? probed.map(m => m === "finger" ? "Fingerprint" : m.charAt(0).toUpperCase() + m.slice(1)).join(" → ")
-        : "—";
+      const labelMod = (m) => {
+        if (m === "finger") return "Fingerprint";
+        if (m === "otp") return "Bluetooth OTP";
+        return m.charAt(0).toUpperCase() + m.slice(1);
+      };
+      const climb = probed.length ? probed.map(labelMod).join(" → ") : "—";
       if (foot) {
         foot.textContent = `Climbing: ${climb}` +
           (pipeline.accept_modality
@@ -1462,38 +1704,68 @@ def render_dashboard(*, mode: str = "manual") -> str:
               : "");
       }
 
-      // Live climb in actual probe order only — locked rungs stay dark.
       const byId = {};
       rungs.forEach(r => { byId[r.id] = r; });
       const order = probed.length ? probed : [];
-      const ladderOrder = ["voice", "face", "finger"];
+      const ladderOrder = ["voice", "face", "finger", "otp"];
+      const stage3El = document.querySelector('.stair-step[data-rung="stage3"]');
 
       for (let i = 0; i < order.length; i++) {
         const id = order[i];
         const rung = byId[id];
         if (!rung) continue;
-        const rEl = document.querySelector(`.stair-step[data-rung="${id}"]`);
+
+        if (id === "finger" || id === "otp") {
+          if (stage3El) stage3El.className = "stair-step on probing";
+          const s3badge = document.getElementById("stair-stage3-badge");
+          if (s3badge) s3badge.textContent = "stage-3";
+        }
+
+        // Animate finger→OTP OR fallback mid-flow.
+        if (id === "otp") {
+          const fingerRung = byId["finger"];
+          const orEl = document.getElementById("stage3-or");
+          if (fingerRung && (fingerRung.status === "unavailable" || fingerRung.status === "escalate")) {
+            const subF = document.getElementById("sub-finger");
+            if (subF) {
+              subF.className = "stair-sub on " + (fingerRung.status || "unavailable");
+              document.getElementById("stair-finger-badge").textContent = fingerRung.status || "unavailable";
+              document.getElementById("rung-finger-detail").textContent = fingerRung.detail || "unavailable";
+            }
+            if (orEl) {
+              orEl.className = "stage3-or on fallback";
+              orEl.textContent = "OR fallback → Bluetooth OTP";
+            }
+            await sleep(320);
+          } else if (orEl) {
+            orEl.className = "stage3-or on";
+          }
+        }
+
+        const isStage3 = (id === "finger" || id === "otp");
+        const rEl = isStage3
+          ? document.getElementById("sub-" + id)
+          : document.querySelector(`.stair-step[data-rung="${id}"]`);
         if (!rEl) continue;
 
-        rEl.className = "stair-step probing";
+        rEl.className = (isStage3 ? "stair-sub" : "stair-step") + " probing";
         const badge = document.getElementById("stair-" + id + "-badge");
         if (badge) badge.textContent = "probing";
         await sleep(220);
 
         const score = rung.score;
-        document.getElementById("rung-" + id + "-score").textContent =
-          score == null ? "—" : Number(score).toFixed(3);
-        document.getElementById("rung-" + id + "-detail").textContent = rung.detail || "";
-        document.getElementById("rung-" + id + "-bar").style.width =
-          score == null ? "0%" : Math.round(Number(score) * 100) + "%";
-        rEl.className = "stair-step on " + (rung.status || "");
+        const scoreEl = document.getElementById("rung-" + id + "-score");
+        const detailEl = document.getElementById("rung-" + id + "-detail");
+        const barEl = document.getElementById("rung-" + id + "-bar");
+        if (scoreEl) scoreEl.textContent = score == null ? "—" : Number(score).toFixed(3);
+        if (detailEl) detailEl.textContent = rung.detail || "";
+        if (barEl) barEl.style.width = score == null ? "0%" : Math.round(Number(score) * 100) + "%";
+        rEl.className = (isStage3 ? "stair-sub" : "stair-step") + " on " + (rung.status || "");
         if (badge) badge.textContent = rung.status || "done";
 
-        // Only light the escalate riser when the *next* rung was also probed
-        // this call — never preview a still-locked face/finger tread.
         if (rung.status === "escalate") {
           const nextMod = ladderOrder[ladderOrder.indexOf(id) + 1];
-          if (nextMod && probed.includes(nextMod)) {
+          if (nextMod && probed.includes(nextMod) && (id === "voice" || id === "face")) {
             const riser = document.querySelector(`.stair-riser[data-after="${id}"]`);
             if (riser) riser.classList.add("on");
           }
@@ -1501,23 +1773,54 @@ def render_dashboard(*, mode: str = "manual") -> str:
         await sleep(180);
       }
 
-      // Leave non-probed treads dark — locked for this call (not lit).
+      // Paint non-probed stage-3 lanes (unavailable / not attempted / skipped).
+      const stage3 = (pipeline.stages || []).find(s => s.id === "ladder");
+      const lanes = (stage3 && stage3.stage3_lanes) || [];
+      for (const lane of lanes) {
+        if (probed.includes(lane.id)) continue;
+        const sub = document.getElementById("sub-" + lane.id);
+        if (!sub) continue;
+        sub.className = "stair-sub on " + (lane.status || "locked");
+        const badge = document.getElementById("stair-" + lane.id + "-badge");
+        if (badge) badge.textContent = lane.status || "locked";
+        const detail = document.getElementById("rung-" + lane.id + "-detail");
+        if (detail) detail.textContent = lane.detail || "";
+        const scoreEl = document.getElementById("rung-" + lane.id + "-score");
+        if (scoreEl) scoreEl.textContent = lane.score == null ? "—" : Number(lane.score).toFixed(3);
+      }
+      if (stage3El && (probed.includes("finger") || probed.includes("otp") || lanes.length)) {
+        const anyAccept = lanes.some(l => l.status === "accept");
+        const anyReject = lanes.every(l => l.status === "reject" || l.status === "unavailable" || l.status === "not_attempted" || l.status === "skipped" || l.status === "locked") && probed.some(p => p === "finger" || p === "otp");
+        stage3El.className = "stair-step on " + (anyAccept ? "accept" : (pipeline.accept_modality ? "skipped" : "on"));
+        const s3badge = document.getElementById("stair-stage3-badge");
+        if (s3badge) {
+          s3badge.textContent = pipeline.stage3_method || (anyAccept ? "accept" : "done");
+        }
+      }
+
+      // Leave non-probed early rungs dark.
       for (const rung of rungs) {
-        if (order.includes(rung.id)) continue;
+        if (order.includes(rung.id) || rung.stage3) continue;
+        if (rung.id === "finger" || rung.id === "otp") continue;
         const rEl = document.querySelector(`.stair-step[data-rung="${rung.id}"]`);
         if (!rEl) continue;
         const status = rung.status === "skipped" ? "skipped" : "locked";
         rEl.className = "stair-step " + status;
         const badge = document.getElementById("stair-" + rung.id + "-badge");
         if (badge) badge.textContent = status;
-        document.getElementById("rung-" + rung.id + "-detail").textContent =
-          rung.detail || (status === "locked" ? "locked · not in this call" : "");
-        document.getElementById("rung-" + rung.id + "-score").textContent = "—";
-        document.getElementById("rung-" + rung.id + "-bar").style.width = "0%";
+        const detail = document.getElementById("rung-" + rung.id + "-detail");
+        if (detail) detail.textContent = rung.detail || (status === "locked" ? "locked · not in this call" : "");
+        const score = document.getElementById("rung-" + rung.id + "-score");
+        if (score) score.textContent = "—";
+        const bar = document.getElementById("rung-" + rung.id + "-bar");
+        if (bar) bar.style.width = "0%";
       }
 
       if (foot) {
         let msg = `Path: ${climb}`;
+        if (pipeline && pipeline.stage3_method) {
+          msg += ` · stage3=${pipeline.stage3_method}`;
+        }
         if (pipeline && pipeline.next_unlock) {
           msg += ` · escalate · capture ${pipeline.next_unlock}`;
         } else if (pipeline && pipeline.path_summary) {
@@ -1536,7 +1839,7 @@ def render_dashboard(*, mode: str = "manual") -> str:
         guest: "risk",
       };
       const probed = (r.pipeline && r.pipeline.probed) || [];
-      probed.forEach(m => { hl[m] = "trust"; });
+      probed.forEach(m => { hl[m === "otp" ? "finger" : m] = "trust"; });
       if (!probed.length) {
         hl.voice = "trust";
         hl.face = "trust";
@@ -1556,6 +1859,16 @@ def render_dashboard(*, mode: str = "manual") -> str:
         banner.className = "decision-banner decision-" + r.decision;
       }
 
+      const driver = r.decision_driver || (r.pipeline && r.pipeline.decision_driver) || {};
+      const callout = document.getElementById("driver-callout");
+      if (driver.summary) {
+        callout.style.display = "block";
+        callout.textContent = driver.summary;
+        callout.className = "driver-callout " + (driver.lane || "policy");
+      } else {
+        callout.style.display = "none";
+      }
+
       function setScore(id, barId, val) {
         const pct = Math.round((val || 0) * 100);
         document.getElementById(id).textContent = (val ?? 0).toFixed(3);
@@ -1565,20 +1878,37 @@ def render_dashboard(*, mode: str = "manual") -> str:
       setScore("risk-val", "risk-bar", r.risk_score);
       setScore("conf-val", "conf-bar", r.confidence_score);
 
+      ["trust-card","risk-card","conf-card"].forEach(id => {
+        document.getElementById(id).classList.remove("driver");
+      });
+      if (driver.lane === "trust") document.getElementById("trust-card").classList.add("driver");
+      if (driver.lane === "risk" || driver.lane === "fraud") document.getElementById("risk-card").classList.add("driver");
+      if (driver.lane === "policy" && r.decision !== "ACCEPT") {
+        /* policy-driven step-up — leave scores unoutlined */
+      }
+
+      const tags = document.getElementById("policy-tags");
+      tags.innerHTML = (r.policy_tags || []).map(e => `<span class="tag">${e}</span>`).join("");
+
       document.getElementById("tier").textContent = r.tier;
       document.getElementById("policy").textContent =
         next ? (`paused · unlock ${next}`) : r.policy_rule;
+      document.getElementById("stage3-method").textContent = r.stage3_method || "—";
       document.getElementById("stepup").textContent =
         next ? next : (r.step_up_method || "—");
       document.getElementById("legacy").textContent = r.legacy_decision || "—";
 
-      const tags = document.getElementById("explanations");
-      tags.innerHTML = (r.explanations || []).map(e => `<span class="tag">${e}</span>`).join("");
+      const expl = document.getElementById("explanations");
+      expl.innerHTML = (r.explanations || []).map(e => `<span class="tag">${e}</span>`).join("");
       document.getElementById("modalities").textContent = JSON.stringify(r.modality_scores, null, 2);
+      loadPerfStrip();
     }
 
     async function runAuth() {
       const payload = payloadFromForm();
+      if (payload.fingerprint_available == null) delete payload.fingerprint_available;
+      if (!payload.stage3_mode) delete payload.stage3_mode;
+      if (!payload.otp_demo) delete payload.otp_demo;
       refreshSources();
       resetPipelineVisual();
       setLivePill("running", "Authenticating");
@@ -1597,13 +1927,17 @@ def render_dashboard(*, mode: str = "manual") -> str:
       highlightSourcesFromResult(data, payload);
       loadAudit();
       loadStatus();
+      verifyAuditChain();
     }
 
     async function loadStatus() {
       const s = await (await fetch("/api/status")).json();
       const maturity = s.profile_mature ? "mature" : (s.profile_maturity || "bootstrap");
       document.getElementById("status-bar").innerHTML =
-        `Store: <code>${s.store_dir}</code> · Fraud: <span class="badge">${s.fraud_state}</span> · Profile: <span class="badge ${s.profile_mature ? "ok" : "warn"}">${maturity}</span>`;
+        `Store: <code>${s.store_dir}</code> · Fraud: <span class="badge">${s.fraud_state}</span> · Profile: <span class="badge ${s.profile_mature ? "ok" : "warn"}">${maturity}</span>` +
+        (s.demo_mode ? ` · <span class="badge warn">DEMO</span>` : "");
+      const tamperBtn = document.getElementById("btn-demo-tamper");
+      if (tamperBtn) tamperBtn.style.display = s.demo_mode ? "" : "none";
     }
 
     async function loadAudit() {
@@ -1620,11 +1954,104 @@ def render_dashboard(*, mode: str = "manual") -> str:
         </div>`).join("");
     }
 
+    async function verifyAuditChain() {
+      const res = await (await fetch("/api/audit/verify")).json();
+      const badge = document.getElementById("chain-badge");
+      badge.textContent = res.ok ? "chain · intact" : ("chain · BROKEN · " + (res.reason || ""));
+      badge.className = "chain-badge " + (res.ok ? "ok" : "bad");
+      const tamperBtn = document.getElementById("btn-demo-tamper");
+      if (tamperBtn) tamperBtn.style.display = res.demo_mode ? "" : "none";
+    }
+
+    async function demoTamperAudit() {
+      const res = await fetch("/api/audit/demo_tamper", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || res.statusText);
+        return;
+      }
+      const badge = document.getElementById("chain-badge");
+      const v = data.verify || {};
+      badge.textContent = v.ok ? "chain · intact (unexpected)" : ("chain · BROKEN · " + (v.reason || "tampered"));
+      badge.className = "chain-badge " + (v.ok ? "ok" : "bad");
+      loadAudit();
+    }
+
+    function fmtMs(v) {
+      if (v == null || v === "") return "—";
+      const n = Number(v);
+      return Number.isFinite(n) ? n.toFixed(1) : "—";
+    }
+
+    async function loadPerfStrip() {
+      try {
+        const perf = await (await fetch("/api/fleet/perf")).json();
+        const lat = perf.latency_ms_avg || {};
+        document.getElementById("perf-voice").textContent = fmtMs(lat.voice);
+        document.getElementById("perf-face").textContent = fmtMs(lat.face);
+        document.getElementById("perf-finger").textContent = fmtMs(lat.finger);
+        document.getElementById("perf-total").textContent = fmtMs(lat.total);
+        const util = perf.utilization || {};
+        document.getElementById("perf-cpu").textContent = fmtMs(util.cpu_pct);
+        document.getElementById("perf-ram").textContent = fmtMs(util.ram_pct);
+        const backend = perf.face_backend || "cpu";
+        const hailo = window.__hailoStatus || "Hailo bench pending hardware";
+        document.getElementById("perf-meta").textContent =
+          `Backend: ${backend === "hailo" ? "Hailo" : "CPU/ONNX"} · ${hailo}` +
+          (perf.enabled === false ? " · perf off" : "");
+      } catch (e) { /* ignore */ }
+    }
+
+    function badgeClass(label) {
+      if (!label) return "standin";
+      if (label.indexOf("daemon") >= 0) return "daemon";
+      if (label.indexOf("real") >= 0) return "real";
+      return "standin";
+    }
+
+    async function loadModalityBadges() {
+      try {
+        const data = await (await fetch("/api/modality_sources")).json();
+        const mods = data.modalities || {};
+        ["voice","face","finger"].forEach(k => {
+          const el = document.getElementById("badge-" + k);
+          if (!el || !mods[k]) return;
+          el.textContent = mods[k].label;
+          el.className = "mod-badge " + badgeClass(mods[k].label);
+        });
+        const can = document.getElementById("badge-can");
+        if (can && mods.can) {
+          can.textContent = mods.can.label;
+          can.className = "mod-badge " + badgeClass(mods.can.label);
+        }
+        const live = document.getElementById("badge-liveness");
+        if (live && mods.liveness) {
+          live.textContent = "liveness · " + mods.liveness.label;
+          live.className = "mod-badge " + badgeClass(mods.liveness.label);
+        }
+        if (data.hailo_status) {
+          window.__hailoStatus = data.hailo_status;
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    const FEATURED_SCENARIOS = [
+      "genuine_driver",
+      "finger_otp_fallback",
+      "face_replay",
+      "zone_novel_stepup",
+    ];
+
     async function loadScenarios() {
       const list = await (await fetch("/api/scenarios")).json();
-      document.getElementById("scenarios").innerHTML = list.map(s =>
-        `<button class="scenario-btn" onclick='applyScenario(${JSON.stringify({request: s.request, profile: s.profile || "mature"})})'>${s.label}</button>`
-      ).join("");
+      const mkBtn = (s) =>
+        `<button class="scenario-btn" onclick='applyScenario(${JSON.stringify({request: s.request, profile: s.profile || "mature"})})'>${s.label}</button>`;
+      const featured = list.filter(s => FEATURED_SCENARIOS.includes(s.id));
+      const rest = list.filter(s => !FEATURED_SCENARIOS.includes(s.id));
+      const row = document.getElementById("scenario-row");
+      if (row) row.innerHTML = featured.map(mkBtn).join("");
+      document.getElementById("scenarios").innerHTML = rest.map(mkBtn).join("") +
+        (featured.length ? featured.map(mkBtn).join("") : "");
     }
 
     async function ensureProfile(mode) {
@@ -1636,6 +2063,10 @@ def render_dashboard(*, mode: str = "manual") -> str:
       await ensureProfile(s.profile || "mature");
       applyPayload(s.request);
       await runAuth();
+      // Clear one-shot demo knobs after run so manual sliders don't stick in OTP mode.
+      window.__demoFingerAvail = null;
+      window.__demoStage3Mode = null;
+      window.__demoOtp = false;
     }
 
     async function fraudFlag() {
@@ -1677,6 +2108,8 @@ def render_dashboard(*, mode: str = "manual") -> str:
     }
     loadStatus();
     loadAudit();
+    loadPerfStrip();
+    loadModalityBadges();
     // STANDALONE_PAY_JS
     if (document.body.classList.contains("mode-standalone")
         && typeof initStandalonePay === "function") {

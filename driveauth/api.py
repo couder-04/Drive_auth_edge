@@ -315,6 +315,7 @@ class DriveAuth:
         is_payment: bool = True,
         voice_expected: bool | None = None,
         face_expected: bool | None = None,
+        stage3_mode: str | None = None,
         session_id: str | None = None,
         audit: bool = True,
         event: str = "authenticate",
@@ -334,6 +335,7 @@ class DriveAuth:
             session_id=sid,
             voice_expected=voice_expected,
             face_expected=face_expected,
+            stage3_mode=stage3_mode,
         )
         res.is_payment = is_payment
         res.session_id = sid

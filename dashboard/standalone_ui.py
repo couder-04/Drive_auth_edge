@@ -675,7 +675,7 @@ def panel_script() -> str:
       }
       if (data.dist_from_home_km != null) {
         document.getElementById("pay-dist").textContent =
-          `dist_from_home_km=${Number(data.dist_from_home_km).toFixed(2)} · trusted=${data.in_trusted_zone}`;
+          `zone ${data.in_trusted_zone ? "trusted" : "outside"} · dist_from_home_km=${Number(data.dist_from_home_km).toFixed(2)} (telemetry)`;
       }
       showResult(data);
       await animatePipeline(data.pipeline);

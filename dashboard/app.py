@@ -219,6 +219,109 @@ class AuthenticateRequest(BaseModel):
     channel: str = "dashboard"
     mock_scores: MockScores = Field(default_factory=MockScores)
     context: VehicleContext = Field(default_factory=VehicleContext)
+    # Demo knobs that map onto existing engine fields (not new decision logic).
+    fingerprint_available: bool | None = None
+    stage3_mode: str | None = None
+    otp_demo: bool = False
+
+
+# Risk / policy reason codes already emitted by RiskModel / PolicyEngine.
+_POLICY_TAG_CODES = (
+    "first_time_beneficiary",
+    "unfamiliar_location",
+    "amount_far_above_usual",
+    "large_absolute_amount",
+    "unusual_hour",
+    "transaction_while_moving",
+    "driving_style_anomaly",
+    "fraud_locked",
+    "risk_above_hard_ceiling",
+    "guest_mode_requires_pin",
+    "ladder_exhausted_reject",
+    "ood_baseline_missing",
+    "modalities_disagree",
+    "voice_unavailable",
+    "face_unavailable",
+    "ladder_finger_unavailable",
+    "ladder_otp_unavailable",
+)
+
+
+class _DemoLadderOTP:
+    """Always-available stage-3 OTP stand-in for dashboard scenarios."""
+
+    def can_attempt(self) -> bool:
+        return True
+
+    def probe(self, verify_code: str | None = None):
+        from driveauth.types import ModalityResult
+
+        return ModalityResult(score=1.0, confident=True, available=True, latency_ms=4.0)
+
+
+def _demo_mode_enabled() -> bool:
+    return os.getenv("DRIVEAUTH_DEMO_MODE", "0").strip() == "1"
+
+
+def _finger_daemon_reachable() -> bool:
+    from driveauth import config
+
+    path = str(getattr(config, "FINGER_SOCKET", "") or "")
+    if not path:
+        return False
+    sock_path = Path(path)
+    if not sock_path.exists():
+        return False
+    try:
+        import socket
+
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(0.15)
+        try:
+            s.connect(path)
+            return True
+        finally:
+            s.close()
+    except OSError:
+        return False
+
+
+def _policy_tags(explanations: list[str]) -> list[str]:
+    tags: list[str] = []
+    for e in explanations or []:
+        for code in _POLICY_TAG_CODES:
+            if code in e and code not in tags:
+                tags.append(code)
+    return tags
+
+
+def _decision_driver(result) -> dict[str, str]:
+    """Derive which score lane drove the outcome from existing explanations."""
+    expl = list(result.explanations or [])
+    decision = result.decision.value
+    if any("fraud_locked" in e for e in expl):
+        return {"lane": "fraud", "summary": "REJECT — fraud lock"}
+    if any("risk_above_hard_ceiling" in e for e in expl):
+        return {"lane": "risk", "summary": "REJECT — risk ceiling exceeded"}
+    if any("guest_mode_requires_pin" in e for e in expl):
+        return {"lane": "policy", "summary": "STEP_UP — guest PIN required"}
+    if decision == "ACCEPT":
+        if result.stage3_method == "otp_bluetooth":
+            return {"lane": "trust", "summary": "ACCEPT — stage-3 Bluetooth OTP"}
+        if result.stage3_method == "finger":
+            return {"lane": "trust", "summary": "ACCEPT — fingerprint"}
+        for mod in ("voice", "face", "finger", "otp"):
+            if any(e.startswith(f"ladder_accept_{mod}_") for e in expl):
+                return {"lane": "trust", "summary": f"ACCEPT — {mod} cleared ladder"}
+        return {"lane": "trust", "summary": "ACCEPT — ladder"}
+    if decision == "REJECT":
+        if any("ladder_exhausted" in e for e in expl):
+            return {"lane": "trust", "summary": "REJECT — trust ladder exhausted"}
+        return {"lane": "trust", "summary": "REJECT — biometric ladder"}
+    if decision == "STEP_UP_REQUIRED":
+        method = result.step_up_method or "required"
+        return {"lane": "policy", "summary": f"STEP_UP — {method}"}
+    return {"lane": "policy", "summary": decision}
 
 
 def _pipeline_trace(result) -> dict[str, Any]:
@@ -240,43 +343,54 @@ def _pipeline_trace(result) -> dict[str, Any]:
         val = block.get("score")
         return float(val) if val is not None else None
 
+    def _mod_available(name: str) -> bool:
+        block = mods.get(name) or {}
+        if not isinstance(block, dict):
+            return True
+        return bool(block.get("available", True))
+
+    stage3_method = getattr(result, "stage3_method", None)
     ladder_stages: list[dict[str, Any]] = []
-    order = ("voice", "face", "finger")
+    # Voice / face are linear; stage-3 is an OR of finger | otp.
+    early_order = ("voice", "face")
     accept_mod: str | None = None
-    for mod in order:
-        # Prefer "ladder_accept_voice_score_…" over "ladder_accept_bar_voice_…"
+    for mod in ("voice", "face", "finger", "otp"):
         if any(e.startswith(f"ladder_accept_{mod}_") for e in expl):
             accept_mod = mod
             break
     if accept_mod is None and result.policy_rule:
-        for mod in order:
+        for mod in ("voice", "face", "finger", "otp"):
             if f"ladder_accept_{mod}" in result.policy_rule:
                 accept_mod = mod
                 break
+    if accept_mod is None and stage3_method == "finger":
+        accept_mod = "finger"
+    elif accept_mod is None and stage3_method == "otp_bluetooth":
+        accept_mod = "otp"
 
-    accept_idx = order.index(accept_mod) if accept_mod in order else None
+    early_accept_idx = (
+        early_order.index(accept_mod) if accept_mod in early_order else None
+    )
     last_probed = probed[-1] if probed else None
     decided_reject = result.decision.value == "REJECT"
 
-    # Progressive unlock: more ladder rungs remain locked in this call.
     next_unlock: str | None = None
     if accept_mod is None:
         if "voice" in probed and "face" not in probed:
             next_unlock = "face"
-        elif "face" in probed and "finger" not in probed:
+        elif "face" in probed and "finger" not in probed and "otp" not in probed:
             next_unlock = "finger"
 
-    for mod in order:
+    for mod in early_order:
         score = _mod_score(mod)
-        idx = order.index(mod)
-        if accept_idx is not None and idx > accept_idx:
+        idx = early_order.index(mod)
+        if early_accept_idx is not None and idx > early_accept_idx:
             status, detail = "skipped", "early-stop · not probed"
         elif mod in probed:
             if accept_mod == mod:
                 status = "accept"
                 detail = f"≥ bar · {score:.3f}" if score is not None else "accepted"
             elif next_unlock and mod == last_probed:
-                # Soft escalate — next modality still locked; do not mark reject.
                 status = "escalate"
                 detail = (
                     f"below bar · unlock {next_unlock}"
@@ -297,6 +411,78 @@ def _pipeline_trace(result) -> dict[str, Any]:
             {"id": mod, "label": mod.title(), "status": status, "score": score, "detail": detail}
         )
 
+    # Stage-3 OR lanes (finger | Bluetooth OTP).
+    stage3_lanes: list[dict[str, Any]] = []
+    finger_probed = "finger" in probed
+    otp_probed = "otp" in probed
+    stage3_fallback = False
+    for lane, label in (("finger", "Fingerprint"), ("otp", "Bluetooth OTP")):
+        score = _mod_score(lane)
+        available = _mod_available(lane)
+        accepted = accept_mod == lane or (
+            lane == "finger" and stage3_method == "finger"
+        ) or (lane == "otp" and stage3_method == "otp_bluetooth")
+
+        if early_accept_idx is not None:
+            status, detail = "skipped", "early-stop · not needed"
+        elif lane in probed:
+            if accepted:
+                status = "accept"
+                detail = f"≥ bar · {score:.3f}" if score is not None else "accepted"
+            elif decided_reject and lane == last_probed:
+                status = "reject"
+                detail = f"exhausted · {score:.3f}" if score is not None else "exhausted"
+            else:
+                status = "escalate"
+                detail = (
+                    f"below bar · try other lane"
+                    if score is not None
+                    else "no score · try other lane"
+                )
+                if lane == "finger" and otp_probed:
+                    stage3_fallback = True
+                    detail = (
+                        f"below bar · OR → OTP"
+                        if score is not None
+                        else "no score · OR → OTP"
+                    )
+        elif not available or (lane == "finger" and not available and otp_probed):
+            status = "unavailable"
+            detail = "unavailable · OR → OTP" if otp_probed else "unavailable"
+            if otp_probed and lane == "finger":
+                stage3_fallback = True
+        elif accepted:
+            status, detail = "accept", "accepted"
+        elif accept_mod in early_order:
+            status, detail = "skipped", "not needed"
+        elif (finger_probed or otp_probed) and lane not in probed:
+            status, detail = "not_attempted", "not attempted"
+        else:
+            status, detail = "locked", "locked · not in this call"
+
+        stage3_lanes.append(
+            {
+                "id": lane,
+                "label": label,
+                "status": status,
+                "score": score,
+                "detail": detail,
+                "available": available,
+            }
+        )
+        # Also keep flat rungs for animation of probed stage-3 lanes.
+        if lane in probed or status in ("unavailable", "accept", "not_attempted", "escalate", "reject"):
+            ladder_stages.append(
+                {
+                    "id": lane,
+                    "label": label,
+                    "status": status,
+                    "score": score,
+                    "detail": detail,
+                    "stage3": True,
+                }
+            )
+
     hard_gate = None
     for key, label in (
         ("fraud_locked", "Fraud lock"),
@@ -307,7 +493,6 @@ def _pipeline_trace(result) -> dict[str, Any]:
             hard_gate = label
             break
 
-    # Hard gates cancel progressive unlock (no soft escalate pause).
     if hard_gate:
         next_unlock = None
         for rung in ladder_stages:
@@ -343,9 +528,12 @@ def _pipeline_trace(result) -> dict[str, Any]:
             if decision == "STEP_UP_REQUIRED"
             else "done"
         )
+        early_stop = accept_mod
+        if accept_mod == "otp":
+            early_stop = "otp (Bluetooth)"
         ladder_detail = (
             f"probed {' → '.join(probed) if probed else '—'}"
-            + (f" · early-stop {accept_mod}" if accept_mod else "")
+            + (f" · early-stop {early_stop}" if early_stop else "")
         )
         policy_status = (
             "accept"
@@ -355,13 +543,24 @@ def _pipeline_trace(result) -> dict[str, Any]:
             else "block"
         )
         policy_detail = result.policy_rule or "—"
-        decision_status = policy_status
+        # Distinct REJECT status (not a neutral done/block swap).
+        decision_status = (
+            "reject"
+            if decision == "REJECT"
+            else "accept"
+            if decision == "ACCEPT"
+            else "stepup"
+            if decision == "STEP_UP_REQUIRED"
+            else "done"
+        )
         decision_detail = decision
         path_summary = hard_gate or (
-            f"{' → '.join(m.title() for m in probed)} → {decision}"
+            f"{' → '.join(probed)} → {decision}"
             if probed
             else decision
         )
+
+    driver = _decision_driver(result)
 
     stages = [
         {
@@ -388,6 +587,8 @@ def _pipeline_trace(result) -> dict[str, Any]:
             "status": ladder_status,
             "detail": ladder_detail,
             "rungs": ladder_stages,
+            "stage3_lanes": stage3_lanes,
+            "stage3_fallback": stage3_fallback,
         },
         {
             "id": "policy",
@@ -407,14 +608,18 @@ def _pipeline_trace(result) -> dict[str, Any]:
         "stages": stages,
         "probed": probed,
         "accept_modality": accept_mod,
+        "stage3_method": stage3_method,
+        "stage3_fallback": stage3_fallback,
         "next_unlock": next_unlock,
         "pause_after": "ladder" if next_unlock else None,
         "hard_gate": hard_gate,
         "path_summary": path_summary,
+        "decision_driver": driver,
     }
 
 
 def _result_payload(result) -> dict[str, Any]:
+    driver = _decision_driver(result)
     return {
         "decision": result.decision.value,
         "legacy_decision": result.legacy_decision,
@@ -425,6 +630,9 @@ def _result_payload(result) -> dict[str, Any]:
         "policy_rule": result.policy_rule,
         "fraud_state": result.fraud_state,
         "step_up_method": result.step_up_method,
+        "stage3_method": getattr(result, "stage3_method", None),
+        "decision_driver": driver,
+        "policy_tags": _policy_tags(list(result.explanations or [])),
         "explanations": result.explanations,
         "modality_scores": result.modality_scores,
         "active_thresholds": result.active_thresholds,
@@ -723,6 +931,7 @@ def status() -> dict[str, Any]:
         "fraud_rigor": rigor,
         "enabled": auth._enabled,
         "use_mock": _want_mock(),
+        "demo_mode": _demo_mode_enabled(),
         "openrouter": openrouter_configured(),
         "google_maps": bool(google_maps_key()),
         "home_lat": home_lat,
@@ -965,6 +1174,13 @@ def update_context(ctx: VehicleContext) -> dict[str, Any]:
 def authenticate(req: AuthenticateRequest) -> dict[str, Any]:
     auth = get_auth(use_mock=True)
     _apply_mock_scores(auth, req.mock_scores)
+    if req.fingerprint_available is not None:
+        auth._engine._m.fingerprint_available = bool(req.fingerprint_available)
+
+    prev_otp = auth._engine._ladder_otp
+    if req.otp_demo:
+        auth._engine._ladder_otp = _DemoLadderOTP()
+
     ctx = req.context.model_dump()
     # Drop null GPS so RiskContext keeps Optional defaults cleanly
     ctx = {k: v for k, v in ctx.items() if v is not None}
@@ -976,18 +1192,29 @@ def authenticate(req: AuthenticateRequest) -> dict[str, Any]:
         }
     )
 
+    stage3 = None
+    if req.stage3_mode:
+        mode = str(req.stage3_mode).strip().lower()
+        if mode in ("finger_only", "otp_only", "finger_or_otp"):
+            stage3 = mode
+
     audio = _fake_audio()
-    result = auth.authenticate(
-        audio_np=audio,
-        amount=req.amount,
-        beneficiary=req.beneficiary,
-        action=req.action,
-        currency=req.currency,
-        channel=req.channel,
-        beneficiary_known=req.beneficiary_known,
-        is_guest=req.is_guest,
-        event="dashboard_auth",
-    )
+    try:
+        result = auth.authenticate(
+            audio_np=audio,
+            amount=req.amount,
+            beneficiary=req.beneficiary,
+            action=req.action,
+            currency=req.currency,
+            channel=req.channel,
+            beneficiary_known=req.beneficiary_known,
+            is_guest=req.is_guest,
+            event="dashboard_auth",
+            stage3_mode=stage3,
+        )
+    finally:
+        if req.otp_demo:
+            auth._engine._ladder_otp = prev_otp
     return _result_payload(result)
 
 
@@ -1005,6 +1232,113 @@ def audit(limit: int = 50) -> list[dict[str, Any]]:
         except json.JSONDecodeError:
             continue
     return list(reversed(entries))
+
+
+@app.get("/api/audit/verify")
+def audit_verify() -> dict[str, Any]:
+    """Read-only hash-chain check via AuditLog.verify_chain()."""
+    auth = get_auth(use_mock=True)
+    ok, reason = auth._audit.verify_chain()
+    return {"ok": bool(ok), "reason": reason, "demo_mode": _demo_mode_enabled()}
+
+
+@app.post("/api/audit/demo_tamper")
+def audit_demo_tamper() -> dict[str, Any]:
+    """Corrupt one byte of the audit file — only when DRIVEAUTH_DEMO_MODE=1."""
+    if not _demo_mode_enabled():
+        raise HTTPException(
+            status_code=403,
+            detail="demo tamper disabled — set DRIVEAUTH_DEMO_MODE=1",
+        )
+    auth = get_auth(use_mock=True)
+    path = Path(auth._store) / "audit" / "driveauth_events.jsonl"
+    if not path.is_file() or path.stat().st_size < 2:
+        raise HTTPException(status_code=400, detail="audit log empty — run authenticate first")
+    raw = bytearray(path.read_bytes())
+    # Flip a mid-file byte so the last entry_hash no longer matches.
+    idx = max(0, len(raw) // 2)
+    raw[idx] = (raw[idx] + 1) % 256
+    path.write_bytes(bytes(raw))
+    ok, reason = auth._audit.verify_chain()
+    return {
+        "tampered": True,
+        "byte_index": idx,
+        "verify": {"ok": bool(ok), "reason": reason},
+    }
+
+
+@app.get("/api/modality_sources")
+def modality_sources() -> dict[str, Any]:
+    """Real-vs-simulated labels from live config + reachability (not hardcoded)."""
+    from driveauth import config
+    from driveauth.matchers.mock import (
+        MockBehavioralMonitor,
+        MockFaceMatcher,
+        MockFingerMatcher,
+        MockVoiceMatcher,
+    )
+
+    auth = get_auth(use_mock=_want_mock())
+    m = auth._engine._m
+    voice_mock = isinstance(m.voice, MockVoiceMatcher)
+    face_mock = isinstance(m.face, MockFaceMatcher)
+    finger_mock = isinstance(m.finger, MockFingerMatcher)
+    beh_mock = isinstance(getattr(m, "behavioral", None), MockBehavioralMonitor)
+    daemon_up = _finger_daemon_reachable()
+    face_backend = str(getattr(config, "FACE_BACKEND", "onnx") or "onnx")
+    # Hailo: only claim configured when backend is hailo AND matcher is not mock.
+    ir_on = bool(getattr(config, "IR_LIVENESS_ENABLED", False))
+    ir_attached = getattr(auth._engine, "_ir_liveness", None) is not None
+
+    def _bio_label(is_mock: bool) -> str:
+        return "manual stand-in" if is_mock else "real model"
+
+    if daemon_up:
+        finger_label = "real daemon protocol"
+    elif finger_mock:
+        finger_label = "manual stand-in"
+    else:
+        finger_label = "real model"
+
+    return {
+        "demo_mode": _demo_mode_enabled(),
+        "use_mock": _want_mock(),
+        "face_backend": face_backend,
+        "hailo_status": (
+            "configured (hailo)"
+            if face_backend == "hailo" and not face_mock
+            else "Hailo bench pending hardware"
+        ),
+        "modalities": {
+            "voice": {
+                "label": _bio_label(voice_mock),
+                "mock": voice_mock,
+            },
+            "face": {
+                "label": _bio_label(face_mock),
+                "mock": face_mock,
+                "backend": face_backend,
+            },
+            "finger": {
+                "label": finger_label,
+                "mock": finger_mock,
+                "daemon_reachable": daemon_up,
+            },
+            "liveness": {
+                "label": (
+                    "real model"
+                    if ir_on and ir_attached
+                    else "manual stand-in"
+                ),
+                "enabled": ir_on,
+                "attached": ir_attached,
+            },
+            "can": {
+                "label": "manual stand-in" if beh_mock else "real model",
+                "mock": beh_mock,
+            },
+        },
+    }
 
 
 @app.post("/api/fraud/soft-flag")
@@ -1066,6 +1400,52 @@ def profile_bootstrap() -> dict[str, Any]:
 @app.get("/api/scenarios")
 def scenarios() -> list[dict[str, Any]]:
     return [
+        {
+            "id": "genuine_driver",
+            "label": "Genuine driver (ACCEPT)",
+            "profile": "mature",
+            "request": AuthenticateRequest(
+                amount=50.0, beneficiary_known=True
+            ).model_dump(),
+        },
+        {
+            "id": "finger_otp_fallback",
+            "label": "Fingerprint unavailable → OTP fallback",
+            "profile": "mature",
+            "request": AuthenticateRequest(
+                amount=150.0,
+                beneficiary_known=True,
+                mock_scores=MockScores(voice=0.40, face=0.40, finger=None),
+                fingerprint_available=False,
+                stage3_mode="finger_or_otp",
+                otp_demo=True,
+            ).model_dump(),
+        },
+        {
+            "id": "face_replay",
+            "label": "Replay attack on face (REJECT)",
+            "profile": "mature",
+            "request": AuthenticateRequest(
+                amount=150.0,
+                mock_scores=MockScores(voice=0.35, face=0.12, finger=0.30),
+            ).model_dump(),
+        },
+        {
+            "id": "zone_novel_stepup",
+            "label": "Out of zone + first-time payee → STEP_UP",
+            "profile": "mature",
+            "request": AuthenticateRequest(
+                amount=150.0,
+                beneficiary="new_merchant",
+                beneficiary_known=False,
+                is_guest=True,
+                context=VehicleContext(
+                    in_trusted_zone=False,
+                    dist_from_home_km=45.0,
+                    speed_kmh=0.0,
+                ),
+            ).model_dump(),
+        },
         {
             "id": "accept_micro",
             "label": "Micro payment (ACCEPT)",
