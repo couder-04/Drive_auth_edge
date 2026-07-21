@@ -188,6 +188,16 @@ def test_register_api_init_and_uploads(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(app_mod, "_data_root", lambda: tmp_path)
     monkeypatch.setattr(app_mod, "_register_store", lambda: store)
     monkeypatch.setattr(app_mod, "_unified_store", lambda: store)
+    monkeypatch.setattr(
+        "driveauth.matchers.face.assess_face_framing",
+        lambda _bgr: {
+            "ok": True,
+            "face_frac": 0.4,
+            "frontal_ok": True,
+            "box": (10, 10, 40, 40),
+            "reason": "ok",
+        },
+    )
 
     client = _client()
     r = client.post("/api/register/init", json={"driver_id": "driverNew"})
@@ -201,6 +211,7 @@ def test_register_api_init_and_uploads(tmp_path: Path, monkeypatch) -> None:
     )
     assert r.status_code == 200
     assert r.json()["face_count"] == 1
+    assert r.json().get("face_frac") == 0.4
 
     r = client.post(
         "/api/register/voice",
@@ -229,6 +240,27 @@ def test_register_api_init_and_uploads(tmp_path: Path, monkeypatch) -> None:
     assert "Pay · standalone" in r.text
     assert "Face locked" in r.text
     assert "Location (required)" in r.text
+
+
+def test_register_face_rejects_bad_framing(tmp_path: Path, monkeypatch) -> None:
+    import dashboard.app as app_mod
+
+    store = tmp_path / "store"
+    store.mkdir()
+    monkeypatch.setattr(app_mod, "_data_root", lambda: tmp_path)
+    monkeypatch.setattr(app_mod, "_register_store", lambda: store)
+    monkeypatch.setattr(app_mod, "_unified_store", lambda: store)
+
+    client = _client()
+    client.post("/api/register/init", json={"driver_id": "driverFrame"})
+    r = client.post(
+        "/api/register/face",
+        data={"driver_id": "driverFrame"},
+        files={"file": ("a.jpg", _tiny_jpeg_bytes(), "image/jpeg")},
+    )
+    assert r.status_code == 400
+    assert "framing rejected" in r.json()["detail"]
+    assert len(list_enroll_images(tmp_path / "driverFrame")) == 0
 
 
 def test_pipeline_next_unlock_voice_only(tmp_path: Path, monkeypatch) -> None:

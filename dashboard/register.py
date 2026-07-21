@@ -374,6 +374,10 @@ def render_register() -> str:
     <section class="grid2">
       <div class="panel" id="panel_face">
         <h3>2 · Face (need 5)</h3>
+        <p style="color:var(--muted);font-size:0.85rem;margin:0 0 0.5rem">
+          Close-up frontal at 640×480 — fill the frame with your face (same convention as
+          <code>scripts/capture_own_face.py</code>). Far / tiny faces are rejected at capture time.
+        </p>
         <video id="cam" class="preview" autoplay playsinline muted></video>
         <div class="row" style="margin-top:0.75rem">
           <button id="btn_cam" class="secondary" type="button">Start camera</button>
@@ -698,7 +702,8 @@ def render_register() -> str:
         fd.append("driver_id", driverId());
         fd.append("file", blob, "capture.jpg");
         const res = await api("/api/register/face", { method: "POST", body: fd });
-        log(`Saved face ${res.path}`);
+        const frac = res.face_frac != null ? ` face_frac=${Number(res.face_frac).toFixed(2)}` : "";
+        log(`Saved face ${res.path}${frac}`);
         await refresh();
       } catch (e) {
         log("Face capture failed: " + e.message);

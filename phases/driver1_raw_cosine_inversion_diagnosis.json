@@ -1,0 +1,72 @@
+{
+  "generated_at": "2026-07-21T00:55:45.929098+00:00",
+  "verdict_test": 2,
+  "cause": "stale_fallback_tainted_face_template",
+  "test1_embedding_path_consistency": {
+    "result": "identical",
+    "image": "data/driver1/face/genuine/genuine_01.jpg",
+    "max_abs_diff": 0.0,
+    "note": "enroll embed_bgr == eval embed_bgr == capture_and_score embedding"
+  },
+  "test2_template_staleness": {
+    "confirmed": true,
+    "old_template_path": "/Users/par_04/Desktop/staged_driveauth-edge/driveauth_store_phase2a/faces/driver1.enc",
+    "old_template_mtime": "2026-07-21 03:39:58",
+    "backup_path": "/Users/par_04/Desktop/staged_driveauth-edge/driveauth_store_phase2a/faces/driver1.enc.bak_pre_reenroll_20260721",
+    "consent": "phase2a_enroll.py @ 2026-07-20T22:09:54Z (IST 2026-07-21 03:39)",
+    "enroll_images_mtime": "2026-07-15 03:38:38 (8x 640x480)",
+    "new_genuine_mtime": "2026-07-21 05:57\u201305:58 (22x 640x480)",
+    "capture_flow_fix_files_mtime": "2026-07-21 ~05:40\u201305:43 (uncommitted) / stage_19 commit 05:10",
+    "smoking_gun": {
+      "old_tmpl_vs_current_enroll_haar_mean": 0.439156,
+      "old_tmpl_vs_current_enroll_centercrop_mean": 0.999938,
+      "interpretation": "faces/driver1.enc was the L2-mean of center-crop embeddings of enroll JPGs (Haar-miss fallback path in embed_bgr), not Haar face crops. Voice template from the same enroll run matches enroll wav mean at cos=1.000. Eval now Haar-detects 8/8 enroll and 22/22 new genuines, so probe embeddings are tight face crops that are far from the center-crop template (cos\u22480.37\u20130.44)."
+    },
+    "action": "Re-enrolled faces/driver1.enc from 22 new close-up genuine JPGs (Haar-OK). Old template backed up.",
+    "before_raw_cosine": {
+      "genuine_mean": 0.3664375028826974,
+      "attack_mean": 0.3985815378634826,
+      "genuine_n": 22,
+      "attack_n": 23
+    },
+    "after_raw_cosine": {
+      "genuine_mean": 0.9448043460195715,
+      "attack_mean": 0.5419099823288296,
+      "genuine_n": 22,
+      "attack_n": 23,
+      "genuine_min": 0.882038950920105,
+      "genuine_max": 0.9811317920684814,
+      "attack_min": 0.21831366419792175,
+      "attack_max": 0.7429015040397644
+    },
+    "after_attack_per_split": {
+      "attack_blur": {
+        "n": 8,
+        "mean": 0.5336545780301094,
+        "min": 0.4690670967102051,
+        "max": 0.5858124494552612
+      },
+      "attack_side": {
+        "n": 8,
+        "mean": 0.39526723325252533,
+        "min": 0.21831366419792175,
+        "max": 0.6249333620071411
+      },
+      "attack_replay_screen": {
+        "n": 7,
+        "mean": 0.7189364433288574,
+        "min": 0.6843708753585815,
+        "max": 0.7429015040397644
+      }
+    },
+    "inversion_resolved": true,
+    "counterfactual_haar_enroll_folder_reenroll": {
+      "genuine_mean": 0.8037242862311277,
+      "attack_mean": 0.6256523935691171,
+      "inverted": false,
+      "note": "If template rebuilt from Jul15 enroll/ via Haar crops (not what we wrote; written from new genuines per prompt)"
+    },
+    "caveat": "AFTER genuine_mean is partly in-sample (template built from same 22 genuines). Counterfactual using Jul15 enroll/ Haar mean also resolves inversion without that bias (g=0.804 > a=0.626)."
+  },
+  "tests_3_and_4": "skipped \u2014 Test 2 confirmed as cause"
+}

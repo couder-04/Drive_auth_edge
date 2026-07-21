@@ -26,6 +26,86 @@ logger = logging.getLogger("driveauth.matchers.face")
 # Bonafide probability below this → PAD reject (overridable via env).
 _DEFAULT_PAD_THRESHOLD = 0.45
 
+# Stock OpenCV frontal cascade defaults. Softening was evaluated on driver1
+# (scaleFactor=1.03, minNeighbors=3, minSize=(20,20) → gate-pass 58.8%→84.3%)
+# but newly-recovered frames carried many spurious boxes on curtains,
+# bottles, and clutter (multi-box images 10→34; tiny junk boxes 21→140).
+# Keep stock; rely on capture-flow framing (640×480 close-up) instead.
+HAAR_SCALE_FACTOR = 1.1
+HAAR_MIN_NEIGHBORS = 5
+HAAR_MIN_SIZE: tuple[int, int] | None = None
+
+# Capture / enroll target — match dashboard /register getUserMedia ideal.
+CAPTURE_FRAME_WIDTH = 640
+CAPTURE_FRAME_HEIGHT = 480
+
+
+def assess_face_framing(frame_bgr: np.ndarray) -> dict:
+    """Haar + frontal gates for capture-time retake feedback.
+
+    Returns keys: ok, face_frac, frontal_ok, box (x,y,w,h)|None, reason.
+    """
+    import cv2  # type: ignore
+
+    from driveauth import config as _cfg
+
+    if frame_bgr is None or getattr(frame_bgr, "size", 0) == 0:
+        return {
+            "ok": False,
+            "face_frac": None,
+            "frontal_ok": False,
+            "box": None,
+            "reason": "no_frame",
+        }
+    gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+    cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    detector = cv2.CascadeClassifier(cascade_path)
+    kwargs: dict = {
+        "scaleFactor": HAAR_SCALE_FACTOR,
+        "minNeighbors": HAAR_MIN_NEIGHBORS,
+    }
+    if HAAR_MIN_SIZE is not None:
+        kwargs["minSize"] = HAAR_MIN_SIZE
+    faces = detector.detectMultiScale(gray, **kwargs)
+    if len(faces) == 0:
+        return {
+            "ok": False,
+            "face_frac": None,
+            "frontal_ok": False,
+            "box": None,
+            "reason": "no_face_detected",
+        }
+    frame_h, frame_w = frame_bgr.shape[0], frame_bgr.shape[1]
+    x, y, w, h = max(faces, key=lambda r: r[2] * r[3])
+    face_frac = float(h / max(frame_h, 1))
+    cx = (x + w / 2.0) / max(frame_w, 1)
+    aspect = w / max(h, 1)
+    frontal_ok = bool(0.25 <= cx <= 0.75 and 0.65 <= aspect <= 1.35)
+    min_frac = float(_cfg.FACE_MIN_FRAC)
+    if face_frac < min_frac:
+        return {
+            "ok": False,
+            "face_frac": face_frac,
+            "frontal_ok": frontal_ok,
+            "box": (int(x), int(y), int(w), int(h)),
+            "reason": f"face_too_small_frac={face_frac:.3f}<{min_frac}",
+        }
+    if not frontal_ok:
+        return {
+            "ok": False,
+            "face_frac": face_frac,
+            "frontal_ok": False,
+            "box": (int(x), int(y), int(w), int(h)),
+            "reason": "face_not_frontal",
+        }
+    return {
+        "ok": True,
+        "face_frac": face_frac,
+        "frontal_ok": True,
+        "box": (int(x), int(y), int(w), int(h)),
+        "reason": "ok",
+    }
+
 
 def _ort_providers() -> list[str]:
     """Pick ORT providers.
@@ -119,6 +199,9 @@ def _open_face_session(onnx_path: Path):
 class FaceMatcher:
     _FACE_SIZE = (112, 112)
     _MIN_FACE_FRAC = config.FACE_MIN_FRAC
+    _HAAR_SCALE_FACTOR = HAAR_SCALE_FACTOR
+    _HAAR_MIN_NEIGHBORS = HAAR_MIN_NEIGHBORS
+    _HAAR_MIN_SIZE = HAAR_MIN_SIZE
 
     def __init__(
         self,
@@ -143,6 +226,20 @@ class FaceMatcher:
         self.stage2_info = stage2_info or {}
         self.last_pad_score: float | None = None
         self.last_pad_reject: bool = False
+
+    @staticmethod
+    def _fallback_meta(crop_bgr: np.ndarray) -> dict:
+        """Honest meta for Haar-miss center-crop — never fabricate confidence."""
+        return {
+            "face_frac": None,
+            "frontal_ok": False,
+            "bgr": crop_bgr,
+            "inject_fallback": True,
+        }
+
+    def _face_meta_unknown(self) -> bool:
+        meta = self._last_meta or {}
+        return bool(meta.get("inject_fallback")) or meta.get("face_frac") is None
 
     @property
     def ready(self) -> bool:
@@ -266,10 +363,21 @@ class FaceMatcher:
         )
 
     def _run_pad(self, crop_bgr: np.ndarray) -> tuple[bool, float]:
-        """Return (pass, bonafide_proba). pass=True when no PAD or score≥thr."""
+        """Return (pass, bonafide_proba). pass=True when no PAD or score≥thr.
+
+        Fail-closed on unknown face-detection meta (Haar-miss / inject
+        fallback): still compute a diagnostic proba from honest features, but
+        never treat the modality as PAD-passed. Fits ``ModalityResult`` as
+        ``score=None, confident=False, available=True`` upstream — unscored
+        rather than a fabricated strong match.
+        """
         self.last_pad_score = None
         self.last_pad_reject = False
         if self._pad is None:
+            if self._face_meta_unknown():
+                self.last_pad_score = 0.0
+                self.last_pad_reject = True
+                return False, 0.0
             return True, 1.0
         meta = self._last_meta or {}
         feats = extract_face_pad_features(
@@ -279,6 +387,9 @@ class FaceMatcher:
         )
         proba = float(self._pad.predict_proba(feats))
         self.last_pad_score = proba
+        if self._face_meta_unknown():
+            self.last_pad_reject = True
+            return False, proba
         ok = proba >= self._pad_threshold
         self.last_pad_reject = not ok
         return ok, proba
@@ -346,8 +457,8 @@ class FaceMatcher:
             if frame is None:
                 return ModalityResult(score=None, confident=False, available=False)
             # Must populate _last_meta the same way as capture_frame / train_face_pad
-            # (_load_meta_for). _extract_face_crop alone drops face_frac/frontal_ok;
-            # PAD then defaults face_frac→1.0 and attacks pass the gate.
+            # (_load_meta_for). Unknown face_frac must stay None (never fabricate 1.0);
+            # _run_pad fail-closes on inject_fallback / unknown meta.
             meta = self._extract_face_meta(frame, cv2)
             if meta is not None:
                 crop, face_frac, frontal_ok = meta
@@ -358,12 +469,7 @@ class FaceMatcher:
                 }
             elif self._inject_bgr is not None:
                 crop = self._center_crop(frame)
-                self._last_meta = {
-                    "face_frac": 1.0,
-                    "frontal_ok": True,
-                    "bgr": crop,
-                    "inject_fallback": True,
-                }
+                self._last_meta = self._fallback_meta(crop)
             else:
                 crop = None
             if crop is None:
@@ -391,8 +497,9 @@ class FaceMatcher:
             sim = float(np.clip(float(np.dot(self._emb, emb)), 0.0, 1.0))
             score = sim
             if self._calibrator is not None:
+                frac = (self._last_meta or {}).get("face_frac")
                 feats = np.array(
-                    [sim, pad_p, float((self._last_meta or {}).get("face_frac") or 1.0)],
+                    [sim, pad_p, float(frac) if frac is not None else 0.0],
                     dtype=np.float32,
                 )
                 score = float(np.clip(self._calibrator.predict_proba(feats), 0.0, 1.0))
@@ -420,16 +527,12 @@ class FaceMatcher:
             meta = self._extract_face_meta(frame, cv2)
             if meta is None:
                 # Still-frame inject / hard images: center-crop like embed_bgr
-                # so Phase 2a demos are not blocked by Haar misses.
+                # so Phase 2a demos are not blocked by Haar misses — but meta
+                # must stay honest (unknown frac / non-frontal), never 1.0/True.
                 if self._inject_bgr is None:
                     return None
                 crop_bgr = self._center_crop(frame)
-                self._last_meta = {
-                    "face_frac": 1.0,
-                    "frontal_ok": True,
-                    "bgr": crop_bgr,
-                    "inject_fallback": True,
-                }
+                self._last_meta = self._fallback_meta(crop_bgr)
                 logger.info("FaceMatcher: Haar miss — center-crop fallback (inject)")
             else:
                 crop_bgr, face_frac, frontal_ok = meta
@@ -468,8 +571,9 @@ class FaceMatcher:
             sim = float(np.clip(float(np.dot(self._emb, emb)), 0.0, 1.0))
             score = sim
             if self._calibrator is not None:
+                frac = meta.get("face_frac")
                 feats = np.array(
-                    [sim, pad_p, float(meta.get("face_frac") or 1.0)],
+                    [sim, pad_p, float(frac) if frac is not None else 0.0],
                     dtype=np.float32,
                 )
                 score = float(np.clip(self._calibrator.predict_proba(feats), 0.0, 1.0))
@@ -484,7 +588,16 @@ class FaceMatcher:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
             detector = cv2.CascadeClassifier(cascade_path)
-            faces = detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+            faces = detector.detectMultiScale(
+                gray,
+                scaleFactor=self._HAAR_SCALE_FACTOR,
+                minNeighbors=self._HAAR_MIN_NEIGHBORS,
+                **(
+                    {"minSize": self._HAAR_MIN_SIZE}
+                    if self._HAAR_MIN_SIZE is not None
+                    else {}
+                ),
+            )
             if len(faces) == 0:
                 return None
             frame_h, frame_w = frame.shape[0], frame.shape[1]

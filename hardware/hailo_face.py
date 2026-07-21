@@ -89,14 +89,15 @@ class HailoFaceMatcher:
         y0, x0 = (h - side) // 2, (w - side) // 2
         crop = gray[y0 : y0 + side, x0 : x0 + side]
         self._last_meta = {
-            "face_frac": 1.0,
-            "frontal_ok": True,
+            "face_frac": None,
+            "frontal_ok": False,
             "bgr": frame[y0 : y0 + side, x0 : x0 + side]
             if frame.ndim == 3
             else frame,
+            "inject_fallback": True,
         }
-        self.face_frac = 1.0
-        self.frontal_ok = True
+        self.face_frac = None
+        self.frontal_ok = False
         return crop.astype(np.float32)
 
     def score_frame(self, frame_gray: np.ndarray) -> ModalityResult:

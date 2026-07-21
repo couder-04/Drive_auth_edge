@@ -207,6 +207,8 @@ Do **not** market or paper these as proven:
 | “Deepfake / ASVspoof complete” | Voice anti-spoof is quality + calibrator depth, not a full countermeasure suite |
 | “PAD stops all replays” | Hand-crafted PAD features + optional IR reflectance / Liveness v2 heuristic ensemble; APCER reported in Phase 6 — **not** ISO/IEC 30107-3 certification |
 | “PAD works without usable crops” | Haar-miss center-crop fallbacks (esp. `attack_side`) can collapse PAD LOO to ~0.50. Train with `--exclude-fallback-crops`. Driver7 after exclusion: LOO ≈ **0.81** (enabled). If LOO ≤ 0.55, gate stays **disabled** — do not market disabled PAD as protection |
+| “Fallback crop is a safe PAD input” | **Gate-bypass bug (fixed):** Haar-miss inject path previously set `face_frac=1.0` + `frontal_ok=True`, so PAD treated detection *failures* as perfectly framed faces. Driver1 fallback-only live AUC was **0.000** (attacks outscored genuines); all 8 FPs were `attack_side`. Fix: honest `face_frac=None` / `frontal_ok=False`, and `_run_pad` **fail-closes** (unscored modality) when meta is unknown — not a data-quality issue alone |
+| “Softened Haar is free detect-rate” | Driver1 soft params (1.03 / 3 / 20²) raised gate-pass 58.8%→84.3% but contaminated with junk boxes (curtains, bottles; multi-box imgs 10→34). **Kept stock** Haar; capture flows unified to 640×480 close-up instead |
 | “Constant-time by default” | Timing pad is opt-in; default `constant_time_ms: 0` |
 | “OTP comparison proves superiority” | `otp_only` FAR=0 in benches **assumes** OTP channel security; ladder BT OTP additionally assumes paired-MAC binding + MAP/BLE integrity |
 | “Hailo face certified” | `HailoFaceMatcher` is a swappable backend; latency/accuracy claims require on-device HEF benchmarks |
@@ -221,11 +223,27 @@ Do **not** market or paper these as proven:
 
 Production should keep stock bars unless re-calibrated on fleet data with documented FAR/FRR. Lowering bars never substitutes for better enrollment or models.
 
+**Default config:** `secrets.env` / `secrets.env.example` must **not** set `DRIVEAUTH_LADDER_ACCEPT_*` or `DRIVEAUTH_TRUST_ACCEPT_*`. Demo bars live only in `phases/phase2b_suggested.env` and require an explicit per-session `source` before a demo. `warn_policy_bar_overrides()` must return `[]` on a normal dashboard start.
+
+### Driver1 modality scope (2-modality golden reference)
+
+**Driver1 is intentionally voice + face only** — no fingerprint enrolled (`fingers/driver1.enc` absent; FingerNet may also be absent). Treat missing stage-3 finger as a **scoping decision**, not an enrollment defect, when auditing driver1 readiness. Ladder evaluations for driver1 are Voice → Face (finger unavailable / skip). Enrolling a real finger template requires physical sensor capture and is out of band for software-only passes.
+
+`stage2_status_for_driver()` / `scripts/audit_driver1_e2e.py` expose `modality_scope` with `finger_enrolled=false` and `scope_note` stating this explicitly.
+
 ---
 
 ## 7. Dataset & evaluation assumptions
 
 - **Genuine vs attack labels** in `data/driver1/` are correct for the enrolled identity.
+- **Capture framing convention:** enroll and genuine face stills use the same close-up
+  640×480 convention as dashboard `/register` (`CAPTURE_FRAME_WIDTH/HEIGHT`).
+  Older far-field 1080p genuines were a capture-flow bug (Haar ~3/20); re-collected
+  genuines should hit Haar at enroll-like face_frac. Do not treat far-field as the
+  target distribution.
+- **Driver1 golden-reference scope:** voice + face Stage-2 heads; **no fingerprint**
+  (see §6). Finger PNG synth under `data/driver1/finger/` does not imply an enrolled
+  `fingers/driver1.enc` template.
 - **OOD** voice (TTS) and face (other-id) are reasonable negatives for Stage-1 reject rates — not a full impostor population.
 - **Risk AUC ≈ 0.9955** is on the 50k synthetic/synthetic-labelled txn split used for training — not live card fraud.
 - **Sprint 6 system FAR/FRR** uses ladder bars and, for finger, proxy scores when HW is absent (`staged_full_proxy`).

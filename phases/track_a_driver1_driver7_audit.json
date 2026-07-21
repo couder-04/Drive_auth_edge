@@ -1,0 +1,380 @@
+{
+  "generated_at": "2026-07-21T01:06:17.719526+00:00",
+  "fix1_driver1_rebuild": {
+    "backup": "copied -> driver1.enc.bak_insample_20260721",
+    "backup_path": "/Users/par_04/Desktop/staged_driveauth-edge/driveauth_store_phase2a/faces/driver1.enc.bak_insample_20260721",
+    "pre_rebuild_match": "closer_to_haar",
+    "pre_tmpl_vs_haar": 0.8506780862808228,
+    "pre_tmpl_vs_cc": 0.3878207504749298,
+    "enroll_haar": "8/8",
+    "haar_details": [
+      {
+        "file": "enroll_01.jpg",
+        "haar_ok": true,
+        "shape": [
+          480,
+          640,
+          3
+        ],
+        "face_frac": 0.48541666666666666,
+        "frontal_ok": true
+      },
+      {
+        "file": "enroll_02.jpg",
+        "haar_ok": true,
+        "shape": [
+          480,
+          640,
+          3
+        ],
+        "face_frac": 0.5020833333333333,
+        "frontal_ok": true
+      },
+      {
+        "file": "enroll_03.jpg",
+        "haar_ok": true,
+        "shape": [
+          480,
+          640,
+          3
+        ],
+        "face_frac": 0.4895833333333333,
+        "frontal_ok": true
+      },
+      {
+        "file": "enroll_04.jpg",
+        "haar_ok": true,
+        "shape": [
+          480,
+          640,
+          3
+        ],
+        "face_frac": 0.47708333333333336,
+        "frontal_ok": true
+      },
+      {
+        "file": "enroll_05.jpg",
+        "haar_ok": true,
+        "shape": [
+          480,
+          640,
+          3
+        ],
+        "face_frac": 0.43333333333333335,
+        "frontal_ok": true
+      },
+      {
+        "file": "enroll_06.jpg",
+        "haar_ok": true,
+        "shape": [
+          480,
+          640,
+          3
+        ],
+        "face_frac": 0.40625,
+        "frontal_ok": true
+      },
+      {
+        "file": "enroll_07.jpg",
+        "haar_ok": true,
+        "shape": [
+          480,
+          640,
+          3
+        ],
+        "face_frac": 0.39375,
+        "frontal_ok": true
+      },
+      {
+        "file": "enroll_08.jpg",
+        "haar_ok": true,
+        "shape": [
+          480,
+          640,
+          3
+        ],
+        "face_frac": 0.5020833333333333,
+        "frontal_ok": true
+      }
+    ],
+    "new_tmpl_vs_haar_mean": 1.0,
+    "new_tmpl_vs_centercrop_mean": 0.43882423639297485,
+    "new_tmpl_vs_saved_mean_identity": 1.0,
+    "genuine": {
+      "n": 22,
+      "haar_ok": 22,
+      "mean": 0.8037242672660134,
+      "min": 0.7291802167892456,
+      "max": 0.8663806915283203
+    },
+    "attack": {
+      "n": 23,
+      "haar_ok": 19,
+      "mean": 0.6256523391474849,
+      "min": 0.2923884391784668,
+      "max": 0.8665763139724731
+    },
+    "attack_per_split": {
+      "attack_blur": {
+        "n": 8,
+        "haar_ok": 8,
+        "mean": 0.6502303555607796,
+        "min": 0.5790724754333496,
+        "max": 0.7392789125442505
+      },
+      "attack_side": {
+        "n": 8,
+        "haar_ok": 4,
+        "mean": 0.4169199839234352,
+        "min": 0.2923884391784668,
+        "max": 0.6200907230377197
+      },
+      "attack_replay_screen": {
+        "n": 7,
+        "haar_ok": 7,
+        "mean": 0.8361144406454903,
+        "min": 0.791355311870575,
+        "max": 0.8665763139724731
+      }
+    },
+    "inverted": false,
+    "enc_mtime": "2026-07-21T06:36:12.881514",
+    "enc_sha1": "28940aed0de9cb29",
+    "bak_sha1": "adb3c049f8799c37"
+  },
+  "fix3_driver7_template_pre": {
+    "driver_id": "driver7",
+    "template_path": "/Users/par_04/Desktop/staged_driveauth-edge/driveauth_store_phase2a/faces/driver7.enc",
+    "enroll_n": 10,
+    "haar_ok_n": 10,
+    "haar_hits": [
+      {
+        "file": "enroll_01.jpg",
+        "haar_ok": true,
+        "face_frac": 0.275,
+        "frontal_ok": true
+      },
+      {
+        "file": "enroll_02.jpg",
+        "haar_ok": true,
+        "face_frac": 0.3125,
+        "frontal_ok": true
+      },
+      {
+        "file": "enroll_03.jpg",
+        "haar_ok": true,
+        "face_frac": 0.3416666666666667,
+        "frontal_ok": true
+      },
+      {
+        "file": "enroll_04.jpg",
+        "haar_ok": true,
+        "face_frac": 0.29375,
+        "frontal_ok": true
+      },
+      {
+        "file": "enroll_05.jpg",
+        "haar_ok": true,
+        "face_frac": 0.24375,
+        "frontal_ok": true
+      },
+      {
+        "file": "enroll_06.jpg",
+        "haar_ok": true,
+        "face_frac": 0.4842592592592593,
+        "frontal_ok": true
+      },
+      {
+        "file": "enroll_07.jpg",
+        "haar_ok": true,
+        "face_frac": 0.3888888888888889,
+        "frontal_ok": true
+      },
+      {
+        "file": "enroll_08.jpg",
+        "haar_ok": true,
+        "face_frac": 0.42314814814814816,
+        "frontal_ok": true
+      },
+      {
+        "file": "enroll_09.jpg",
+        "haar_ok": true,
+        "face_frac": 0.39166666666666666,
+        "frontal_ok": true
+      },
+      {
+        "file": "enroll_10.jpg",
+        "haar_ok": true,
+        "face_frac": 0.3675925925925926,
+        "frontal_ok": true
+      }
+    ],
+    "tmpl_vs_haar_mean": 0.999967098236084,
+    "tmpl_vs_centercrop_mean": 0.34932681918144226,
+    "match": "haar_crop_mean_OK"
+  },
+  "fix3_driver7_synth_provenance": {
+    "driver_id": "driver7",
+    "side": [
+      {
+        "file": "attack_side/side_01.jpg",
+        "enroll_src": "enroll_01.jpg",
+        "exists": true,
+        "status": "ok",
+        "identical_pixels": true,
+        "mse": 0.0,
+        "maxdiff": 0,
+        "sha_actual": "8023b21338b7",
+        "sha_regen": "8023b21338b7"
+      },
+      {
+        "file": "attack_side/side_02.jpg",
+        "enroll_src": "enroll_02.jpg",
+        "exists": true,
+        "status": "ok",
+        "identical_pixels": true,
+        "mse": 0.0,
+        "maxdiff": 0,
+        "sha_actual": "ccf9392c6458",
+        "sha_regen": "ccf9392c6458"
+      },
+      {
+        "file": "attack_side/side_03.jpg",
+        "enroll_src": "enroll_03.jpg",
+        "exists": true,
+        "status": "ok",
+        "identical_pixels": true,
+        "mse": 0.0,
+        "maxdiff": 0,
+        "sha_actual": "d4ab56691551",
+        "sha_regen": "d4ab56691551"
+      },
+      {
+        "file": "attack_side/side_04.jpg",
+        "enroll_src": "enroll_04.jpg",
+        "exists": true,
+        "status": "ok",
+        "identical_pixels": true,
+        "mse": 0.0,
+        "maxdiff": 0,
+        "sha_actual": "b46b755ba22b",
+        "sha_regen": "b46b755ba22b"
+      },
+      {
+        "file": "attack_side/side_05.jpg",
+        "enroll_src": "enroll_05.jpg",
+        "exists": true,
+        "status": "ok",
+        "identical_pixels": true,
+        "mse": 0.0,
+        "maxdiff": 0,
+        "sha_actual": "9d3f28a73186",
+        "sha_regen": "9d3f28a73186"
+      },
+      {
+        "file": "attack_side/side_06.jpg",
+        "enroll_src": "enroll_06.jpg",
+        "exists": true,
+        "status": "ok",
+        "identical_pixels": true,
+        "mse": 0.0,
+        "maxdiff": 0,
+        "sha_actual": "0a2d0a386fd8",
+        "sha_regen": "0a2d0a386fd8"
+      },
+      {
+        "file": "attack_side/side_07.jpg",
+        "enroll_src": "enroll_07.jpg",
+        "exists": true,
+        "status": "ok",
+        "identical_pixels": true,
+        "mse": 0.0,
+        "maxdiff": 0,
+        "sha_actual": "def9436df1fc",
+        "sha_regen": "def9436df1fc"
+      },
+      {
+        "file": "attack_side/side_08.jpg",
+        "enroll_src": "enroll_08.jpg",
+        "exists": true,
+        "status": "ok",
+        "identical_pixels": true,
+        "mse": 0.0,
+        "maxdiff": 0,
+        "sha_actual": "1ed774d8de3f",
+        "sha_regen": "1ed774d8de3f"
+      }
+    ],
+    "blur": [
+      {
+        "file": "attack_blur/blur_01.jpg",
+        "enroll_src": "enroll_01.jpg",
+        "exists": true,
+        "status": "ok",
+        "mse": 0.0,
+        "maxdiff": 0
+      },
+      {
+        "file": "attack_blur/blur_02.jpg",
+        "enroll_src": "enroll_02.jpg",
+        "exists": true,
+        "status": "ok",
+        "mse": 0.0,
+        "maxdiff": 0
+      },
+      {
+        "file": "attack_blur/blur_03.jpg",
+        "enroll_src": "enroll_03.jpg",
+        "exists": true,
+        "status": "ok",
+        "mse": 0.0,
+        "maxdiff": 0
+      },
+      {
+        "file": "attack_blur/blur_04.jpg",
+        "enroll_src": "enroll_04.jpg",
+        "exists": true,
+        "status": "ok",
+        "mse": 0.0,
+        "maxdiff": 0
+      },
+      {
+        "file": "attack_blur/blur_05.jpg",
+        "enroll_src": "enroll_05.jpg",
+        "exists": true,
+        "status": "ok",
+        "mse": 0.0,
+        "maxdiff": 0
+      },
+      {
+        "file": "attack_blur/blur_06.jpg",
+        "enroll_src": "enroll_06.jpg",
+        "exists": true,
+        "status": "ok",
+        "mse": 0.0,
+        "maxdiff": 0
+      },
+      {
+        "file": "attack_blur/blur_07.jpg",
+        "enroll_src": "enroll_07.jpg",
+        "exists": true,
+        "status": "ok",
+        "mse": 0.0,
+        "maxdiff": 0
+      },
+      {
+        "file": "attack_blur/blur_08.jpg",
+        "enroll_src": "enroll_08.jpg",
+        "exists": true,
+        "status": "ok",
+        "mse": 0.0,
+        "maxdiff": 0
+      }
+    ],
+    "side_mean_mse": 0.0,
+    "blur_mean_mse": 0.0,
+    "side_looks_synth": true,
+    "blur_looks_synth": true
+  },
+  "fix3_driver7_rebuild": null
+}

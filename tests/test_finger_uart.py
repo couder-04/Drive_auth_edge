@@ -17,6 +17,7 @@ from hardware.finger_uart import (
     candidate_ports,
     open_default_sensor,
 )
+from testsupport_afunix import requires_af_unix
 
 
 def test_aliases_are_pyfingerprint_adapter():
@@ -110,6 +111,7 @@ def test_pyfingerprint_open_without_sdk(monkeypatch, tmp_path: Path):
     assert adapter.open() is False
 
 
+@requires_af_unix
 def test_daemon_uses_open_default(monkeypatch, tmp_path: Path):
     monkeypatch.setenv("DRIVEAUTH_FINGER_MANUAL", "1")
     from hardware.finger_daemon import FingerDaemon

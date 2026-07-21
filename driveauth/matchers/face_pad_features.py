@@ -43,10 +43,15 @@ def extract_face_pad_features(
 
     h, w = gray.shape[:2]
     aspect = float(w / max(h, 1))
-    frac = float(face_frac) if face_frac is not None else 1.0
-    # Down-weight when non-frontal (side attacks)
+    # Unknown face_frac must NOT default to 1.0 — that lied to PAD on Haar-miss
+    # center-crops (attack_side scored as well-framed). Callers with a known
+    # full-frame crop must pass face_frac=1.0 explicitly.
+    frac = float(face_frac) if face_frac is not None else 0.0
+    # Down-weight when non-frontal (side attacks) or unknown pose
     if frontal_ok is False:
         frac = min(frac, 0.25)
+    elif frontal_ok is None and face_frac is None:
+        frac = 0.0
 
     # Screen / print cues: high chroma regularity + saturation banding
     hsv = cv2.cvtColor(bgr3, cv2.COLOR_BGR2HSV).astype(np.float32)

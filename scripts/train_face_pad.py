@@ -60,8 +60,8 @@ def _load_meta_for(path: Path, fm) -> tuple[np.ndarray, dict]:
         y0, x0 = (h - side) // 2, (w - side) // 2
         crop = bgr[y0 : y0 + side, x0 : x0 + side]
         meta = {
-            "face_frac": 1.0,
-            "frontal_ok": True,
+            "face_frac": None,
+            "frontal_ok": False,
             "bgr": crop,
             "inject_fallback": True,
         }

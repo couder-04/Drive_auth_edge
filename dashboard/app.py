@@ -837,10 +837,25 @@ async def register_face(
         raise HTTPException(status_code=400, detail="empty image upload")
     if len(raw) > 8_000_000:
         raise HTTPException(status_code=400, detail="image too large")
+    # Capture-time framing gate — same contract as scripts/capture_own_face.py.
+    # Reject far-field / no-face snaps at enroll so audits don't discover them later.
+    bgr = _decode_face_jpeg(raw)
+    from driveauth.matchers.face import assess_face_framing
+
+    framing = assess_face_framing(bgr)
+    if not framing.get("ok"):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"face framing rejected ({framing.get('reason')}): "
+                "move closer, face the camera, fill more of the frame, then retake"
+            ),
+        )
     path = save_face_jpeg(_data_root(), driver_id, raw, split="enroll")
     return {
         "status": "ok",
         "path": str(path.relative_to(_data_root())),
+        "face_frac": framing.get("face_frac"),
         **enrollment_status(_data_root(), _register_store(), driver_id),
     }
 

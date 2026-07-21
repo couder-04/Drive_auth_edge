@@ -252,6 +252,38 @@ def stage2_status_for_driver(
         VOICE_CALIBRATOR: _training_origin(voice_cal_meta),
     }
     any_migrated = any(o == "migrated_copy" for o in origins.values())
+    store_p = Path(store)
+    finger_enc = (store_p / "fingers" / f"{driver_id}.enc").is_file()
+    fingernet = (store_p / "fingernet_lite_int8.onnx").is_file()
+    # Driver1 (and similar) may be intentionally voice+face only — missing finger
+    # is a scope decision, not an enrollment bug. See docs/security-assumptions.md.
+    if finger_enc and fingernet:
+        modality_scope = {
+            "modalities": ["voice", "face", "finger"],
+            "finger_enrolled": True,
+            "fingernet_present": True,
+            "scope_note": "3-modality (voice + face + finger)",
+        }
+    elif finger_enc:
+        modality_scope = {
+            "modalities": ["voice", "face"],
+            "finger_enrolled": True,
+            "fingernet_present": False,
+            "scope_note": (
+                "Finger template present but FingerNet model missing — "
+                "finger matcher unavailable until model is installed"
+            ),
+        }
+    else:
+        modality_scope = {
+            "modalities": ["voice", "face"],
+            "finger_enrolled": False,
+            "fingernet_present": fingernet,
+            "scope_note": (
+                "2-modality golden reference (voice + face; no fingerprint enrolled). "
+                "Missing fingers/{id}.enc is intentional scoping, not a defect."
+            ),
+        }
     return {
         "driver_id": driver_id,
         "artifacts": {
@@ -277,6 +309,7 @@ def stage2_status_for_driver(
             or voice_cal_meta.get("timestamp"),
         },
         "needs_retrain": any_migrated,
+        "modality_scope": modality_scope,
         "mode": (
             "legacy_shared"
             if any_legacy

@@ -95,7 +95,7 @@ def main() -> None:
         )
         pad_p = float(pad.predict_proba(pad_feats))
         feats = np.array(
-            [float(r.score), pad_p, float(meta.get("face_frac") or 1.0)],
+            [float(r.score), pad_p, float(meta.get("face_frac") or 0.0)],
             dtype=np.float32,
         )
         xs.append(feats)

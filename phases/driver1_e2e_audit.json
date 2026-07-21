@@ -1,0 +1,2289 @@
+{
+  "driver_id": "driver1",
+  "store": "/Users/par_04/Desktop/staged_driveauth-edge/driveauth_store_phase2a",
+  "data": "/Users/par_04/Desktop/staged_driveauth-edge/data/driver1",
+  "phase1_integrity": {
+    "stage2_status": {
+      "driver_id": "driver1",
+      "artifacts": {
+        "face_pad": {
+          "source": "per_driver",
+          "path": "/Users/par_04/Desktop/staged_driveauth-edge/driveauth_store_phase2a/faces/driver1/face_pad.onnx",
+          "relpath": "faces/driver1/face_pad.onnx",
+          "present": true,
+          "training_origin": "independent"
+        },
+        "face_calibrator": {
+          "source": "per_driver",
+          "path": "/Users/par_04/Desktop/staged_driveauth-edge/driveauth_store_phase2a/faces/driver1/face_calibrator.onnx",
+          "relpath": "faces/driver1/face_calibrator.onnx",
+          "present": true,
+          "training_origin": "independent"
+        },
+        "voice_calibrator": {
+          "source": "per_driver",
+          "path": "/Users/par_04/Desktop/staged_driveauth-edge/driveauth_store_phase2a/voices/driver1/voice_calibrator.onnx",
+          "relpath": "voices/driver1/voice_calibrator.onnx",
+          "present": true,
+          "training_origin": "independent"
+        }
+      },
+      "pad_enabled": true,
+      "pad_loo_auc": 0.8228,
+      "pad_threshold": 0.32,
+      "face_calibrator_loo_auc": 0.8158,
+      "voice_calibrator_loo_auc": 0.8237,
+      "calibration_timestamps": {
+        "face_pad": "2026-07-21T00:31:05.493349+00:00",
+        "face_calibrator": "2026-07-21T00:31:19.824945+00:00",
+        "voice_calibrator": "2026-07-21T00:31:28.678424+00:00"
+      },
+      "needs_retrain": false,
+      "modality_scope": {
+        "modalities": [
+          "voice",
+          "face"
+        ],
+        "finger_enrolled": false,
+        "fingernet_present": false,
+        "scope_note": "2-modality golden reference (voice + face; no fingerprint enrolled). Missing fingers/{id}.enc is intentional scoping, not a defect."
+      },
+      "mode": "per_driver"
+    },
+    "check_driver": {
+      "driver_id": "driver1",
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "compatibility_mode": false,
+      "stage2": {
+        "driver_id": "driver1",
+        "artifacts": {
+          "face_pad": {
+            "source": "per_driver",
+            "path": "/Users/par_04/Desktop/staged_driveauth-edge/driveauth_store_phase2a/faces/driver1/face_pad.onnx",
+            "relpath": "faces/driver1/face_pad.onnx",
+            "present": true,
+            "training_origin": "independent"
+          },
+          "face_calibrator": {
+            "source": "per_driver",
+            "path": "/Users/par_04/Desktop/staged_driveauth-edge/driveauth_store_phase2a/faces/driver1/face_calibrator.onnx",
+            "relpath": "faces/driver1/face_calibrator.onnx",
+            "present": true,
+            "training_origin": "independent"
+          },
+          "voice_calibrator": {
+            "source": "per_driver",
+            "path": "/Users/par_04/Desktop/staged_driveauth-edge/driveauth_store_phase2a/voices/driver1/voice_calibrator.onnx",
+            "relpath": "voices/driver1/voice_calibrator.onnx",
+            "present": true,
+            "training_origin": "independent"
+          }
+        },
+        "pad_enabled": true,
+        "pad_loo_auc": 0.8228,
+        "pad_threshold": 0.32,
+        "face_calibrator_loo_auc": 0.8158,
+        "voice_calibrator_loo_auc": 0.8237,
+        "calibration_timestamps": {
+          "face_pad": "2026-07-21T00:31:05.493349+00:00",
+          "face_calibrator": "2026-07-21T00:31:19.824945+00:00",
+          "voice_calibrator": "2026-07-21T00:31:28.678424+00:00"
+        },
+        "needs_retrain": false,
+        "modality_scope": {
+          "modalities": [
+            "voice",
+            "face"
+          ],
+          "finger_enrolled": false,
+          "fingernet_present": false,
+          "scope_note": "2-modality golden reference (voice + face; no fingerprint enrolled). Missing fingers/{id}.enc is intentional scoping, not a defect."
+        },
+        "mode": "per_driver"
+      },
+      "face_template": true,
+      "voice_template": true
+    },
+    "templates": {
+      "face_enc": true,
+      "voice_enc": true,
+      "finger_enc": false,
+      "behavioral_enc": true,
+      "profile": true,
+      "consent": true,
+      "ood_face": true,
+      "ood_voice": true,
+      "ood_finger": true,
+      "mobilefacenet": true,
+      "risk_gbt": true,
+      "trust_fusion": true,
+      "fingernet": false
+    },
+    "artifacts": {
+      "face_pad": {
+        "source": "per_driver",
+        "path": "/Users/par_04/Desktop/staged_driveauth-edge/driveauth_store_phase2a/faces/driver1/face_pad.onnx",
+        "exists": true,
+        "size_bytes": 470
+      },
+      "face_calibrator": {
+        "source": "per_driver",
+        "path": "/Users/par_04/Desktop/staged_driveauth-edge/driveauth_store_phase2a/faces/driver1/face_calibrator.onnx",
+        "exists": true,
+        "size_bytes": 420
+      },
+      "voice_calibrator": {
+        "source": "per_driver",
+        "path": "/Users/par_04/Desktop/staged_driveauth-edge/driveauth_store_phase2a/voices/driver1/voice_calibrator.onnx",
+        "exists": true,
+        "size_bytes": 440
+      }
+    },
+    "legacy_root_present": {
+      "face_pad": true,
+      "face_calibrator": true,
+      "voice_calibrator": true
+    },
+    "using_legacy_for_driver1": false,
+    "cross_driver_path_collision": {},
+    "isolation_ok": true,
+    "modality_scope": {
+      "modalities": [
+        "voice",
+        "face"
+      ],
+      "finger_enrolled": false,
+      "fingernet_present": false,
+      "scope_note": "2-modality golden reference (voice + face; no fingerprint enrolled). Missing fingers/{id}.enc is intentional scoping, not a defect."
+    }
+  },
+  "phase2_enrollment": {
+    "face": {
+      "enroll_n": 8,
+      "genuine_n": 22,
+      "attack_counts": {
+        "attack_blur": 8,
+        "attack_side": 8,
+        "attack_replay_screen": 7
+      },
+      "attack_n": 23,
+      "class_balance_genuine_vs_attack": {
+        "genuine": 22,
+        "attack": 23,
+        "ratio_g_over_a": 0.9565217391304348
+      },
+      "duplicates": [],
+      "duplicate_groups": 0,
+      "haar_detect_ok": 49,
+      "haar_fail_or_nonfrontal": 4,
+      "detection_rate": 0.9245283018867925,
+      "fallback_crop_count": 4,
+      "blurry_laplacian_lt_40": 15,
+      "sharpness": {
+        "mean": 243.39567972056074,
+        "min": 1.8179264310095042,
+        "max": 462.12813114382425,
+        "p10": 1.9127851509518092
+      },
+      "brightness": {
+        "mean": 154.57124110789002,
+        "min": 121.41775125385803,
+        "max": 169.09604166666668,
+        "std": 11.305951002755254
+      },
+      "face_frac": {
+        "n": 49,
+        "mean": 0.40209278155706724,
+        "min": 0.29375
+      },
+      "aspect": {
+        "mean": 1.0,
+        "std": 0.0
+      },
+      "lighting_variation_brightness_std": 11.305951002755254,
+      "pose_proxy_aspect_std": 0.0
+    },
+    "voice": {
+      "splits": {
+        "enroll": 8,
+        "genuine": 24,
+        "attack_other_speaker": 5,
+        "attack_replay": 5,
+        "attack_silent": 3,
+        "noisy": 5
+      },
+      "genuine_n": 24,
+      "enroll_n": 8,
+      "attack_n": 18,
+      "duration_s": {
+        "mean": 2.85828,
+        "min": 0.883125,
+        "max": 3.273
+      },
+      "sample_rates": [
+        16000
+      ],
+      "sr_consistent": true,
+      "clipping_files": 0,
+      "silent_files": 3,
+      "noisy_n": 5
+    },
+    "behavioral": {
+      "genuine_n": 20,
+      "attack_n": 6,
+      "template_exists": true,
+      "source": "Behavioral Phase 3 \u2014 SYNTHETIC CAN/IMU windows (pre-hardware)\nSchema matches BEHAVIORAL_FEATURE_KEYS + t_ms + label:\n  steering_angle_deg, steering_rate_dps, throttle_pct, brake_pedal_pct,\n  longitudi",
+      "synthetic": true
+    },
+    "finger": {
+      "enroll_n": 8,
+      "genuine_n": 20,
+      "attack_n": 20,
+      "template_exists": false,
+      "fingernet_model": false
+    }
+  },
+  "phase3_4": {
+    "face_raw": {
+      "genuine_mean": 0.3664376126094298,
+      "attack_mean": 0.32130769543025806,
+      "genuine_std": 0.040994323356303895,
+      "attack_std": 0.17795268306086853,
+      "separation": 0.04512991717917175,
+      "auc": 0.38537549407114624,
+      "n_genuine": 22,
+      "n_attack": 23,
+      "cosine_genuine_mean": 0.3664376126094298,
+      "cosine_attack_mean": 0.398581484089727,
+      "cosine_auc": 0.21146245059288538,
+      "detection": {
+        "haar_ok": 41,
+        "fallback": 4,
+        "pad_reject_g": 0,
+        "pad_reject_a": 4
+      },
+      "pad": {
+        "enabled": false,
+        "threshold": 0.39,
+        "stage2_info": {
+          "driver_id": "driver1",
+          "pad_source": "missing",
+          "calibrator_source": "missing",
+          "pad_enabled": false
+        },
+        "genuine_mean": null,
+        "attack_mean": 0.0,
+        "auc": NaN,
+        "confusion": {
+          "tp": 0,
+          "tn": 4,
+          "fp": 0,
+          "fn": 0
+        },
+        "false_accepts_fp": 0,
+        "false_rejects_fn": 0
+      },
+      "latency_ms": {
+        "mean": 40.10132777798895,
+        "p95": 75.47715000255266,
+        "max": 100.30866599845467,
+        "n": 45
+      }
+    },
+    "face_cal": {
+      "genuine_mean": 0.5859967957843434,
+      "attack_mean": 0.10282994612403538,
+      "genuine_std": 0.010170542800274778,
+      "attack_std": 0.22415104290924487,
+      "separation": 0.483166849660308,
+      "auc": 0.8814229249011858,
+      "n_genuine": 22,
+      "n_attack": 23,
+      "cosine_genuine_mean": 0.3664376126094298,
+      "cosine_attack_mean": 0.398581484089727,
+      "cosine_auc": 0.21146245059288538,
+      "detection": {
+        "haar_ok": 41,
+        "fallback": 4,
+        "pad_reject_g": 0,
+        "pad_reject_a": 19
+      },
+      "pad": {
+        "enabled": true,
+        "threshold": 0.32,
+        "stage2_info": {
+          "driver_id": "driver1",
+          "pad_source": "per_driver",
+          "calibrator_source": "per_driver",
+          "pad_enabled": true,
+          "pad_relpath": "faces/driver1/face_pad.onnx",
+          "calibrator_relpath": "faces/driver1/face_calibrator.onnx",
+          "pad_loo_auc": 0.8228,
+          "pad_threshold": 0.32,
+          "trained_at": "2026-07-21T00:31:05.493349+00:00"
+        },
+        "genuine_mean": 0.6510445583950389,
+        "attack_mean": 0.38340533945871436,
+        "auc": 0.8952569169960475,
+        "confusion": {
+          "tp": 22,
+          "tn": 15,
+          "fp": 8,
+          "fn": 0
+        },
+        "false_accepts_fp": 8,
+        "false_rejects_fn": 0
+      },
+      "latency_ms": {
+        "mean": 42.5527157325026,
+        "p95": 89.1439499973785,
+        "max": 91.14654199947836,
+        "n": 45
+      }
+    },
+    "face_cal_per_file_summary": {
+      "n_genuine_ge_0_70": 0,
+      "n_genuine_ge_0_36": 22,
+      "n_genuine": 22,
+      "n_attack_ge_0_70": 0,
+      "n_attack_ge_0_36": 4
+    },
+    "voice_raw": {
+      "genuine_mean": 0.5992947767178217,
+      "attack_mean": 0.3635417435111271,
+      "genuine_std": 0.10031049429385408,
+      "separation": 0.2357530332066946,
+      "auc": 0.6990740740740741,
+      "n_genuine": 24,
+      "n_attack": 18,
+      "attack_by_split_mean": {
+        "attack_other_speaker": 0.07036184147000313,
+        "attack_replay": 0.5737196207046509,
+        "attack_silent": 0.013316042100389799,
+        "noisy": 0.6566791892051697
+      },
+      "calibrator_source": {
+        "note": "see VoiceMatcher load logs"
+      },
+      "latency_ms": {
+        "mean": 43.1084245712901,
+        "p95": 71.66901875316397,
+        "max": 101.63504099909915,
+        "n": 42
+      },
+      "above_stock_0_72": 3,
+      "above_demo_0_58": 17,
+      "frac_above_stock": 0.125,
+      "frac_above_demo": 0.7083333333333334
+    },
+    "voice_cal": {
+      "genuine_mean": 0.6194399024049441,
+      "attack_mean": 0.4468431969483693,
+      "genuine_std": 0.037950804400147184,
+      "separation": 0.17259670545657474,
+      "auc": 0.7754629629629629,
+      "n_genuine": 24,
+      "n_attack": 18,
+      "attack_by_split_mean": {
+        "attack_other_speaker": 0.2970001459121704,
+        "attack_replay": 0.5872162878513336,
+        "attack_silent": 0.17525612314542136,
+        "noisy": 0.6192654013633728
+      },
+      "calibrator_source": {
+        "note": "see VoiceMatcher load logs"
+      },
+      "latency_ms": {
+        "mean": 46.52081249930364,
+        "p95": 73.71438300069713,
+        "max": 116.34191600023769,
+        "n": 42
+      },
+      "above_stock_0_72": 0,
+      "above_demo_0_58": 18,
+      "frac_above_stock": 0.0,
+      "frac_above_demo": 0.75
+    },
+    "loo": {
+      "face_pad": 0.8228,
+      "face_calibrator": 0.8158,
+      "voice_calibrator": 0.8237,
+      "face_pad_apcer": 0.2105,
+      "face_pad_bpcer": 0.0,
+      "pad_disabled": false
+    },
+    "face_cal_full_rows": [
+      {
+        "file": "genuine_01.jpg",
+        "label": "genuine",
+        "score": 0.5559250116348267,
+        "pad": 0.5996248126029968,
+        "fallback": false
+      },
+      {
+        "file": "genuine_02.jpg",
+        "label": "genuine",
+        "score": 0.5716254115104675,
+        "pad": 0.6261212229728699,
+        "fallback": false
+      },
+      {
+        "file": "genuine_03.jpg",
+        "label": "genuine",
+        "score": 0.5769627094268799,
+        "pad": 0.6361614465713501,
+        "fallback": false
+      },
+      {
+        "file": "genuine_04.jpg",
+        "label": "genuine",
+        "score": 0.5750920176506042,
+        "pad": 0.6306960582733154,
+        "fallback": false
+      },
+      {
+        "file": "genuine_05.jpg",
+        "label": "genuine",
+        "score": 0.575365424156189,
+        "pad": 0.632381796836853,
+        "fallback": false
+      },
+      {
+        "file": "genuine_06.jpg",
+        "label": "genuine",
+        "score": 0.5944930911064148,
+        "pad": 0.6679937839508057,
+        "fallback": false
+      },
+      {
+        "file": "genuine_07.jpg",
+        "label": "genuine",
+        "score": 0.5940619111061096,
+        "pad": 0.6683411002159119,
+        "fallback": false
+      },
+      {
+        "file": "genuine_08.jpg",
+        "label": "genuine",
+        "score": 0.5882778167724609,
+        "pad": 0.6568787097930908,
+        "fallback": false
+      },
+      {
+        "file": "genuine_09.jpg",
+        "label": "genuine",
+        "score": 0.5855894684791565,
+        "pad": 0.6512855887413025,
+        "fallback": false
+      },
+      {
+        "file": "genuine_10.jpg",
+        "label": "genuine",
+        "score": 0.585167646408081,
+        "pad": 0.6479501724243164,
+        "fallback": false
+      },
+      {
+        "file": "genuine_11.jpg",
+        "label": "genuine",
+        "score": 0.5849837064743042,
+        "pad": 0.6483073234558105,
+        "fallback": false
+      },
+      {
+        "file": "genuine_12.jpg",
+        "label": "genuine",
+        "score": 0.5934111475944519,
+        "pad": 0.6643279194831848,
+        "fallback": false
+      },
+      {
+        "file": "genuine_13.jpg",
+        "label": "genuine",
+        "score": 0.5853002071380615,
+        "pad": 0.6493690609931946,
+        "fallback": false
+      },
+      {
+        "file": "genuine_14.jpg",
+        "label": "genuine",
+        "score": 0.59095299243927,
+        "pad": 0.6589263677597046,
+        "fallback": false
+      },
+      {
+        "file": "genuine_15.jpg",
+        "label": "genuine",
+        "score": 0.585072934627533,
+        "pad": 0.6473295092582703,
+        "fallback": false
+      },
+      {
+        "file": "genuine_16.jpg",
+        "label": "genuine",
+        "score": 0.5895398855209351,
+        "pad": 0.6572777032852173,
+        "fallback": false
+      },
+      {
+        "file": "genuine_17.jpg",
+        "label": "genuine",
+        "score": 0.5808511972427368,
+        "pad": 0.6396828889846802,
+        "fallback": false
+      },
+      {
+        "file": "genuine_18.jpg",
+        "label": "genuine",
+        "score": 0.5942485332489014,
+        "pad": 0.6651700735092163,
+        "fallback": false
+      },
+      {
+        "file": "genuine_19.jpg",
+        "label": "genuine",
+        "score": 0.5969691276550293,
+        "pad": 0.6694516539573669,
+        "fallback": false
+      },
+      {
+        "file": "genuine_20.jpg",
+        "label": "genuine",
+        "score": 0.588643491268158,
+        "pad": 0.6565921306610107,
+        "fallback": false
+      },
+      {
+        "file": "genuine_21.jpg",
+        "label": "genuine",
+        "score": 0.5968584418296814,
+        "pad": 0.669474720954895,
+        "fallback": false
+      },
+      {
+        "file": "genuine_22.jpg",
+        "label": "genuine",
+        "score": 0.6025373339653015,
+        "pad": 0.6796362400054932,
+        "fallback": false
+      },
+      {
+        "file": "attack_blur/blur_01.jpg",
+        "label": "attack",
+        "split": "attack_blur",
+        "score": 0.0,
+        "pad": 0.2378772497177124,
+        "fallback": false
+      },
+      {
+        "file": "attack_blur/blur_02.jpg",
+        "label": "attack",
+        "split": "attack_blur",
+        "score": 0.0,
+        "pad": 0.23890137672424316,
+        "fallback": false
+      },
+      {
+        "file": "attack_blur/blur_03.jpg",
+        "label": "attack",
+        "split": "attack_blur",
+        "score": 0.0,
+        "pad": 0.2390173077583313,
+        "fallback": false
+      },
+      {
+        "file": "attack_blur/blur_04.jpg",
+        "label": "attack",
+        "split": "attack_blur",
+        "score": 0.0,
+        "pad": 0.24055513739585876,
+        "fallback": false
+      },
+      {
+        "file": "attack_blur/blur_05.jpg",
+        "label": "attack",
+        "split": "attack_blur",
+        "score": 0.0,
+        "pad": 0.24096018075942993,
+        "fallback": false
+      },
+      {
+        "file": "attack_blur/blur_06.jpg",
+        "label": "attack",
+        "split": "attack_blur",
+        "score": 0.0,
+        "pad": 0.251509428024292,
+        "fallback": false
+      },
+      {
+        "file": "attack_blur/blur_07.jpg",
+        "label": "attack",
+        "split": "attack_blur",
+        "score": 0.0,
+        "pad": 0.2521533668041229,
+        "fallback": false
+      },
+      {
+        "file": "attack_blur/blur_08.jpg",
+        "label": "attack",
+        "split": "attack_blur",
+        "score": 0.0,
+        "pad": 0.23909828066825867,
+        "fallback": false
+      },
+      {
+        "file": "attack_side/side_01.jpg",
+        "label": "attack",
+        "split": "attack_side",
+        "score": 0.0,
+        "pad": 0.5635038614273071,
+        "fallback": true
+      },
+      {
+        "file": "attack_side/side_02.jpg",
+        "label": "attack",
+        "split": "attack_side",
+        "score": 0.5756510496139526,
+        "pad": 0.637829601764679,
+        "fallback": false
+      },
+      {
+        "file": "attack_side/side_03.jpg",
+        "label": "attack",
+        "split": "attack_side",
+        "score": 0.0,
+        "pad": 0.567794144153595,
+        "fallback": true
+      },
+      {
+        "file": "attack_side/side_04.jpg",
+        "label": "attack",
+        "split": "attack_side",
+        "score": 0.0,
+        "pad": 0.5459884405136108,
+        "fallback": true
+      },
+      {
+        "file": "attack_side/side_05.jpg",
+        "label": "attack",
+        "split": "attack_side",
+        "score": 0.5902449488639832,
+        "pad": 0.6560784578323364,
+        "fallback": false
+      },
+      {
+        "file": "attack_side/side_06.jpg",
+        "label": "attack",
+        "split": "attack_side",
+        "score": 0.597152054309845,
+        "pad": 0.6647191047668457,
+        "fallback": false
+      },
+      {
+        "file": "attack_side/side_07.jpg",
+        "label": "attack",
+        "split": "attack_side",
+        "score": 0.602040708065033,
+        "pad": 0.6715616583824158,
+        "fallback": false
+      },
+      {
+        "file": "attack_side/side_08.jpg",
+        "label": "attack",
+        "split": "attack_side",
+        "score": 0.0,
+        "pad": 0.5558509230613708,
+        "fallback": true
+      },
+      {
+        "file": "attack_replay_screen/screen_01.jpg",
+        "label": "attack",
+        "split": "attack_replay_screen",
+        "score": 0.0,
+        "pad": 0.3125995695590973,
+        "fallback": false
+      },
+      {
+        "file": "attack_replay_screen/screen_02.jpg",
+        "label": "attack",
+        "split": "attack_replay_screen",
+        "score": 0.0,
+        "pad": 0.293756365776062,
+        "fallback": false
+      },
+      {
+        "file": "attack_replay_screen/screen_03.jpg",
+        "label": "attack",
+        "split": "attack_replay_screen",
+        "score": 0.0,
+        "pad": 0.2914356589317322,
+        "fallback": false
+      },
+      {
+        "file": "attack_replay_screen/screen_04.jpg",
+        "label": "attack",
+        "split": "attack_replay_screen",
+        "score": 0.0,
+        "pad": 0.29656320810317993,
+        "fallback": false
+      },
+      {
+        "file": "attack_replay_screen/screen_05.jpg",
+        "label": "attack",
+        "split": "attack_replay_screen",
+        "score": 0.0,
+        "pad": 0.2712397575378418,
+        "fallback": false
+      },
+      {
+        "file": "attack_replay_screen/screen_06.jpg",
+        "label": "attack",
+        "split": "attack_replay_screen",
+        "score": 0.0,
+        "pad": 0.2684224843978882,
+        "fallback": false
+      },
+      {
+        "file": "attack_replay_screen/screen_07.jpg",
+        "label": "attack",
+        "split": "attack_replay_screen",
+        "score": 0.0,
+        "pad": 0.2809072434902191,
+        "fallback": false
+      }
+    ],
+    "voice_cal_full_rows": [
+      {
+        "file": "genuine_01.wav",
+        "label": "genuine",
+        "score": 0.6306220889091492
+      },
+      {
+        "file": "genuine_02.wav",
+        "label": "genuine",
+        "score": 0.637665867805481
+      },
+      {
+        "file": "genuine_03.wav",
+        "label": "genuine",
+        "score": 0.6243939995765686
+      },
+      {
+        "file": "genuine_04.wav",
+        "label": "genuine",
+        "score": 0.6674303412437439
+      },
+      {
+        "file": "genuine_05.wav",
+        "label": "genuine",
+        "score": 0.637579083442688
+      },
+      {
+        "file": "genuine_06.wav",
+        "label": "genuine",
+        "score": 0.6483983993530273
+      },
+      {
+        "file": "genuine_07.wav",
+        "label": "genuine",
+        "score": 0.5933139324188232
+      },
+      {
+        "file": "genuine_08.wav",
+        "label": "genuine",
+        "score": 0.5574018955230713
+      },
+      {
+        "file": "genuine_09.wav",
+        "label": "genuine",
+        "score": 0.5630984902381897
+      },
+      {
+        "file": "genuine_10.wav",
+        "label": "genuine",
+        "score": 0.6268649101257324
+      },
+      {
+        "file": "genuine_11.wav",
+        "label": "genuine",
+        "score": 0.6197388172149658
+      },
+      {
+        "file": "genuine_12.wav",
+        "label": "genuine",
+        "score": 0.6413756608963013
+      },
+      {
+        "file": "genuine_13.wav",
+        "label": "genuine",
+        "score": 0.6436558365821838
+      },
+      {
+        "file": "genuine_14.wav",
+        "label": "genuine",
+        "score": 0.6207462549209595
+      },
+      {
+        "file": "genuine_15.wav",
+        "label": "genuine",
+        "score": 0.5666601657867432
+      },
+      {
+        "file": "genuine_16.wav",
+        "label": "genuine",
+        "score": 0.5532981157302856
+      },
+      {
+        "file": "genuine_17.wav",
+        "label": "genuine",
+        "score": 0.5588751435279846
+      },
+      {
+        "file": "genuine_18.wav",
+        "label": "genuine",
+        "score": 0.6444264054298401
+      },
+      {
+        "file": "genuine_19.wav",
+        "label": "genuine",
+        "score": 0.6250376105308533
+      },
+      {
+        "file": "genuine_20.wav",
+        "label": "genuine",
+        "score": 0.6722452044487
+      },
+      {
+        "file": "genuine_21.wav",
+        "label": "genuine",
+        "score": 0.6834669709205627
+      },
+      {
+        "file": "genuine_22.wav",
+        "label": "genuine",
+        "score": 0.6490828990936279
+      },
+      {
+        "file": "genuine_23.wav",
+        "label": "genuine",
+        "score": 0.6307749152183533
+      },
+      {
+        "file": "genuine_24.wav",
+        "label": "genuine",
+        "score": 0.5704046487808228
+      },
+      {
+        "file": "attack_other_speaker/other_01.wav",
+        "label": "attack",
+        "split": "attack_other_speaker",
+        "score": 0.15198135375976562
+      },
+      {
+        "file": "attack_other_speaker/other_02.wav",
+        "label": "attack",
+        "split": "attack_other_speaker",
+        "score": 0.3254975974559784
+      },
+      {
+        "file": "attack_other_speaker/other_03.wav",
+        "label": "attack",
+        "split": "attack_other_speaker",
+        "score": 0.3154236078262329
+      },
+      {
+        "file": "attack_other_speaker/other_04.wav",
+        "label": "attack",
+        "split": "attack_other_speaker",
+        "score": 0.3770385682582855
+      },
+      {
+        "file": "attack_other_speaker/other_05.wav",
+        "label": "attack",
+        "split": "attack_other_speaker",
+        "score": 0.3150596022605896
+      },
+      {
+        "file": "attack_replay/replay_01.wav",
+        "label": "attack",
+        "split": "attack_replay",
+        "score": 0.48366662859916687
+      },
+      {
+        "file": "attack_replay/replay_02.wav",
+        "label": "attack",
+        "split": "attack_replay",
+        "score": 0.5998313426971436
+      },
+      {
+        "file": "attack_replay/replay_03.wav",
+        "label": "attack",
+        "split": "attack_replay",
+        "score": 0.6381022930145264
+      },
+      {
+        "file": "attack_replay/replay_04.wav",
+        "label": "attack",
+        "split": "attack_replay",
+        "score": 0.6364275813102722
+      },
+      {
+        "file": "attack_replay/replay_05.wav",
+        "label": "attack",
+        "split": "attack_replay",
+        "score": 0.5780535936355591
+      },
+      {
+        "file": "attack_silent/silent_1.wav",
+        "label": "attack",
+        "split": "attack_silent",
+        "score": 0.17581120133399963
+      },
+      {
+        "file": "attack_silent/silent_2.wav",
+        "label": "attack",
+        "split": "attack_silent",
+        "score": 0.17568764090538025
+      },
+      {
+        "file": "attack_silent/silent_3.wav",
+        "label": "attack",
+        "split": "attack_silent",
+        "score": 0.17426952719688416
+      },
+      {
+        "file": "noisy/noisy_1.wav",
+        "label": "attack",
+        "split": "noisy",
+        "score": 0.6400021314620972
+      },
+      {
+        "file": "noisy/noisy_2.wav",
+        "label": "attack",
+        "split": "noisy",
+        "score": 0.6431503295898438
+      },
+      {
+        "file": "noisy/noisy_3.wav",
+        "label": "attack",
+        "split": "noisy",
+        "score": 0.6077437996864319
+      },
+      {
+        "file": "noisy/noisy_4.wav",
+        "label": "attack",
+        "split": "noisy",
+        "score": 0.597711980342865
+      },
+      {
+        "file": "noisy/noisy_5.wav",
+        "label": "attack",
+        "split": "noisy",
+        "score": 0.6077187657356262
+      }
+    ]
+  },
+  "phase5_6": {
+    "finger": {
+      "template_loaded": false,
+      "session_loaded": false,
+      "ready": false,
+      "finger_enrolled": false,
+      "modality_scope": {
+        "modalities": [
+          "voice",
+          "face"
+        ],
+        "finger_enrolled": false,
+        "fingernet_present": false,
+        "scope_note": "2-modality golden reference (voice + face; no fingerprint enrolled). Missing fingers/{id}.enc is intentional scoping, not a defect."
+      },
+      "note": "2-modality golden reference (voice + face; no fingerprint enrolled). Missing fingers/{id}.enc is intentional scoping, not a defect.",
+      "capture_score": null,
+      "capture_available": true,
+      "capture_confident": false,
+      "latency_ms": 0.007708003977313638
+    },
+    "behavioral": {
+      "available": true,
+      "has_profile": true,
+      "score_mode": "cosine",
+      "arch": "lstm",
+      "profile_dim": 32,
+      "model_loaded": true,
+      "genuine_scores_n": 20,
+      "attack_scores_n": 6,
+      "genuine_mean": 0.99965141415596,
+      "genuine_std": 0.0002487398884598388,
+      "attack_mean": 0.008417035142580668,
+      "attack_std": 0.002176553412302278,
+      "separation": 0.9912343790133794,
+      "auc": 1.0,
+      "latency_ms_mean": 0.004087962084808028,
+      "synthetic_data": true,
+      "health": "provisional_synthetic"
+    }
+  },
+  "phase7_10": {
+    "stock": {
+      "tag": "stock",
+      "bars": {
+        "ladder_voice": 0.72,
+        "ladder_face": 0.7,
+        "ladder_finger": 0.7,
+        "trust_std": 0.78,
+        "trust_micro": 0.7,
+        "trust_high": 0.85,
+        "trust_reject": 0.48
+      },
+      "margins": {
+        "voice_mean": 0.6194399024049441,
+        "face_mean": 0.5859967957843434,
+        "voice_margin_to_ladder": -0.10056009759505591,
+        "face_margin_to_ladder": -0.11400320421565657,
+        "fused_equal_weight": 0.6027183490946437,
+        "trust_margin_to_std": -0.1772816509053563
+      },
+      "cases": [
+        {
+          "case": "genuine_voice+face:genuine_01.wav",
+          "decision": "REJECT",
+          "trust": 0.6837310791015625,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.8463144707588048,
+          "voice": 0.6306220889091492,
+          "face": 0.5559250116348267,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.631",
+            "ladder_escalate_after_face_score_0.556"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6306220889091492,
+            "face": 0.5559250116348267,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          },
+          "latency_ms": 148.7799169990467
+        },
+        {
+          "case": "genuine_voice+face:genuine_02.wav",
+          "decision": "REJECT",
+          "trust": 0.7062051892280579,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.8540691039470526,
+          "voice": 0.637665867805481,
+          "face": 0.5716254115104675,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.638",
+            "ladder_escalate_after_face_score_0.572"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.637665867805481,
+            "face": 0.5716254115104675,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          },
+          "latency_ms": 81.69095899938839
+        },
+        {
+          "case": "genuine_voice+face:genuine_03.wav",
+          "decision": "REJECT",
+          "trust": 0.6917781233787537,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.8588053861306263,
+          "voice": 0.6243939995765686,
+          "face": 0.5769627094268799,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.624",
+            "ladder_escalate_after_face_score_0.577"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6243939995765686,
+            "face": 0.5769627094268799,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          },
+          "latency_ms": 78.41687500331318
+        },
+        {
+          "case": "genuine_voice+face:genuine_04.wav",
+          "decision": "REJECT",
+          "trust": 0.7396037578582764,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.8402835703996511,
+          "voice": 0.6674303412437439,
+          "face": 0.5750920176506042,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.667",
+            "ladder_escalate_after_face_score_0.575"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6674303412437439,
+            "face": 0.5750920176506042,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          },
+          "latency_ms": 79.74883299903013
+        },
+        {
+          "case": "genuine_voice+face:genuine_05.wav",
+          "decision": "REJECT",
+          "trust": 0.7072208523750305,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.8532897218374105,
+          "voice": 0.637579083442688,
+          "face": 0.575365424156189,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.638",
+            "ladder_escalate_after_face_score_0.575"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.637579083442688,
+            "face": 0.575365424156189,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          },
+          "latency_ms": 80.20779200160177
+        },
+        {
+          "case": "impostor_voice+ood_face:other_01.wav",
+          "decision": "REJECT",
+          "trust": 0.014823377132415771,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.6489996571174035,
+          "voice": null,
+          "face": 0.5176649689674377,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_no_score",
+            "ladder_escalate_after_face_score_0.518"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": null,
+            "face": 0.5176649689674377,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "impostor_voice+ood_face:other_02.wav",
+          "decision": "REJECT",
+          "trust": 0.2733573615550995,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.788024511378545,
+          "voice": 0.3254975974559784,
+          "face": 0.5176649689674377,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.325",
+            "ladder_escalate_after_face_score_0.518"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.3254975974559784,
+            "face": 0.5176649689674377,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "impostor_voice+ood_face:other_03.wav",
+          "decision": "REJECT",
+          "trust": 0.26161298155784607,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.7825273254926387,
+          "voice": 0.3154236078262329,
+          "face": 0.5176649689674377,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.315",
+            "ladder_escalate_after_face_score_0.518"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.3154236078262329,
+            "face": 0.5176649689674377,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "spoof_face_screen+genuine_voice:screen_01.jpg",
+          "decision": "REJECT",
+          "trust": 0.12993252277374268,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.71,
+          "voice": 0.6306220889091492,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.631",
+            "ladder_escalate_after_face_no_score"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6306220889091492,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "spoof_face_screen+genuine_voice:screen_02.jpg",
+          "decision": "REJECT",
+          "trust": 0.12993252277374268,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.71,
+          "voice": 0.6306220889091492,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.631",
+            "ladder_escalate_after_face_no_score"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6306220889091492,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "spoof_face_screen+genuine_voice:screen_03.jpg",
+          "decision": "REJECT",
+          "trust": 0.12993252277374268,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.71,
+          "voice": 0.6306220889091492,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.631",
+            "ladder_escalate_after_face_no_score"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6306220889091492,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "replay_voice+genuine_face:replay_01.wav",
+          "decision": "REJECT",
+          "trust": 0.5020915269851685,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.8474118831662031,
+          "voice": 0.48366662859916687,
+          "face": 0.5559250116348267,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.484",
+            "ladder_escalate_after_face_score_0.556"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.48366662859916687,
+            "face": 0.5559250116348267,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "replay_voice+genuine_face:replay_02.wav",
+          "decision": "REJECT",
+          "trust": 0.6482115983963013,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.8601703065542073,
+          "voice": 0.5998313426971436,
+          "face": 0.5559250116348267,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.600",
+            "ladder_escalate_after_face_score_0.556"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.5998313426971436,
+            "face": 0.5559250116348267,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "replay_voice+genuine_face:replay_03.wav",
+          "decision": "REJECT",
+          "trust": 0.6920645833015442,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.8429483789113851,
+          "voice": 0.6381022930145264,
+          "face": 0.5559250116348267,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.638",
+            "ladder_escalate_after_face_score_0.556"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6381022930145264,
+            "face": 0.5559250116348267,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "side_face+genuine_voice:side_01.jpg",
+          "decision": "REJECT",
+          "trust": 0.12993252277374268,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.71,
+          "voice": 0.6306220889091492,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.631",
+            "ladder_escalate_after_face_no_score"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6306220889091492,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "side_face+genuine_voice:side_02.jpg",
+          "decision": "REJECT",
+          "trust": 0.7030367255210876,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.8634102796316147,
+          "voice": 0.6306220889091492,
+          "face": 0.5756510496139526,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.631",
+            "ladder_escalate_after_face_score_0.576"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6306220889091492,
+            "face": 0.5756510496139526,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "side_face+genuine_voice:side_03.jpg",
+          "decision": "REJECT",
+          "trust": 0.12993252277374268,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.71,
+          "voice": 0.6306220889091492,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.631",
+            "ladder_escalate_after_face_no_score"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6306220889091492,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "silent_voice+genuine_face:silent_1.wav",
+          "decision": "REJECT",
+          "trust": 0.01744014024734497,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.6598563110645002,
+          "voice": null,
+          "face": 0.5559250116348267,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_no_score",
+            "ladder_escalate_after_face_score_0.556"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": null,
+            "face": 0.5559250116348267,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "silent_voice+genuine_face:silent_2.wav",
+          "decision": "REJECT",
+          "trust": 0.01744014024734497,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.6598563110645002,
+          "voice": null,
+          "face": 0.5559250116348267,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.720",
+            "ladder_accept_bar_face_0.700",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_no_score",
+            "ladder_escalate_after_face_score_0.556"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_reject",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": null,
+            "face": 0.5559250116348267,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        }
+      ],
+      "summary": {
+        "n": 19,
+        "accept": 0,
+        "reject": 19,
+        "other": [],
+        "genuine_accept_rate": 0.0,
+        "attack_reject_rate": 1.0
+      }
+    },
+    "demo": {
+      "tag": "demo_phase2b",
+      "bars": {
+        "ladder_voice": 0.58,
+        "ladder_face": 0.36,
+        "ladder_finger": 0.7,
+        "trust_std": 0.584,
+        "trust_micro": 0.554,
+        "trust_high": 0.614,
+        "trust_reject": 0.419
+      },
+      "margins": {
+        "voice_mean": 0.6194399024049441,
+        "face_mean": 0.5859967957843434,
+        "voice_margin_to_ladder": 0.039439902404944105,
+        "face_margin_to_ladder": 0.2259967957843434,
+        "fused_equal_weight": 0.6027183490946437,
+        "trust_margin_to_std": 0.01871834909464376
+      },
+      "cases": [
+        {
+          "case": "genuine_voice+face:genuine_01.wav",
+          "decision": "ACCEPT",
+          "trust": 0.12993252277374268,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.71,
+          "voice": 0.6306220889091492,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_accept_voice_score_0.631",
+            "early_stop_after_1"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_voice",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6306220889091492,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          },
+          "latency_ms": 46.88824999902863
+        },
+        {
+          "case": "genuine_voice+face:genuine_02.wav",
+          "decision": "ACCEPT",
+          "trust": 0.134120911359787,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.71,
+          "voice": 0.637665867805481,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_accept_voice_score_0.638",
+            "early_stop_after_1"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_voice",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.637665867805481,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          },
+          "latency_ms": 41.75583300093422
+        },
+        {
+          "case": "genuine_voice+face:genuine_03.wav",
+          "decision": "ACCEPT",
+          "trust": 0.12403172254562378,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.7047423696517944,
+          "voice": 0.6243939995765686,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_accept_voice_score_0.624",
+            "early_stop_after_1"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_voice",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6243939995765686,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          },
+          "latency_ms": 51.65520800073864
+        },
+        {
+          "case": "genuine_voice+face:genuine_04.wav",
+          "decision": "ACCEPT",
+          "trust": 0.153093159198761,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.71,
+          "voice": 0.6674303412437439,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_accept_voice_score_0.667",
+            "early_stop_after_1"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_voice",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6674303412437439,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          },
+          "latency_ms": 45.44633399927989
+        },
+        {
+          "case": "genuine_voice+face:genuine_05.wav",
+          "decision": "ACCEPT",
+          "trust": 0.13305097818374634,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.7077895188331603,
+          "voice": 0.637579083442688,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_accept_voice_score_0.638",
+            "early_stop_after_1"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_voice",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.637579083442688,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          },
+          "latency_ms": 48.50758300017333
+        },
+        {
+          "case": "impostor_voice+ood_face:other_01.wav",
+          "decision": "ACCEPT",
+          "trust": 0.014823377132415771,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.6489996571174035,
+          "voice": null,
+          "face": 0.5176649689674377,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_no_score",
+            "ladder_accept_face_score_0.518"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_face",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": null,
+            "face": 0.5176649689674377,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "impostor_voice+ood_face:other_02.wav",
+          "decision": "ACCEPT",
+          "trust": 0.2733573615550995,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.788024511378545,
+          "voice": 0.3254975974559784,
+          "face": 0.5176649689674377,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.325",
+            "ladder_accept_face_score_0.518"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_face",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.3254975974559784,
+            "face": 0.5176649689674377,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "impostor_voice+ood_face:other_03.wav",
+          "decision": "ACCEPT",
+          "trust": 0.26161298155784607,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.7825273254926387,
+          "voice": 0.3154236078262329,
+          "face": 0.5176649689674377,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.315",
+            "ladder_accept_face_score_0.518"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_face",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.3154236078262329,
+            "face": 0.5176649689674377,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "spoof_face_screen+genuine_voice:screen_01.jpg",
+          "decision": "ACCEPT",
+          "trust": 0.12993252277374268,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.71,
+          "voice": 0.6306220889091492,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_accept_voice_score_0.631",
+            "early_stop_after_1"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_voice",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6306220889091492,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "spoof_face_screen+genuine_voice:screen_02.jpg",
+          "decision": "ACCEPT",
+          "trust": 0.12993252277374268,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.71,
+          "voice": 0.6306220889091492,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_accept_voice_score_0.631",
+            "early_stop_after_1"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_voice",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6306220889091492,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "spoof_face_screen+genuine_voice:screen_03.jpg",
+          "decision": "ACCEPT",
+          "trust": 0.12993252277374268,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.71,
+          "voice": 0.6306220889091492,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_accept_voice_score_0.631",
+            "early_stop_after_1"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_voice",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6306220889091492,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "replay_voice+genuine_face:replay_01.wav",
+          "decision": "ACCEPT",
+          "trust": 0.5020915269851685,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.8474118831662031,
+          "voice": 0.48366662859916687,
+          "face": 0.5559250116348267,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_score_0.484",
+            "ladder_accept_face_score_0.556"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_face",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.48366662859916687,
+            "face": 0.5559250116348267,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "replay_voice+genuine_face:replay_02.wav",
+          "decision": "ACCEPT",
+          "trust": 0.11291146278381348,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.71,
+          "voice": 0.5998313426971436,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_accept_voice_score_0.600",
+            "early_stop_after_1"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_voice",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.5998313426971436,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "replay_voice+genuine_face:replay_03.wav",
+          "decision": "ACCEPT",
+          "trust": 0.1343841850757599,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.71,
+          "voice": 0.6381022930145264,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_accept_voice_score_0.638",
+            "early_stop_after_1"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_voice",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6381022930145264,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "side_face+genuine_voice:side_01.jpg",
+          "decision": "ACCEPT",
+          "trust": 0.12993252277374268,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.71,
+          "voice": 0.6306220889091492,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_accept_voice_score_0.631",
+            "early_stop_after_1"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_voice",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6306220889091492,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "side_face+genuine_voice:side_02.jpg",
+          "decision": "ACCEPT",
+          "trust": 0.12993252277374268,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.71,
+          "voice": 0.6306220889091492,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_accept_voice_score_0.631",
+            "early_stop_after_1"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_voice",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6306220889091492,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "side_face+genuine_voice:side_03.jpg",
+          "decision": "ACCEPT",
+          "trust": 0.12993252277374268,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.71,
+          "voice": 0.6306220889091492,
+          "face": null,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_accept_voice_score_0.631",
+            "early_stop_after_1"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_voice",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": 0.6306220889091492,
+            "face": null,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "silent_voice+genuine_face:silent_1.wav",
+          "decision": "ACCEPT",
+          "trust": 0.01744014024734497,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.6598563110645002,
+          "voice": null,
+          "face": 0.5559250116348267,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_no_score",
+            "ladder_accept_face_score_0.556"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_face",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": null,
+            "face": 0.5559250116348267,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        },
+        {
+          "case": "silent_voice+genuine_face:silent_2.wav",
+          "decision": "ACCEPT",
+          "trust": 0.01744014024734497,
+          "risk": 1.5020370483398438e-05,
+          "confidence": 0.6598563110645002,
+          "voice": null,
+          "face": 0.5559250116348267,
+          "finger": null,
+          "behavior": null,
+          "reasons": [
+            "behavioral_unavailable",
+            "escalation_voice_face_finger_ladder",
+            "ladder_accept_bar_voice_0.580",
+            "ladder_accept_bar_face_0.360",
+            "ladder_accept_bar_finger_0.700",
+            "ladder_accept_bar_otp_0.700",
+            "ladder_escalate_after_voice_no_score",
+            "ladder_accept_face_score_0.556"
+          ],
+          "policy_rule": "driveauth-1.0:ladder_accept_face",
+          "tier": "standard",
+          "modality_scores": {
+            "voice": null,
+            "face": 0.5559250116348267,
+            "finger": null,
+            "otp": null,
+            "effective_weights": null
+          }
+        }
+      ],
+      "summary": {
+        "n": 19,
+        "accept": 19,
+        "reject": 0,
+        "other": [],
+        "genuine_accept_rate": 1.0,
+        "attack_reject_rate": 0.0
+      }
+    }
+  },
+  "phase12_perf": {
+    "face_latency_ms": {
+      "mean": 42.5527157325026,
+      "p95": 89.1439499973785,
+      "max": 91.14654199947836,
+      "n": 45
+    },
+    "voice_latency_ms": {
+      "mean": 46.52081249930364,
+      "p95": 73.71438300069713,
+      "max": 116.34191600023769,
+      "n": 42
+    },
+    "auth_latencies_stock": [
+      148.7799169990467,
+      81.69095899938839,
+      78.41687500331318,
+      79.74883299903013,
+      80.20779200160177
+    ],
+    "auth_latency_mean_stock": 93.76887520047603,
+    "max_rss_mb": 785.859375,
+    "hailo": "not_configured"
+  },
+  "phase13_security": {
+    "per_driver_isolation_ok": true,
+    "using_legacy_fallback": false,
+    "legacy_files_still_on_disk": {
+      "face_pad": true,
+      "face_calibrator": true,
+      "voice_calibrator": true
+    },
+    "pad_enabled": true,
+    "pad_eval_auc": 0.8952569169960475,
+    "pad_false_accepts": 8,
+    "stock_genuine_accept_rate": 0.0,
+    "stock_impostor_reject_rate": 1.0,
+    "stock_spoof_face_reject_rate": 1.0,
+    "stock_replay_voice_reject_rate": 1.0,
+    "stock_side_reject_rate": 1.0,
+    "demo_genuine_accept_rate": 1.0,
+    "demo_impostor_reject_rate": 0.0,
+    "demo_spoof_face_reject_rate": 0.0,
+    "demo_replay_voice_reject_rate": 0.0,
+    "threshold_override_detection": "demo bars documented in phase2b_suggested.env; runtime WARNING expected",
+    "finger_mismatch": "N/A \u2014 no finger template; stage3 unavailable",
+    "deepfake": "not_in_dataset"
+  }
+}

@@ -19,11 +19,13 @@ from hardware.finger_daemon import FingerDaemon
 from hardware.finger_uart import ManualFingerSensor, SCAN_BYTES
 from hardware.ladder_otp import LadderOTPLane
 from testsupport import good_audio, make_auth, mature
+from testsupport_afunix import requires_af_unix
 
 
 # ── Finger daemon ────────────────────────────────────────────────────────────
 
 
+@requires_af_unix
 def test_finger_daemon_scan_roundtrip():
     scan = bytes([i % 256 for i in range(SCAN_BYTES)])
     sensor = ManualFingerSensor(scan=scan)
@@ -50,6 +52,7 @@ def test_finger_daemon_scan_roundtrip():
     assert not Path(sock_path).exists()
 
 
+@requires_af_unix
 def test_finger_daemon_reconnect_after_drop():
     sensor = ManualFingerSensor()
     sock_path = str(Path(tempfile.mkdtemp()) / "finger.sock")
