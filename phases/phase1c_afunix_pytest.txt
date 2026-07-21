@@ -1,0 +1,26 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.5, pytest-9.1.1, pluggy-1.6.0 -- /Users/par_04/Desktop/staged_driveauth-edge/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/par_04/Desktop/staged_driveauth-edge
+configfile: pyproject.toml
+plugins: cov-7.1.0, anyio-4.14.2
+collecting ... collected 32 items / 16 deselected / 16 selected
+
+tests/test_finger_uart.py::test_aliases_are_pyfingerprint_adapter PASSED [  6%]
+tests/test_finger_uart.py::test_normalize_pads_short_scans PASSED        [ 12%]
+tests/test_finger_uart.py::test_normalize_truncates_long_scans PASSED    [ 18%]
+tests/test_finger_uart.py::test_normalize_list_payload PASSED            [ 25%]
+tests/test_finger_uart.py::test_normalize_none PASSED                    [ 31%]
+tests/test_finger_uart.py::test_manual_sensor_roundtrip PASSED           [ 37%]
+tests/test_finger_uart.py::test_candidate_ports_prefers_env PASSED       [ 43%]
+tests/test_finger_uart.py::test_open_default_manual_env PASSED           [ 50%]
+tests/test_finger_uart.py::test_open_default_falls_back_without_uart PASSED [ 56%]
+tests/test_finger_uart.py::test_open_default_no_fallback_raises PASSED   [ 62%]
+tests/test_finger_uart.py::test_pyfingerprint_open_missing_port PASSED   [ 68%]
+tests/test_finger_uart.py::test_pyfingerprint_open_without_sdk PASSED    [ 75%]
+tests/test_finger_uart.py::test_daemon_uses_open_default PASSED          [ 81%]
+tests/test_phase1_ladder_otp.py::test_finger_daemon_scan_roundtrip PASSED [ 87%]
+tests/test_phase1_ladder_otp.py::test_finger_daemon_reconnect_after_drop PASSED [ 93%]
+tests/test_phase1_ladder_otp.py::test_finger_daemon_fails_closed_when_sensor_wont_open PASSED [100%]
+
+====================== 16 passed, 16 deselected in 1.81s =======================

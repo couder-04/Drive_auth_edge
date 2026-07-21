@@ -1,0 +1,242 @@
+{
+  "driver1": {
+    "driver_id": "driver1",
+    "threshold": 0.46,
+    "n_rows": 47,
+    "n_with_pad": 47,
+    "live_auc_genuine_plus_attack": 0.8127272727272727,
+    "haar_ok_trainish_auc": 0.7770562770562771,
+    "n_fallback": 4,
+    "genuine_pad_mean": 0.609186280857433,
+    "attack_pad_mean": 0.3835040462017059,
+    "attack_side": {
+      "n": 10,
+      "n_scored": 10,
+      "fp": 6,
+      "fp_rate": 0.6,
+      "tn_or_reject": 4,
+      "fail_closed": 4,
+      "pad_mean": 0.5542152881622314,
+      "fp_files": [
+        "attack_side/side_01.jpg",
+        "attack_side/side_03.jpg",
+        "attack_side/side_04.jpg",
+        "attack_side/side_05.jpg",
+        "attack_side/side_06.jpg",
+        "attack_side/side_07.jpg"
+      ],
+      "per_file": [
+        {
+          "file": "attack_side/side_01.jpg",
+          "pad_score": 0.6158060431480408,
+          "pad_reject": false,
+          "fallback": false,
+          "face_frac": 0.31666666666666665,
+          "decision": "FP_LIVE"
+        },
+        {
+          "file": "attack_side/side_02.jpg",
+          "pad_score": 0.4567221403121948,
+          "pad_reject": true,
+          "fallback": true,
+          "face_frac": null,
+          "decision": "FAIL_CLOSED"
+        },
+        {
+          "file": "attack_side/side_03.jpg",
+          "pad_score": 0.6176376342773438,
+          "pad_reject": false,
+          "fallback": false,
+          "face_frac": 0.3416666666666667,
+          "decision": "FP_LIVE"
+        },
+        {
+          "file": "attack_side/side_04.jpg",
+          "pad_score": 0.6351025700569153,
+          "pad_reject": false,
+          "fallback": false,
+          "face_frac": 0.3625,
+          "decision": "FP_LIVE"
+        },
+        {
+          "file": "attack_side/side_05.jpg",
+          "pad_score": 0.624634861946106,
+          "pad_reject": false,
+          "fallback": false,
+          "face_frac": 0.3020833333333333,
+          "decision": "FP_LIVE"
+        },
+        {
+          "file": "attack_side/side_06.jpg",
+          "pad_score": 0.6328150629997253,
+          "pad_reject": false,
+          "fallback": false,
+          "face_frac": 0.32083333333333336,
+          "decision": "FP_LIVE"
+        },
+        {
+          "file": "attack_side/side_07.jpg",
+          "pad_score": 0.6166303753852844,
+          "pad_reject": false,
+          "fallback": false,
+          "face_frac": 0.26458333333333334,
+          "decision": "FP_LIVE"
+        },
+        {
+          "file": "attack_side/side_08.jpg",
+          "pad_score": 0.4513561427593231,
+          "pad_reject": true,
+          "fallback": true,
+          "face_frac": null,
+          "decision": "FAIL_CLOSED"
+        },
+        {
+          "file": "attack_side/side_09.jpg",
+          "pad_score": 0.4384362995624542,
+          "pad_reject": true,
+          "fallback": true,
+          "face_frac": null,
+          "decision": "FAIL_CLOSED"
+        },
+        {
+          "file": "attack_side/side_10.jpg",
+          "pad_score": 0.45301175117492676,
+          "pad_reject": true,
+          "fallback": true,
+          "face_frac": null,
+          "decision": "FAIL_CLOSED"
+        }
+      ]
+    },
+    "stage2": {
+      "mode": "per_driver",
+      "pad_loo_auc": 0.8107,
+      "origins": {
+        "face_pad": "independent",
+        "face_calibrator": "independent",
+        "voice_calibrator": "independent"
+      }
+    }
+  },
+  "driver7": {
+    "driver_id": "driver7",
+    "threshold": 0.48,
+    "n_rows": 36,
+    "n_with_pad": 36,
+    "live_auc_genuine_plus_attack": 0.3076923076923077,
+    "haar_ok_trainish_auc": 0.30434782608695654,
+    "n_fallback": 3,
+    "genuine_pad_mean": 0.4039256423711777,
+    "attack_pad_mean": 0.4484337281722289,
+    "attack_side": {
+      "n": 10,
+      "n_scored": 10,
+      "fp": 8,
+      "fp_rate": 0.8,
+      "tn_or_reject": 2,
+      "fail_closed": 2,
+      "pad_mean": 0.5799320369958878,
+      "fp_files": [
+        "attack_side/side_01.jpg",
+        "attack_side/side_02.jpg",
+        "attack_side/side_05.jpg",
+        "attack_side/side_06.jpg",
+        "attack_side/side_07.jpg",
+        "attack_side/side_08.jpg",
+        "attack_side/side_09.jpg",
+        "attack_side/side_10.jpg"
+      ],
+      "per_file": [
+        {
+          "file": "attack_side/side_01.jpg",
+          "pad_score": 0.6000075340270996,
+          "pad_reject": false,
+          "fallback": false,
+          "face_frac": 0.3333333333333333,
+          "decision": "FP_LIVE"
+        },
+        {
+          "file": "attack_side/side_02.jpg",
+          "pad_score": 0.628362774848938,
+          "pad_reject": false,
+          "fallback": false,
+          "face_frac": 0.34791666666666665,
+          "decision": "FP_LIVE"
+        },
+        {
+          "file": "attack_side/side_03.jpg",
+          "pad_score": 0.4405418336391449,
+          "pad_reject": true,
+          "fallback": true,
+          "face_frac": null,
+          "decision": "FAIL_CLOSED"
+        },
+        {
+          "file": "attack_side/side_04.jpg",
+          "pad_score": 0.4518789052963257,
+          "pad_reject": true,
+          "fallback": true,
+          "face_frac": null,
+          "decision": "FAIL_CLOSED"
+        },
+        {
+          "file": "attack_side/side_05.jpg",
+          "pad_score": 0.5940739512443542,
+          "pad_reject": false,
+          "fallback": false,
+          "face_frac": 0.3104166666666667,
+          "decision": "FP_LIVE"
+        },
+        {
+          "file": "attack_side/side_06.jpg",
+          "pad_score": 0.6234789490699768,
+          "pad_reject": false,
+          "fallback": false,
+          "face_frac": 0.3375,
+          "decision": "FP_LIVE"
+        },
+        {
+          "file": "attack_side/side_07.jpg",
+          "pad_score": 0.5992311835289001,
+          "pad_reject": false,
+          "fallback": false,
+          "face_frac": 0.3020833333333333,
+          "decision": "FP_LIVE"
+        },
+        {
+          "file": "attack_side/side_08.jpg",
+          "pad_score": 0.6282784938812256,
+          "pad_reject": false,
+          "fallback": false,
+          "face_frac": 0.32916666666666666,
+          "decision": "FP_LIVE"
+        },
+        {
+          "file": "attack_side/side_09.jpg",
+          "pad_score": 0.617149829864502,
+          "pad_reject": false,
+          "fallback": false,
+          "face_frac": 0.3375,
+          "decision": "FP_LIVE"
+        },
+        {
+          "file": "attack_side/side_10.jpg",
+          "pad_score": 0.6163169145584106,
+          "pad_reject": false,
+          "fallback": false,
+          "face_frac": 0.29375,
+          "decision": "FP_LIVE"
+        }
+      ]
+    },
+    "stage2": {
+      "mode": "per_driver",
+      "pad_loo_auc": 0.6962,
+      "origins": {
+        "face_pad": "independent",
+        "face_calibrator": "independent",
+        "voice_calibrator": "independent"
+      }
+    }
+  }
+}

@@ -852,11 +852,16 @@ async def register_face(
             ),
         )
     path = save_face_jpeg(_data_root(), driver_id, raw, split="enroll")
+    st = enrollment_status(_data_root(), _register_store(), driver_id)
     return {
         "status": "ok",
         "path": str(path.relative_to(_data_root())),
         "face_frac": framing.get("face_frac"),
-        **enrollment_status(_data_root(), _register_store(), driver_id),
+        "haar_ok": True,
+        "haar_reason": framing.get("reason"),
+        "frontal_ok": framing.get("frontal_ok"),
+        "face_clean_count": st.get("face_clean_count"),
+        **st,
     }
 
 
@@ -881,9 +886,40 @@ async def register_voice(
         path = save_voice_wav_bytes(_data_root(), driver_id, raw, split="enroll")
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"invalid WAV: {exc}") from exc
+
+    # Live quality feedback — same gate the matcher uses (duration / SNR / clip).
+    voice_quality: dict[str, Any] = {}
+    try:
+        import wave
+
+        from driveauth.quality_gate import score_voice
+
+        with wave.open(str(path), "rb") as w:
+            sr = w.getframerate()
+            n = w.getnframes()
+            pcm = np.frombuffer(w.readframes(n), dtype=np.int16).astype(np.float32)
+            if w.getnchannels() > 1:
+                pcm = pcm.reshape(-1, w.getnchannels()).mean(axis=1)
+            audio = pcm / 32768.0
+        ok, q, notes = score_voice(audio, sr)
+        voice_quality = {
+            "quality_ok": bool(ok),
+            "quality": float(q),
+            "duration_s": float(audio.size / max(sr, 1)),
+            "notes": list(notes),
+        }
+    except Exception as exc:
+        voice_quality = {
+            "quality_ok": None,
+            "quality": None,
+            "duration_s": None,
+            "notes": [f"score_voice_failed:{type(exc).__name__}"],
+        }
+
     return {
         "status": "ok",
         "path": str(path.relative_to(_data_root())),
+        **voice_quality,
         **enrollment_status(_data_root(), _register_store(), driver_id),
     }
 

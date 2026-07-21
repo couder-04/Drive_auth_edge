@@ -95,6 +95,37 @@ class LadderPlan:
         return val >= self.bar_for(modality)
 
 
+def face_pad_borderline_blocks_accept(
+    *,
+    plan: LadderPlan,
+    score: float | None,
+    pad_proba: float | None = None,
+    pad_threshold: float | None = None,
+    margin: float | None = None,
+) -> bool:
+    """True when face would clear its bar but face+PAD both sit in the borderline band.
+
+    Opt-in via ``DRIVEAUTH_FACE_BORDERLINE_MARGIN`` / ``FACE_BORDERLINE_MARGIN``
+    (default 0 = never blocks). Mitigation for PAD's measured off-angle FPs —
+    not a fix to PAD itself. See docs/security-assumptions.md.
+    """
+    m = float(config.FACE_BORDERLINE_MARGIN if margin is None else margin)
+    if m <= 0.0:
+        return False
+    if score is None or pad_proba is None or pad_threshold is None:
+        return False
+    if not plan.is_accept(score, modality="face"):
+        return False
+    try:
+        face_clearance = float(score) - plan.bar_for("face")
+        pad_clearance = float(pad_proba) - float(pad_threshold)
+    except (TypeError, ValueError):
+        return False
+    if face_clearance != face_clearance or pad_clearance != pad_clearance:
+        return False
+    return 0.0 <= face_clearance < m and 0.0 <= pad_clearance < m
+
+
 class EscalationPolicy:
     """Builds a LadderPlan (kept name for call-site compatibility)."""
 
@@ -142,8 +173,19 @@ class EscalationPolicy:
         plan: LadderPlan,
         score: float | None,
         modality: str | None = None,
+        pad_proba: float | None = None,
+        pad_threshold: float | None = None,
     ) -> bool:
-        return plan.is_accept(score, modality=modality)
+        if not plan.is_accept(score, modality=modality):
+            return False
+        if modality == "face" and face_pad_borderline_blocks_accept(
+            plan=plan,
+            score=score,
+            pad_proba=pad_proba,
+            pad_threshold=pad_threshold,
+        ):
+            return False
+        return True
 
     @staticmethod
     def should_stop(
@@ -157,13 +199,21 @@ class EscalationPolicy:
         confident_modalities: list[str] | None = None,
         score: float | None = None,
         modality: str | None = None,
+        pad_proba: float | None = None,
+        pad_threshold: float | None = None,
     ) -> bool:
         """
         Compatibility shim: stop only when the latest modality score clears
         the ladder accept bar (Accept).  Callers should prefer should_accept.
         """
         if score is not None:
-            return plan.is_accept(score, modality=modality)
+            return EscalationPolicy.should_accept(
+                plan=plan,
+                score=score,
+                modality=modality,
+                pad_proba=pad_proba,
+                pad_threshold=pad_threshold,
+            )
         return False
 
 

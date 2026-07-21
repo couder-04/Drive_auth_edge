@@ -62,6 +62,75 @@ def test_ladder_escalates_on_low_score():
     assert plan.next_modality(["voice"], {"voice": True, "face": True, "finger": True}) == "face"
 
 
+def test_face_borderline_clear_scores_still_early_stop(monkeypatch):
+    """Face score + PAD both well above bars → early-stop ACCEPT (unchanged)."""
+    from driveauth import config
+    from driveauth.escalation import EscalationPolicy, EscalationPlan
+
+    monkeypatch.setattr(config, "FACE_BORDERLINE_MARGIN", 0.05)
+    pol = EscalationPolicy()
+    plan = EscalationPlan(
+        order=("voice", "face", "finger"),
+        accept_bar=0.70,
+        accept_bars={"voice": 0.72, "face": 0.70, "finger": 0.70},
+    )
+    # Clear of 0.70 by >0.05; PAD clear of 0.39 by >0.05
+    assert (
+        pol.should_accept(
+            plan=plan,
+            score=0.85,
+            modality="face",
+            pad_proba=0.80,
+            pad_threshold=0.39,
+        )
+        is True
+    )
+
+
+def test_face_borderline_both_barely_pass_escalates(monkeypatch):
+    """Face + PAD both within margin of their bars → withhold face early-stop."""
+    from driveauth import config
+    from driveauth.escalation import (
+        EscalationPolicy,
+        EscalationPlan,
+        face_pad_borderline_blocks_accept,
+    )
+
+    monkeypatch.setattr(config, "FACE_BORDERLINE_MARGIN", 0.05)
+    pol = EscalationPolicy()
+    plan = EscalationPlan(
+        order=("voice", "face", "finger"),
+        accept_bar=0.70,
+        accept_bars={"voice": 0.72, "face": 0.70, "finger": 0.70},
+    )
+    # Face 0.72 is +0.02 above 0.70; PAD 0.41 is +0.02 above 0.39 — both borderline
+    assert face_pad_borderline_blocks_accept(
+        plan=plan, score=0.72, pad_proba=0.41, pad_threshold=0.39
+    )
+    assert (
+        pol.should_accept(
+            plan=plan,
+            score=0.72,
+            modality="face",
+            pad_proba=0.41,
+            pad_threshold=0.39,
+        )
+        is False
+    )
+    # Margin off (default behavior) → still accepts
+    monkeypatch.setattr(config, "FACE_BORDERLINE_MARGIN", 0.0)
+    assert (
+        pol.should_accept(
+            plan=plan,
+            score=0.72,
+            modality="face",
+            pad_proba=0.41,
+            pad_threshold=0.39,
+        )
+        is True
+    )
+
+
 def test_ladder_same_shape_on_high_value():
     """High-value does not force full-set / OTP — same Voice→Face→Finger ladder."""
     pol = EscalationPolicy()

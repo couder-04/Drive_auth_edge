@@ -43,6 +43,11 @@ ladder:
   accept_voice: ${DRIVEAUTH_LADDER_ACCEPT_VOICE:0.72}
   accept_face: ${DRIVEAUTH_LADDER_ACCEPT_FACE:0.70}
   accept_finger: ${DRIVEAUTH_LADDER_ACCEPT_FINGER:0.70}
+  # Opt-in defense-in-depth for PAD's measured off-angle weakness.
+  # When >0: face early-stop ACCEPT is withheld if face score AND PAD bonafide
+  # proba both sit within this margin above their bars → escalate to stage-3.
+  # Default 0 = unchanged ladder behavior. Typical enable value: 0.05.
+  face_borderline_margin: ${DRIVEAUTH_FACE_BORDERLINE_MARGIN:0}
   # Stage-3 lane: finger_only (default) | otp_only | finger_or_otp
   stage3_mode: ${DRIVEAUTH_LADDER_STAGE3_MODE:finger_only}
   # Probe order when stage3_mode is finger_or_otp (comma-separated).

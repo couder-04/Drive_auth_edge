@@ -225,11 +225,37 @@ Production should keep stock bars unless re-calibrated on fleet data with docume
 
 **Default config:** `secrets.env` / `secrets.env.example` must **not** set `DRIVEAUTH_LADDER_ACCEPT_*` or `DRIVEAUTH_TRUST_ACCEPT_*`. Demo bars live only in `phases/phase2b_suggested.env` and require an explicit per-session `source` before a demo. `warn_policy_bar_overrides()` must return `[]` on a normal dashboard start.
 
-### Driver1 modality scope (2-modality golden reference)
+### Driver1 / driver7 modality scope (2-modality golden references)
 
-**Driver1 is intentionally voice + face only** — no fingerprint enrolled (`fingers/driver1.enc` absent; FingerNet may also be absent). Treat missing stage-3 finger as a **scoping decision**, not an enrollment defect, when auditing driver1 readiness. Ladder evaluations for driver1 are Voice → Face (finger unavailable / skip). Enrolling a real finger template requires physical sensor capture and is out of band for software-only passes.
+**Driver1 and driver7 are intentionally voice + face only** — no fingerprint
+enrolled (`fingers/{id}.enc` absent; FingerNet may also be absent). Treat missing
+stage-3 finger as a **scoping decision**, not an enrollment defect, when auditing
+readiness for either driver. Ladder evaluations are Voice → Face (finger
+unavailable / skip). Enrolling a real finger template requires physical sensor
+capture and is out of band for software-only passes.
 
-`stage2_status_for_driver()` / `scripts/audit_driver1_e2e.py` expose `modality_scope` with `finger_enrolled=false` and `scope_note` stating this explicitly.
+`stage2_status_for_driver()` exposes `modality_scope` with `finger_enrolled=false`
+and a `scope_note` stating this explicitly for any driver without a finger
+template (including driver1 and driver7). `scripts/audit_driver1_e2e.py` surfaces
+the same field for driver1 audits.
+
+### Face early-stop borderline escalate (PAD off-angle mitigation)
+
+**Measured, not hypothesized:** live PAD false-accepts a large share of genuine
+off-angle presentation attacks on real `attack_side` data (driver1 **6/10**,
+driver7 **8/10** Haar-OK sides). That is a PAD feature/model limitation — not a
+pipeline labeling bug to keep chasing with more synth warps.
+
+**Mitigation (opt-in, default off):** when `DRIVEAUTH_FACE_BORDERLINE_MARGIN` > 0
+(typical enable: `0.05`), a face-stage score that clears the ladder face bar
+**and** whose PAD bonafide proba clears the PAD threshold, but where **both**
+clearances sit within that margin of their bars, does **not** early-stop ACCEPT
+on face alone — the ladder escalates to stage-3 (finger / OTP). Comfortably clear
+face+PAD scores still early-stop as today.
+
+This is defense-in-depth at the policy/ladder layer, **not** a fix to PAD's
+underlying off-angle weakness. Default margin `0` leaves shipping ladder
+behavior unchanged.
 
 ---
 
@@ -241,9 +267,9 @@ Production should keep stock bars unless re-calibrated on fleet data with docume
   Older far-field 1080p genuines were a capture-flow bug (Haar ~3/20); re-collected
   genuines should hit Haar at enroll-like face_frac. Do not treat far-field as the
   target distribution.
-- **Driver1 golden-reference scope:** voice + face Stage-2 heads; **no fingerprint**
-  (see §6). Finger PNG synth under `data/driver1/finger/` does not imply an enrolled
-  `fingers/driver1.enc` template.
+- **Driver1 / driver7 golden-reference scope:** voice + face Stage-2 heads; **no
+  fingerprint** (see §6). Finger PNG synth under `data/driver*/finger/` does not
+  imply an enrolled `fingers/{id}.enc` template.
 - **OOD** voice (TTS) and face (other-id) are reasonable negatives for Stage-1 reject rates — not a full impostor population.
 - **Risk AUC ≈ 0.9955** is on the 50k synthetic/synthetic-labelled txn split used for training — not live card fraud.
 - **Sprint 6 system FAR/FRR** uses ladder bars and, for finger, proxy scores when HW is absent (`staged_full_proxy`).

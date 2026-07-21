@@ -85,15 +85,19 @@ def synth_blur(src: Path, dest: Path) -> None:
     cv2.imwrite(str(dest), blurred, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
 
 
-def synth_side(src: Path, dest: Path, *, yaw_sign: float = 1.0) -> None:
+def synth_side_diagnostic_warp(
+    src: Path, dest: Path, *, yaw_sign: float = 1.0
+) -> Path:
     """Geometric yaw warp of a live frontal frame — NOT a presentation attack.
 
-    Kept only so provenance diagnostics can regenerate and compare against
-    on-disk ``attack_side/``. Do NOT write these into ``attack_side/`` for
-    PAD/calibrator training: they are still live-skin pixels, so PAD scores
-    them as bonafide and pollutes the attack class. Capture real profiles
-    with ``--split attack_side`` instead.
+    Refuses destinations under ``attack_side/``. Kept for provenance MSE checks
+    only — never feed these warps into PAD/calibrator attack classes.
     """
+    dest = Path(dest)
+    if "attack_side" in dest.parts:
+        raise ValueError(
+            f"refusing to write diagnostic warp into attack_side path: {dest}"
+        )
     img = cv2.imread(str(src))
     if img is None:
         raise RuntimeError(f"cannot read {src}")
@@ -122,6 +126,12 @@ def synth_side(src: Path, dest: Path, *, yaw_sign: float = 1.0) -> None:
     warped = cv2.warpPerspective(img, M, (w, h), borderMode=cv2.BORDER_REPLICATE)
     dest.parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(dest), warped, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+    return dest
+
+
+def synth_side(src: Path, dest: Path, *, yaw_sign: float = 1.0) -> Path:
+    """Alias of :func:`synth_side_diagnostic_warp` (hard-guards ``attack_side/``)."""
+    return synth_side_diagnostic_warp(src, dest, yaw_sign=yaw_sign)
 
 
 def run_synth_attacks(face_root: Path) -> None:
@@ -195,6 +205,7 @@ def run_capture(
     camera: int,
     *,
     allow_weak: bool = False,
+    min_clean: int = 0,
 ) -> None:
     folder_name, prefix = SPLITS[split]
     out_dir = face_root / folder_name
@@ -204,6 +215,7 @@ def run_capture(
     require_face = split in _REQUIRE_FACE and not allow_weak
 
     saved = 0
+    clean = 0  # Haar-confirmed (framing.ok) saves this session
     idx = _next_index(out_dir, prefix)
     print(f"Split={split}  → {out_dir}")
     print(f"Hint: {HINTS[split]}")
@@ -218,6 +230,8 @@ def run_capture(
         )
     else:
         print("Face gate optional for this split (warn only)")
+    if min_clean > 0:
+        print(f"Session target: ≥{min_clean} Haar-confirmed (clean) saves")
     print(f"Need {n} more (SPACE=save, q=quit). Starting at {prefix}_{idx:02d}.jpg")
 
     win = "DriveAuth own-face capture"
@@ -238,20 +252,35 @@ def run_capture(
         framing = assess_face_framing(frame)
         show = frame.copy()
         _draw_guide(show, framing, require_face=require_face)
+        frac = framing.get("face_frac")
+        frac_s = f"{frac:.2f}" if frac is not None else "—"
+        haar = "Haar OK" if framing.get("ok") else f"Haar FAIL ({framing.get('reason')})"
         cv2.putText(
             show,
-            f"{split}  {saved}/{n}  SPACE=save  q=quit",
+            f"{split}  {saved}/{n}  clean={clean}"
+            + (f"/{min_clean}" if min_clean > 0 else "")
+            + "  SPACE=save  q=quit",
             (16, 32),
             cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
+            0.65,
             (40, 220, 120),
             2,
             cv2.LINE_AA,
         )
         cv2.putText(
             show,
-            HINTS[split][:70],
+            f"live: {haar}  face_frac={frac_s}",
             (16, 62),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            (40, 220, 120) if framing.get("ok") else (40, 40, 220),
+            2,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            show,
+            HINTS[split][:70],
+            (16, 92),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,
             (200, 200, 200),
@@ -264,21 +293,42 @@ def run_capture(
             break
         if key == ord(" "):
             if require_face and not framing.get("ok"):
-                print(f"  refused — {framing.get('reason')} (move closer / center face)")
+                print(
+                    f"  refused — {framing.get('reason')} "
+                    f"(face_frac={frac_s}; move closer / center face)"
+                )
                 continue
             if not framing.get("ok"):
-                print(f"  warning — {framing.get('reason')} (saving anyway for {split})")
+                print(
+                    f"  warning — {framing.get('reason')} "
+                    f"(face_frac={frac_s}; saving anyway for {split})"
+                )
             path = out_dir / f"{prefix}_{idx:02d}.jpg"
             cv2.imwrite(str(path), frame, [int(cv2.IMWRITE_JPEG_QUALITY), 92])
-            frac = framing.get("face_frac")
-            frac_s = f"{frac:.3f}" if frac is not None else "None"
-            print(f"  saved {path}  face_frac={frac_s}  shape={frame.shape[1]}x{frame.shape[0]}")
+            was_clean = bool(framing.get("ok"))
+            if was_clean:
+                clean += 1
+            print(
+                f"  saved {path.name}  face_frac={frac_s}  "
+                f"haar={'OK' if was_clean else 'FAIL'}  "
+                f"clean={clean}/{saved + 1}  "
+                f"shape={frame.shape[1]}x{frame.shape[0]}"
+            )
             saved += 1
             idx += 1
 
     cap.release()
     cv2.destroyAllWindows()
-    print(f"Done — saved {saved} for {split}")
+    print(
+        f"Done — saved {saved} for {split} "
+        f"({clean} Haar-confirmed / clean)"
+    )
+    if min_clean > 0 and clean < min_clean:
+        raise SystemExit(
+            f"Session ended with only {clean} clean (Haar-OK) captures; "
+            f"need ≥{min_clean}. Re-run and hold face in the guide until live "
+            f"face_frac clears, or lower --min-clean."
+        )
 
 
 def main() -> None:
@@ -296,6 +346,15 @@ def main() -> None:
         "--allow-weak",
         action="store_true",
         help="Skip capture-time face_frac gate (enroll/genuine normally require it)",
+    )
+    parser.add_argument(
+        "--min-clean",
+        type=int,
+        default=0,
+        help=(
+            "Fail the session if fewer than N Haar-confirmed saves "
+            "(0=off). Useful for enroll/genuine quality targets."
+        ),
     )
     parser.add_argument(
         "--synth-attacks",
@@ -317,7 +376,12 @@ def main() -> None:
     if not args.split:
         raise SystemExit("Pass --split … or --synth-attacks")
     run_capture(
-        face_root, args.split, args.n, args.camera, allow_weak=args.allow_weak
+        face_root,
+        args.split,
+        args.n,
+        args.camera,
+        allow_weak=args.allow_weak,
+        min_clean=args.min_clean,
     )
 
 

@@ -1,0 +1,43 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.5, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/par_04/Desktop/staged_driveauth-edge
+configfile: pyproject.toml
+testpaths: tests
+plugins: cov-7.1.0, anyio-4.14.2
+collected 346 items
+
+tests/test_api.py ........                                               [  2%]
+tests/test_ble_gatt_server.py ........                                   [  4%]
+tests/test_can_logger.py ...                                             [  5%]
+tests/test_core.py .......                                               [  7%]
+tests/test_dashboard_auth.py ........                                    [  9%]
+tests/test_dashboard_demo.py ......                                      [ 11%]
+tests/test_finger_uart.py .............                                  [ 15%]
+tests/test_fixes.py ..........                                           [ 18%]
+tests/test_geo.py ...............                                        [ 22%]
+tests/test_hardening.py ................                                 [ 27%]
+tests/test_integration_e2e.py ...                                        [ 28%]
+tests/test_ir_liveness_v2.py ...........                                 [ 31%]
+tests/test_key_protection.py .......                                     [ 33%]
+tests/test_matcher_edge_cases.py .................                       [ 38%]
+tests/test_mvp_harness.py ..                                             [ 38%]
+tests/test_ood_stage1.py ....                                            [ 39%]
+tests/test_perf_telemetry.py ......                                      [ 41%]
+tests/test_phase1_ladder_otp.py ..................s                      [ 47%]
+tests/test_phase5_failure_modes.py .....................                 [ 53%]
+tests/test_phase5_thresholds.py .....................                    [ 59%]
+tests/test_phase6_benchmark.py .......                                   [ 61%]
+tests/test_phase6_failure_recovery.py ...                                [ 62%]
+tests/test_phases_2_to_6.py ...........s.......                          [ 67%]
+tests/test_production.py ............................                    [ 75%]
+tests/test_profile_home.py ...............                               [ 80%]
+tests/test_register.py ..........                                        [ 82%]
+tests/test_risk_model_fallback.py ..............                         [ 86%]
+tests/test_score_provider.py ....                                        [ 88%]
+tests/test_secrets.py ...........                                        [ 91%]
+tests/test_security_sprint1.py .....                                     [ 92%]
+tests/test_stage2_fusion.py .....                                        [ 94%]
+tests/test_stage2_per_driver.py ................                         [ 98%]
+tests/test_standalone_session.py ....                                    [100%]
+
+======================= 344 passed, 2 skipped in 10.77s ========================

@@ -2,7 +2,17 @@
 """Populate data/driver1/face from Kaggle vasukipatel face-recognition-dataset.
 
 Selects Robert Downey Jr cropped faces by sharpness + eye-visibility,
-copies enroll (8) + genuine (20), synthesizes attack_blur / attack_side.
+copies enroll (8) + genuine (20), synthesizes attack_blur only.
+
+Usage (from repo root):
+  .venv/bin/python scripts/populate_face_rdj.py
+  .venv/bin/python scripts/populate_face_rdj.py --src /path/to/Faces --out data/driver1/face
+
+NOTE: This script does NOT write attack_side. A perspective warp of a live
+frontal crop is not a side-angle presentation attack (PAD correctly scores
+those pixels as bonafide and pollutes the attack class). Capture real
+profiles with:
+  .venv/bin/python scripts/capture_own_face.py --split attack_side --n 8
 """
 
 from __future__ import annotations
@@ -25,7 +35,6 @@ IDENTITY = "Robert Downey Jr"
 N_ENROLL = 8
 N_GENUINE = 20
 N_ATTACK_BLUR = 8
-N_ATTACK_SIDE = 8
 
 
 def _laplacian_var(gray: np.ndarray) -> float:
@@ -111,8 +120,23 @@ def synth_blur(src: Path, dest: Path) -> Path:
     return dest
 
 
-def synth_side(src: Path, dest: Path, *, yaw_sign: float = 1.0) -> Path:
-    """Cheap yaw/side-pose attack via perspective squeeze of one half."""
+def synth_side_diagnostic_warp(
+    src: Path, dest: Path, *, yaw_sign: float = 1.0
+) -> Path:
+    """Geometric yaw warp of a live frontal frame — NOT a presentation attack.
+
+    Renamed from ``synth_side`` so it cannot be mistaken for a PA synthesizer.
+    Refuses any destination under ``attack_side/`` (same mislabel bug that
+    polluted PAD training). Kept only for provenance MSE checks against real
+    profile captures. Capture real sides with
+    ``scripts/capture_own_face.py --split attack_side``.
+    """
+    dest = Path(dest)
+    if "attack_side" in dest.parts:
+        raise ValueError(
+            f"refusing to write diagnostic warp into attack_side path: {dest}. "
+            "Perspective warps of live skin are not presentation attacks."
+        )
     img = cv2.imread(str(src))
     if img is None:
         raise RuntimeError(f"cannot read {src}")
@@ -146,6 +170,11 @@ def synth_side(src: Path, dest: Path, *, yaw_sign: float = 1.0) -> Path:
     return dest
 
 
+# Back-compat alias — same hard guard as synth_side_diagnostic_warp.
+def synth_side(src: Path, dest: Path, *, yaw_sign: float = 1.0) -> Path:
+    return synth_side_diagnostic_warp(src, dest, yaw_sign=yaw_sign)
+
+
 def write_manifest(rows: list[dict[str, str]]) -> None:
     path = ROOT / "data" / "manifest.csv"
     write_header = not path.exists()
@@ -162,7 +191,12 @@ def write_manifest(rows: list[dict[str, str]]) -> None:
 def main() -> None:
     import argparse
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description=(
+            "Populate face enroll/genuine from Kaggle RDJ crops; "
+            "synthesize attack_blur only (never attack_side)"
+        )
+    )
     parser.add_argument("--src", type=Path, default=DEFAULT_SRC)
     parser.add_argument("--out", type=Path, default=OUT)
     args = parser.parse_args()
@@ -185,18 +219,11 @@ def main() -> None:
     enroll_out = copy_split(enroll_src, args.out / "enroll", "enroll")
     genuine_out = copy_split(genuine_src, args.out / "genuine", "genuine")
 
-    # Attacks synthesized from top enroll frames (same identity, no genuine overlap)
+    # Blur proxy only — never write geometric yaw warps into attack_side/.
     _clear_jpgs(args.out / "attack_blur")
-    _clear_jpgs(args.out / "attack_side")
     blur_out: list[Path] = []
-    side_out: list[Path] = []
     for i, src in enumerate(enroll_src[:N_ATTACK_BLUR], start=1):
         blur_out.append(synth_blur(src, args.out / "attack_blur" / f"blur_{i:02d}.jpg"))
-    for i, src in enumerate(enroll_src[:N_ATTACK_SIDE], start=1):
-        sign = 1.0 if i % 2 else -1.0
-        side_out.append(
-            synth_side(src, args.out / "attack_side" / f"side_{i:02d}.jpg", yaw_sign=sign)
-        )
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     manifest_rows: list[dict[str, str]] = []
@@ -233,17 +260,6 @@ def main() -> None:
                 "captured_at": now,
             }
         )
-    for p in side_out:
-        manifest_rows.append(
-            {
-                "path": str(p.relative_to(ROOT / "data")),
-                "driver_id": "driver1",
-                "modality": "face",
-                "split": "attack_side",
-                "notes": f"{IDENTITY}; perspective yaw of enroll",
-                "captured_at": now,
-            }
-        )
     write_manifest(manifest_rows)
 
     # SOURCE.txt provenance
@@ -253,8 +269,10 @@ def main() -> None:
         f"Source: {args.src}",
         f"enroll: {N_ENROLL} best sharpness/eye-visible",
         f"genuine: {N_GENUINE} next-best same identity (no overlap with enroll)",
-        f"attack_side / attack_blur: synthesized from enroll frames "
-        f"({N_ATTACK_SIDE} side / {N_ATTACK_BLUR} blur)",
+        f"attack_blur: synthesized from enroll frames ({N_ATTACK_BLUR} blur)",
+        "attack_side: NOT written by this script — capture real profiles with "
+        "scripts/capture_own_face.py --split attack_side (perspective warps of "
+        "live skin are not presentation attacks)",
         "",
         "Selected source files (score desc):",
     ]
@@ -269,7 +287,10 @@ def main() -> None:
     print(f"enroll:       {len(enroll_out)}")
     print(f"genuine:      {len(genuine_out)}")
     print(f"attack_blur:  {len(blur_out)}")
-    print(f"attack_side:  {len(side_out)}")
+    print(
+        "attack_side:  NOT written (use capture_own_face.py --split attack_side "
+        "for real side-angle PA; synth_side_diagnostic_warp refuses attack_side/)"
+    )
     print("SOURCE.txt + manifest.csv updated")
 
 

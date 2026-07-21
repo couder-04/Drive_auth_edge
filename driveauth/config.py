@@ -147,6 +147,8 @@ LADDER_ACCEPT = _as_float(_LADDER.get("accept", TRUST_ACCEPT_MICRO))
 LADDER_ACCEPT_VOICE = _as_float(_LADDER.get("accept_voice", LADDER_ACCEPT))
 LADDER_ACCEPT_FACE = _as_float(_LADDER.get("accept_face", LADDER_ACCEPT))
 LADDER_ACCEPT_FINGER = _as_float(_LADDER.get("accept_finger", LADDER_ACCEPT))
+# Opt-in: 0 = off (default). See escalation.should_accept face+PAD borderline.
+FACE_BORDERLINE_MARGIN = _as_float(_LADDER.get("face_borderline_margin", 0.0))
 # Stage-3: fingerprint and/or Bluetooth OTP (identity ladder only).
 _STAGE3_MODE_RAW = str(_LADDER.get("stage3_mode", "finger_only")).strip().lower()
 LADDER_STAGE3_MODE = (

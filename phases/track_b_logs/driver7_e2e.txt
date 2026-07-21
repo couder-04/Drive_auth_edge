@@ -1,0 +1,86 @@
+2026-07-21 06:56:28.782 Python[34134:1364447] 2026-07-21 06:56:28.782134 [W:onnxruntime:, coreml_execution_provider.cc:137 GetCapability] CoreMLExecutionProvider::GetCapability, number of partitions supported by CoreML: 2 number of nodes in the graph: 96 number of nodes supported by CoreML: 95
+2026-07-21 06:56:29.406 Python[34134:1364447] 2026-07-21 06:56:29.406474 [W:onnxruntime:, coreml_execution_provider.cc:137 GetCapability] CoreMLExecutionProvider::GetCapability, number of partitions supported by CoreML: 2 number of nodes in the graph: 96 number of nodes supported by CoreML: 95
+2026-07-21 06:56:29.590 Python[34134:1364447] 2026-07-21 06:56:29.590925 [W:onnxruntime:, coreml_execution_provider.cc:137 GetCapability] CoreMLExecutionProvider::GetCapability, number of partitions supported by CoreML: 2 number of nodes in the graph: 96 number of nodes supported by CoreML: 95
+2026-07-21 06:56:34.923 Python[34134:1364447] 2026-07-21 06:56:34.923173 [W:onnxruntime:, coreml_execution_provider.cc:137 GetCapability] CoreMLExecutionProvider::GetCapability, number of partitions supported by CoreML: 2 number of nodes in the graph: 96 number of nodes supported by CoreML: 95
+/Users/par_04/Desktop/staged_driveauth-edge/.venv/lib/python3.14/site-packages/onnxruntime/capi/onnxruntime_inference_collection.py:147: UserWarning: Specified provider 'CUDAExecutionProvider' is not in available provider names.Available providers: 'CoreMLExecutionProvider, AzureExecutionProvider, CPUExecutionProvider'
+  warnings.warn(
+2026-07-21 06:56:44.797 Python[34134:1364447] 2026-07-21 06:56:44.797668 [W:onnxruntime:, coreml_execution_provider.cc:137 GetCapability] CoreMLExecutionProvider::GetCapability, number of partitions supported by CoreML: 2 number of nodes in the graph: 96 number of nodes supported by CoreML: 95
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+2026-07-21 06:56:47.684 Python[34134:1364447] 2026-07-21 06:56:47.684570 [W:onnxruntime:, coreml_execution_provider.cc:137 GetCapability] CoreMLExecutionProvider::GetCapability, number of partitions supported by CoreML: 2 number of nodes in the graph: 96 number of nodes supported by CoreML: 95
+2026-07-21 06:56:48.945 Python[34134:1364447] 2026-07-21 06:56:48.944991 [W:onnxruntime:, coreml_execution_provider.cc:137 GetCapability] CoreMLExecutionProvider::GetCapability, number of partitions supported by CoreML: 2 number of nodes in the graph: 96 number of nodes supported by CoreML: 95
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+WARNING: POLICY BARS DIFFER FROM policy.yaml STOCK DEFAULTS
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Deployed accept/reject thresholds are NOT the repo stock bars.
+If you sourced phases/phase2b_suggested.env (or set DRIVEAUTH_* bars),
+you are lowering the security floor for demo UX — not raising scores.
+
+Default (stock) thresholds vs current (deployed):
+
+  DRIVEAUTH_LADDER_ACCEPT_VOICE: stock=0.72 → deployed=0.58 (delta=-0.1400, via env)
+  DRIVEAUTH_LADDER_ACCEPT_FACE: stock=0.7 → deployed=0.36 (delta=-0.3400, via env)
+  DRIVEAUTH_TRUST_ACCEPT_MICRO: stock=0.7 → deployed=0.554 (delta=-0.1460, via env)
+  DRIVEAUTH_TRUST_ACCEPT_STD: stock=0.78 → deployed=0.584 (delta=-0.1960, via env)
+  DRIVEAUTH_TRUST_ACCEPT_HIGH: stock=0.85 → deployed=0.614 (delta=-0.2360, via env)
+  DRIVEAUTH_TRUST_REJECT: stock=0.48 → deployed=0.419 (delta=-0.0610, via env)
+
+Reason: demo / calibration override (not a production security improvement).
+Stock ladder defaults: voice=0.72 face=0.70 finger=0.70
+Expected production: keep policy.yaml stock unless re-calibrated on fleet data with documented FAR/FRR.
+See docs/security-assumptions.md §6 (phase2b_suggested.env).
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+POLICY BAR OVERRIDE: 6 bar(s) differ from policy.yaml stock — demo mode risk. Details: DRIVEAUTH_LADDER_ACCEPT_VOICE stock=0.72 deployed=0.58 Δ=-0.1400; DRIVEAUTH_LADDER_ACCEPT_FACE stock=0.7 deployed=0.36 Δ=-0.3400; DRIVEAUTH_TRUST_ACCEPT_MICRO stock=0.7 deployed=0.554 Δ=-0.1460; DRIVEAUTH_TRUST_ACCEPT_STD stock=0.78 deployed=0.584 Δ=-0.1960; DRIVEAUTH_TRUST_ACCEPT_HIGH stock=0.85 deployed=0.614 Δ=-0.2360; DRIVEAUTH_TRUST_REJECT stock=0.48 deployed=0.419 Δ=-0.0610
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+perf_telemetry: write failed (PermissionError)
+2026-07-21 06:56:51.545 Python[34134:1364447] 2026-07-21 06:56:51.545528 [W:onnxruntime:, coreml_execution_provider.cc:137 GetCapability] CoreMLExecutionProvider::GetCapability, number of partitions supported by CoreML: 2 number of nodes in the graph: 96 number of nodes supported by CoreML: 95
+Phase 1 integrity...
+Phase 2 enrollment...
+Phase 3-4 face/voice...
+Phase 5-6 finger/behavior...
+Phase 7-10 decisions...
+Phase 12 perf...
+Phase 13 security...
+Wrote /Users/par_04/Desktop/staged_driveauth-edge/phases/driver7_e2e_audit.json
+FACE cal: 0.515227484703064 0.18390722458179182 AUC 0.9230769230769231
+VOICE cal: 0.5523885861039162 0.44760940670967103 AUC 0.9
+STOCK: {'n': 19, 'accept': 0, 'reject': 19, 'other': [], 'genuine_accept_rate': 0.0, 'attack_reject_rate': 1.0}
+DEMO: {'n': 19, 'accept': 7, 'reject': 12, 'other': [], 'genuine_accept_rate': 0.4, 'attack_reject_rate': 0.6428571428571429}
+FINGER template: False
+Isolation OK: True

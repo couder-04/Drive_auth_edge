@@ -584,6 +584,9 @@ def render_register() -> str:
       chips.innerHTML = [
         `<span class="chip">data: ${s.data_dir}</span>`,
         `<span class="chip ${faceOk ? "ok" : "warn"}">face ${s.face_count}/${s.min_face}</span>`,
+        `<span class="chip ${
+          (s.face_clean_count || 0) >= s.min_face ? "ok" : "warn"
+        }">Haar clean ${s.face_clean_count != null ? s.face_clean_count : "—"}/${s.min_face}</span>`,
         `<span class="chip ${voiceOk ? "ok" : "warn"}">voice ${s.voice_count}/${s.min_voice}</span>`,
         `<span class="chip ${homeOk ? "ok" : "warn"}">home ${homeOk ? "set" : "required"}</span>`,
         `<span class="chip ${locked ? "ok" : ""}">${locked ? "🔒 enrolled · locked" : "editable"}</span>`,
@@ -703,7 +706,11 @@ def render_register() -> str:
         fd.append("file", blob, "capture.jpg");
         const res = await api("/api/register/face", { method: "POST", body: fd });
         const frac = res.face_frac != null ? ` face_frac=${Number(res.face_frac).toFixed(2)}` : "";
-        log(`Saved face ${res.path}${frac}`);
+        const clean =
+          res.face_clean_count != null
+            ? ` Haar clean ${res.face_clean_count}/${res.min_face || 5}`
+            : "";
+        log(`Saved face ${res.path}${frac}${clean}`);
         await refresh();
       } catch (e) {
         log("Face capture failed: " + e.message);
@@ -782,7 +789,15 @@ def render_register() -> str:
       fd.append("driver_id", driverId());
       fd.append("file", blob, "capture.wav");
       const res = await api("/api/register/voice", { method: "POST", body: fd });
-      log(`Saved voice ${res.path}`);
+      const dur =
+        res.duration_s != null ? ` ${Number(res.duration_s).toFixed(2)}s` : "";
+      const qok =
+        res.quality_ok == null
+          ? ""
+          : res.quality_ok
+            ? ` q_ok q=${Number(res.quality).toFixed(2)}`
+            : ` q_FAIL q=${Number(res.quality).toFixed(2)} notes=${(res.notes || []).join(",")}`;
+      log(`Saved voice ${res.path}${dur}${qok}`);
       await refresh();
     }
 

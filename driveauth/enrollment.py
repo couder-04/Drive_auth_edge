@@ -344,11 +344,27 @@ def enrollment_status(
         "face": (store / "faces" / f"{driver_id}.enc").exists(),
     }
     locked = bool(templates["voice"] and templates["face"])
+    # Haar-confirmed enroll count (live quality target for future sessions).
+    face_clean_count = 0
+    if images:
+        try:
+            import cv2
+            from driveauth.matchers.face import assess_face_framing
+
+            for img_path in images:
+                bgr = cv2.imread(str(img_path), cv2.IMREAD_COLOR)
+                if bgr is None:
+                    continue
+                if assess_face_framing(bgr).get("ok"):
+                    face_clean_count += 1
+        except Exception:
+            face_clean_count = 0
     return {
         "driver_id": driver_id,
         "data_dir": str(root),
         "store_dir": str(store),
         "face_count": len(images),
+        "face_clean_count": face_clean_count,
         "voice_count": len(wavs),
         "face_files": [p.name for p in images],
         "voice_files": [p.name for p in wavs],

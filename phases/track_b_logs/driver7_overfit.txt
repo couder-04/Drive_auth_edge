@@ -1,0 +1,10 @@
+driveauth_store_phase2a/voices/driver7/voice_calibrator.json: loo_auc=0.7750 gap=+0.1742 shuffled=0.0000
+  ORT OK voice_calibrator.onnx
+driveauth_store_phase2a/faces/driver7/face_pad.json: loo_auc=0.6962 gap=-0.0356 shuffled=0.5423
+  ORT OK face_pad.onnx
+driveauth_store_phase2a/faces/driver7/face_calibrator.json: loo_auc=0.8174 gap=+0.0956 shuffled=0.1261
+  ORT OK face_calibrator.onnx
+driveauth_store_phase2a/trust_fusion.json: loo_auc=0.9029 gap=-0.0203 shuffled=0.5616
+  ORT OK trust_fusion.onnx
+
+OK

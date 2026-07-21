@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 
 from driveauth import config
-from driveauth.escalation import EscalationPolicy
+from driveauth.escalation import EscalationPolicy, face_pad_borderline_blocks_accept
 from driveauth.fraud_state import FraudStateMachine
 from driveauth.fusion import ConfidenceScorer, TrustFusion
 from driveauth.ood_detector import OODDetector
@@ -400,8 +400,22 @@ class DecisionEngine:
                     results, qflags, sensor_gaps
                 )
 
+                pad_proba = None
+                pad_thr = None
+                if nxt == "face":
+                    face_m = self._m.face
+                    pad_proba = getattr(face_m, "last_pad_score", None)
+                    info = getattr(face_m, "stage2_info", None) or {}
+                    pad_thr = info.get("pad_threshold")
+                    if pad_thr is None:
+                        pad_thr = getattr(face_m, "_pad_threshold", None)
+
                 if self._escalation.should_accept(
-                    plan=plan, score=score, modality=nxt
+                    plan=plan,
+                    score=score,
+                    modality=nxt,
+                    pad_proba=pad_proba,
+                    pad_threshold=pad_thr,
                 ):
                     ladder_decision = Decision.ACCEPT
                     ladder_rule = f"{config.POLICY_VERSION}:ladder_accept_{nxt}"
@@ -416,6 +430,18 @@ class DecisionEngine:
                     break
 
                 # Low / missing score → escalate to next modality
+                if (
+                    nxt == "face"
+                    and score is not None
+                    and plan.is_accept(score, modality="face")
+                    and face_pad_borderline_blocks_accept(
+                        plan=plan,
+                        score=score,
+                        pad_proba=pad_proba,
+                        pad_threshold=pad_thr,
+                    )
+                ):
+                    explanations.append("ladder_face_pad_borderline_escalate")
                 if score is None:
                     explanations.append(f"ladder_escalate_after_{nxt}_no_score")
                 else:

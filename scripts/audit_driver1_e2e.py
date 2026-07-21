@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""Driver1 end-to-end readiness audit. Measure-only; does not change policy.
+"""Per-driver end-to-end readiness audit. Measure-only; does not change policy.
 
-Writes phases/driver1_e2e_audit.json
+Writes phases/<driver_id>_e2e_audit.json
+
+  python scripts/audit_driver1_e2e.py
+  python scripts/audit_driver1_e2e.py --driver-id driver7
 """
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
@@ -111,9 +115,11 @@ def phase1_integrity() -> dict:
         a: (STORE / f"{a}.onnx").is_file()
         for a in ("face_pad", "face_calibrator", "voice_calibrator")
     }
-    # Cross-driver isolation: confirm driver1 paths != other drivers' files
+    # Cross-driver isolation: confirm this driver's paths != other drivers' files
     isolation = {}
-    for other in ("driver2", "driver3", "driver6", "driver7"):
+    for other in ("driver1", "driver2", "driver3", "driver6", "driver7"):
+        if other == DRIVER:
+            continue
         for art, ref in refs.items():
             if not ref.exists:
                 continue
@@ -124,15 +130,15 @@ def phase1_integrity() -> dict:
                 other_path = STORE / "voices" / other / f"{art}.onnx"
             if other_path and other_path.is_file() and ref.path.resolve() == other_path.resolve():
                 isolation[f"{art}_shares_{other}"] = True
+    using_legacy = any(a["source"] == "legacy_shared" for a in artifacts.values())
     return {
         "stage2_status": status,
         "check_driver": check,
         "templates": templates,
         "artifacts": artifacts,
         "legacy_root_present": legacy_present,
-        "using_legacy_for_driver1": any(
-            a["source"] == "legacy_shared" for a in artifacts.values()
-        ),
+        "using_legacy_for_driver1": using_legacy,  # kept for report schema compat
+        "using_legacy_for_driver": using_legacy,
         "cross_driver_path_collision": isolation,
         "isolation_ok": len(isolation) == 0
         and all(a["source"] == "per_driver" for a in artifacts.values()),
@@ -1029,8 +1035,19 @@ def phase13_security(integrity: dict, face_voice: dict, decisions: dict) -> dict
 
 
 def main() -> None:
+    global STORE, DATA, DRIVER, OUT
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--driver-id", default="driver1")
+    ap.add_argument("--store", type=Path, default=STORE)
+    args = ap.parse_args()
+    DRIVER = args.driver_id
+    DATA = ROOT / "data" / DRIVER
+    OUT = ROOT / "phases" / f"{DRIVER}_e2e_audit.json"
+    STORE = Path(args.store)
+
     os.chdir(ROOT)
-    # load secrets if present
+    # load secrets if present — but NEVER apply phase2b bar-lowering overrides.
+    # Stock headline pops ladder/trust env keys before decisions (phase7_10).
     secrets = ROOT / "secrets.env"
     if secrets.exists():
         for line in secrets.read_text().splitlines():
@@ -1038,7 +1055,11 @@ def main() -> None:
             if not line or line.startswith("#") or "=" not in line:
                 continue
             k, _, v = line.partition("=")
-            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+            k = k.strip()
+            # Refuse to inherit any ladder/trust bar overrides from secrets.env
+            if k.startswith("DRIVEAUTH_LADDER_") or k.startswith("DRIVEAUTH_TRUST_"):
+                continue
+            os.environ.setdefault(k, v.strip().strip('"').strip("'"))
 
     report: dict = {"driver_id": DRIVER, "store": str(STORE), "data": str(DATA)}
     print("Phase 1 integrity...")

@@ -1,0 +1,4 @@
+voice calibrator [driver7]: n=23 pos=8 neg=15
+ORT smoke OK: voice_calibrator.onnx outs=2 in=float_input
+Wrote driveauth_store_phase2a/voices/driver7/voice_calibrator.onnx
+LOO AUC=0.775 gap=0.1742

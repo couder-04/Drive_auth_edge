@@ -179,7 +179,9 @@ After each capture session, append rows (or run the helper script if present).
 
 - [x] `driver1` has enroll + genuine + ≥1 attack for **voice**
 - [x] `driver1` has enroll + genuine + ≥1 attack for **face**
-  (Robert Downey Jr via `scripts/populate_face_rdj.py` — replace with your face later)
+  (Robert Downey Jr via `scripts/populate_face_rdj.py` for enroll/genuine/attack_blur —
+  replace with your face later; `attack_side` must be real camera profiles via
+  `capture_own_face.py --split attack_side`, not RDJ warps)
 - [x] `finger` / `behavioral` — synthetic via `scripts/generate_phase3_synth.py` (swap for HW later)
 - [x] `ood/voice` + `ood/face` — Stage 1 real negatives (TTS + other-id stills);
       eval with `scripts/eval_ood_negatives.py` · finger OOD still synth

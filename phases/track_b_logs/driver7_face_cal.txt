@@ -1,0 +1,5 @@
+2026-07-21 06:53:49.137 Python[30017:1355708] 2026-07-21 06:53:49.136059 [W:onnxruntime:, coreml_execution_provider.cc:137 GetCapability] CoreMLExecutionProvider::GetCapability, number of partitions supported by CoreML: 2 number of nodes in the graph: 96 number of nodes supported by CoreML: 95
+face calibrator [driver7]: n=33 pos=10 neg=23
+ORT smoke OK: face_calibrator.onnx outs=2 in=float_input
+Wrote driveauth_store_phase2a/faces/driver7/face_calibrator.onnx
+LOO AUC=0.8174 gap=0.0956

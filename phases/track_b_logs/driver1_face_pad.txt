@@ -1,0 +1,5 @@
+2026-07-21 06:53:21.968 Python[29309:1354154] 2026-07-21 06:53:21.967186 [W:onnxruntime:, coreml_execution_provider.cc:137 GetCapability] CoreMLExecutionProvider::GetCapability, number of partitions supported by CoreML: 2 number of nodes in the graph: 96 number of nodes supported by CoreML: 95
+face PAD [driver1]: n=55 bonafide=30 attack=25 fallback_in_train=4 excluded=0
+ORT smoke OK: face_pad.onnx outs=2 in=float_input
+Wrote driveauth_store_phase2a/faces/driver1/face_pad.onnx
+LOO AUC=0.8107 thr=0.460 APCER=0.240 BPCER=0.000 pad_disabled=False
