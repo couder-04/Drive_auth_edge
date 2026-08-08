@@ -51,12 +51,12 @@ Do **not** commit raw biometrics to git. Keep `data/` local (already gitignored 
 ### Voice (16 kHz mono WAV — matches the pipeline)
 
 ```bash
-# one enrollment utterance (~2–3 s). Repeat 5–10 times with different phrases.
-ffmpeg -f avfoundation -i ":default" -ar 16000 -ac 1 -t 3 \
+# one enrollment utterance (~5 s). Repeat 5–10 times with different phrases.
+ffmpeg -f avfoundation -i ":default" -ar 16000 -ac 1 -t 5 \
   data/driver1/voice/enroll/enroll_01.wav
 ```
 
-Phrases to rotate: `"pay Mom fifty"`, `"transfer two hundred to Raj"`, `"open navigation"` (non-pay), count 1–10.
+Phrases to rotate: `"please pay Mom fifty dollars from my checking account right now"`, `"transfer two hundred dollars to Raj for dinner last weekend"`, `"open navigation and take me home using the fastest route"` (non-pay).
 
 
 | Class                   | How                                                             |
@@ -179,9 +179,8 @@ After each capture session, append rows (or run the helper script if present).
 
 - [x] `driver1` has enroll + genuine + ≥1 attack for **voice**
 - [x] `driver1` has enroll + genuine + ≥1 attack for **face**
-  (Robert Downey Jr via `scripts/populate_face_rdj.py` for enroll/genuine/attack_blur —
-  replace with your face later; `attack_side` must be real camera profiles via
-  `capture_own_face.py --split attack_side`, not RDJ warps)
+  (own-face captures for enroll/genuine; `attack_side` must be real camera
+  profiles via `capture_own_face.py --split attack_side`, never geometric warps)
 - [x] `finger` / `behavioral` — synthetic via `scripts/generate_phase3_synth.py` (swap for HW later)
 - [x] `ood/voice` + `ood/face` — Stage 1 real negatives (TTS + other-id stills);
       eval with `scripts/eval_ood_negatives.py` · finger OOD still synth

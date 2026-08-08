@@ -99,12 +99,32 @@ def assess_face_framing(frame_bgr: np.ndarray) -> dict:
             "box": (int(x), int(y), int(w), int(h)),
             "reason": "face_not_frontal",
         }
+    # Mandatory face-quality gate: require exactly two-eye detection.
+    eye_detector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml")
+    roi = gray[max(0, y) : min(frame_h, y + h), max(0, x) : min(frame_w, x + w)]
+    eyes = eye_detector.detectMultiScale(
+        roi,
+        scaleFactor=1.1,
+        minNeighbors=4,
+        minSize=(12, 12),
+    )
+    eye_count = int(len(eyes))
+    if eye_count != 2:
+        return {
+            "ok": False,
+            "face_frac": face_frac,
+            "frontal_ok": True,
+            "box": (int(x), int(y), int(w), int(h)),
+            "reason": f"eye_count_{eye_count}",
+            "eye_count": eye_count,
+        }
     return {
         "ok": True,
         "face_frac": face_frac,
         "frontal_ok": True,
         "box": (int(x), int(y), int(w), int(h)),
         "reason": "ok",
+        "eye_count": 2,
     }
 
 
@@ -408,10 +428,11 @@ class FaceMatcher:
                 y0, x0 = (h - side) // 2, (w - side) // 2
                 crop = frame_bgr[y0 : y0 + side, x0 : x0 + side]
             else:
-                crop, face_frac, frontal_ok = meta
+                crop, face_frac, frontal_ok, eye_count = meta
                 self._last_meta = {
                     "face_frac": face_frac,
                     "frontal_ok": frontal_ok,
+                    "eye_count": eye_count,
                     "bgr": crop,
                 }
             return self._embed_crop_bgr(crop)
@@ -457,10 +478,11 @@ class FaceMatcher:
             # _run_pad fail-closes on inject_fallback / unknown meta.
             meta = self._extract_face_meta(frame, cv2)
             if meta is not None:
-                crop, face_frac, frontal_ok = meta
+                crop, face_frac, frontal_ok, eye_count = meta
                 self._last_meta = {
                     "face_frac": face_frac,
                     "frontal_ok": frontal_ok,
+                    "eye_count": eye_count,
                     "bgr": crop,
                 }
             elif self._inject_bgr is not None:
@@ -531,10 +553,11 @@ class FaceMatcher:
                 self._last_meta = self._fallback_meta(crop_bgr)
                 logger.info("FaceMatcher: Haar miss — center-crop fallback (inject)")
             else:
-                crop_bgr, face_frac, frontal_ok = meta
+                crop_bgr, face_frac, frontal_ok, eye_count = meta
                 self._last_meta = {
                     "face_frac": face_frac,
                     "frontal_ok": frontal_ok,
+                    "eye_count": eye_count,
                     "bgr": crop_bgr,
                 }
             return cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2GRAY)
@@ -611,7 +634,17 @@ class FaceMatcher:
             y0 = max(0, y - pad)
             x1 = min(frame_w, x + w + pad)
             y1 = min(frame_h, y + h + pad)
-            return frame[y0:y1, x0:x1], face_frac, True
+            eye_detector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml")
+            roi = gray[max(0, y) : min(frame_h, y + h), max(0, x) : min(frame_w, x + w)]
+            eyes = eye_detector.detectMultiScale(
+                roi,
+                scaleFactor=1.1,
+                minNeighbors=4,
+                minSize=(12, 12),
+            )
+            if len(eyes) != 2:
+                return None
+            return frame[y0:y1, x0:x1], face_frac, True, int(len(eyes))
         except Exception as exc:
             logger.debug(
                 "FaceMatcher: face-crop check failed (%s) — refusing full frame", exc

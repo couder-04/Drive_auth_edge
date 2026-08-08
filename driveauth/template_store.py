@@ -18,6 +18,7 @@ from driveauth.key_protection import (
     KEY_PATH_NAME,
     KeyProtector,
     SoftwareKeyProtector,
+    configured_protector,
     default_protector,
     read_store_key,
     write_store_key,
@@ -35,7 +36,7 @@ class TemplateStore:
         protector: KeyProtector | None = None,
     ):
         self.store_dir = Path(store_dir)
-        self.protector: KeyProtector = protector or default_protector()
+        self.protector: KeyProtector = protector or configured_protector()
 
     def ensure_key(self) -> Path:
         self.store_dir.mkdir(parents=True, exist_ok=True)

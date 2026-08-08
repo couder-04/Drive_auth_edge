@@ -128,3 +128,50 @@ def test_scenarios_include_featured(client):
     assert otp["request"]["otp_demo"] is True
     assert otp["request"]["stage3_mode"] == "finger_or_otp"
     assert otp["request"]["fingerprint_available"] is False
+
+
+def test_index_defaults_to_standalone(client):
+    res = client.get("/")
+    assert res.status_code == 200
+    assert "mode-standalone" in res.text
+    assert "Pay · standalone" in res.text
+    assert "Standalone pay · live" in res.text
+    # Mock score sliders exist in HTML but are CSS-hidden on standalone.
+    assert "manual-only" in res.text
+
+
+def test_standalone_auth_rejects_mock_voice_face(client, monkeypatch, tmp_path):
+    """Empty store + mock fallback → MockVoice/Face → 503 (live required)."""
+    import io
+    import wave
+
+    import numpy as np
+
+    monkeypatch.setenv("DRIVEAUTH_USE_MOCK", "0")
+    monkeypatch.setenv("DRIVEAUTH_ALLOW_MOCK_FALLBACK", "1")
+    monkeypatch.setenv("DRIVEAUTH_DASHBOARD_STORE", str(tmp_path / "empty_store"))
+
+    n, sr = 16_000, 16_000
+    t = np.linspace(0, 1.0, n, dtype=np.float32)
+    sig = (0.2 * np.sin(2 * np.pi * 180 * t) * 20000).astype(np.int16)
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(sr)
+        w.writeframes(sig.tobytes())
+    wav = buf.getvalue()
+
+    res = client.post(
+        "/api/standalone/auth",
+        data={
+            "amount": "50",
+            "beneficiary": "Mom",
+            "gps_lat": "12.97",
+            "gps_lon": "77.59",
+        },
+        files={"audio": ("pay.wav", wav, "audio/wav")},
+    )
+    assert res.status_code == 503
+    detail = res.json()["detail"]
+    assert "live matchers" in detail.lower() or "MockVoice" in detail

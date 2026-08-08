@@ -37,7 +37,7 @@ from scripts._bio_train_common import (  # noqa: E402
 )
 
 VOICE_FEATURE_KEYS = ("cosine", "quality", "q_ok", "duration_n", "clip_frac")
-ATTACKS = ("attack_replay", "attack_silent", "attack_other_speaker")
+ATTACKS = ("attack_replay", "attack_silent", "attack_other_speaker", "noisy")
 
 
 def main() -> None:

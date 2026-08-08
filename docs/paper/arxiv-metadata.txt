@@ -1,0 +1,5 @@
+Title: DriveAuth Edge: Trust/Risk Separation for In-Vehicle Biometric Payment Authorization
+Authors: [TBD — fill before submit]
+Comments: Preprint; companion to IEEE IV 2027 submission
+Subjects: cs.CR (primary), cs.AI
+Abstract: [Paste from docs/paper/iv2027-draft.md abstract section]

@@ -153,6 +153,21 @@ def default_protector() -> KeyProtector:
     return SoftwareKeyProtector()
 
 
+def configured_protector() -> KeyProtector:
+    """Load protector from ``DRIVEAUTH_KEY_PROTECTOR`` (software|tpm)."""
+    from driveauth import config
+
+    try:
+        return load_protector(config.KEY_PROTECTOR)
+    except (ValueError, RuntimeError) as exc:
+        logger.warning(
+            "KeyProtector %r unavailable (%s) — falling back to software",
+            config.KEY_PROTECTOR,
+            exc,
+        )
+        return SoftwareKeyProtector()
+
+
 def load_protector(name: str, **kwargs) -> KeyProtector:
     """Factory: ``software`` (default) or ``tpm``."""
     key = (name or "software").strip().lower()

@@ -213,6 +213,15 @@ ESCALATION_CONSTANT_TIME_MS = _as_float(_P["escalation"]["constant_time_ms"])
 
 BOOTSTRAP_MIN_TXNS = _as_int(_P["bootstrap"]["min_txns"])
 BOOTSTRAP_MIN_DAYS = _as_float(_P["bootstrap"]["min_days"])
+
+# Secure-element key wrapping (software | tpm). Off by default.
+_KEY_PROT_RAW = str(os.getenv("DRIVEAUTH_KEY_PROTECTOR", "software")).strip().lower()
+KEY_PROTECTOR = _KEY_PROT_RAW if _KEY_PROT_RAW else "software"
+
+# Fleet telemetry pilot — explicit opt-in required for outbound posts.
+FLEET_TELEMETRY_OPT_IN = _as_bool01(os.getenv("DRIVEAUTH_FLEET_TELEMETRY_OPT_IN", "0"))
+FLEET_TELEMETRY_URL = str(os.getenv("DRIVEAUTH_FLEET_TELEMETRY_URL", "") or "").strip()
+FLEET_TELEMETRY_INTERVAL_S = _as_float(os.getenv("DRIVEAUTH_FLEET_TELEMETRY_INTERVAL_S", "60"))
 PROFILE_STALE_DAYS = _as_float(_P["bootstrap"]["stale_days"])
 BOOTSTRAP_AMOUNT_CAP = _as_float(_P["bootstrap"]["amount_cap"])
 PROFILE_SCHEMA_VERSION = _as_int(_P["bootstrap"]["schema_version"])

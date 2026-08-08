@@ -1,0 +1,11 @@
+# Local HashiCorp Vault for integration testing (dev only — NOT production).
+services:
+  vault:
+    image: hashicorp/vault:1.17
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: root
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK

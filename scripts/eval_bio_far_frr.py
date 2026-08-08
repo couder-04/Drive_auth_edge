@@ -34,7 +34,7 @@ from scripts._bio_train_common import (  # noqa: E402
     summarize,
 )
 
-VOICE_ATTACKS = ("attack_replay", "attack_silent", "attack_other_speaker")
+VOICE_ATTACKS = ("attack_replay", "attack_silent", "attack_other_speaker", "noisy")
 FACE_ATTACKS = ("attack_blur", "attack_side", "attack_replay_screen")
 
 

@@ -28,6 +28,7 @@ from driveauth.enrollment import (
     list_enroll_wavs,
     list_registered_drivers,
     save_face_jpeg,
+    save_finger_scan,
     save_voice_wav_bytes,
     validate_driver_id,
 )
@@ -687,7 +688,43 @@ def _apply_mock_scores(auth: DriveAuth, scores: MockScores) -> None:
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     app.state.dashboard = DashboardState()
+    reporter = None
+    ble_server = None
+    try:
+        from driveauth import config
+        from hardware.fleet_telemetry import (
+            FleetTelemetryReporter,
+            fleet_opt_in_enabled,
+            live_sensor_flags,
+        )
+
+        if config.FLEET_TELEMETRY_OPT_IN and config.FLEET_TELEMETRY_URL:
+            store = _unified_store()
+            reporter = FleetTelemetryReporter(
+                url=config.FLEET_TELEMETRY_URL,
+                audit_path=store / "audit" / "driveauth_events.jsonl",
+                sensor_flags=live_sensor_flags(),
+                interval_s=config.FLEET_TELEMETRY_INTERVAL_S,
+            )
+            reporter.start()
+            app.state.fleet_reporter = reporter
+
+        if os.getenv("DRIVEAUTH_BLE_GATT_ENABLED", "0").strip() in ("1", "true", "yes"):
+            from hardware.ble_gatt_server import BleGattServer
+
+            ble_server = BleGattServer()
+            if ble_server.start():
+                app.state.ble_gatt_server = ble_server
+    except Exception:
+        app.state.fleet_reporter = None
     yield
+    if ble_server is not None:
+        try:
+            ble_server.stop()
+        except Exception:
+            pass
+    if reporter is not None:
+        reporter.stop()
     app.state.dashboard.clear()
 
 
@@ -712,7 +749,7 @@ def _with_admin_bootstrap(html: str) -> str:
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
-    return _with_admin_bootstrap(render_dashboard(mode="manual"))
+    return _with_admin_bootstrap(render_dashboard(mode="standalone"))
 
 
 @app.get("/manual", response_class=HTMLResponse)
@@ -976,28 +1013,87 @@ def improved_auth_train(
 
 
 @app.get("/api/fleet/health")
-def fleet_health() -> dict[str, Any]:
+def fleet_health(request: Request) -> dict[str, Any]:
     """Local fleet-health snapshot — scores/rates only, no biometrics."""
-    from driveauth import __version__
-    from hardware.fleet_telemetry import build_telemetry_payload, summarize_audit_file
+    from driveauth import __version__, config
+    from hardware.fleet_telemetry import (
+        build_telemetry_payload,
+        fleet_opt_in_enabled,
+        live_sensor_flags,
+        summarize_audit_file,
+    )
 
     store = _unified_store()
     audit = store / "audit" / "driveauth_events.jsonl"
     counts = summarize_audit_file(audit)
+    reporter = getattr(request.app.state, "fleet_reporter", None)
     payload = build_telemetry_payload(
         vehicle_id=os.getenv("DRIVEAUTH_VEHICLE_ID", "local"),
         firmware_version=os.getenv("DRIVEAUTH_FIRMWARE_VERSION", __version__),
         accept_count=counts["accept"],
         reject_count=counts["reject"],
         step_up_count=counts["step_up"],
-        sensor_flags={
-            "voice": True,
-            "face": True,
-            "finger": os.getenv("DRIVEAUTH_FINGERPRINT_AVAILABLE", "0") == "1",
-            "gps": True,
-        },
+        sensor_flags=live_sensor_flags(),
     )
+    ingest_path = store / "fleet_telemetry" / "ingest.jsonl"
+    from hardware.fleet_telemetry import FleetTelemetryIngest
+
+    ingest_count = len(FleetTelemetryIngest(ingest_path).recent(limit=10_000))
+    payload["telemetry"] = {
+        "opt_in": fleet_opt_in_enabled(),
+        "url_configured": bool(config.FLEET_TELEMETRY_URL),
+        "reporter_active": reporter is not None and getattr(reporter, "enabled", False),
+        "send_count": int(getattr(reporter, "send_count", 0) or 0),
+        "ingest_count": ingest_count,
+    }
     return payload
+
+
+class FleetTelemetryIngestRequest(BaseModel):
+    model_config = {"populate_by_name": True}
+
+    telemetry_schema: str = Field(
+        default="driveauth.fleet_telemetry.v1", alias="schema"
+    )
+    vehicle_id: str = Field(..., min_length=1, max_length=64)
+    firmware_version: str = "0.0.0"
+    auth: dict[str, Any] = Field(default_factory=dict)
+    sensors: dict[str, bool] = Field(default_factory=dict)
+    ts: str | None = None
+
+
+@app.post("/api/fleet/telemetry")
+def fleet_telemetry_ingest(body: FleetTelemetryIngestRequest) -> dict[str, Any]:
+    """Pilot ingest endpoint — accepts opt-in fleet rollups (no biometrics)."""
+    from hardware.fleet_telemetry import FleetTelemetryIngest, build_telemetry_payload
+
+    auth = body.auth or {}
+    payload = build_telemetry_payload(
+        vehicle_id=body.vehicle_id,
+        firmware_version=body.firmware_version,
+        accept_count=int(auth.get("accept", 0)),
+        reject_count=int(auth.get("reject", 0)),
+        step_up_count=int(auth.get("step_up", 0)),
+        sensor_flags=body.sensors or {},
+    )
+    if body.ts:
+        payload["ts"] = body.ts
+    store = _unified_store()
+    record = FleetTelemetryIngest(store / "fleet_telemetry" / "ingest.jsonl").ingest(
+        payload
+    )
+    return {"status": "ok", "record": record}
+
+
+@app.get("/api/fleet/telemetry")
+def fleet_telemetry_recent(limit: int = 20) -> dict[str, Any]:
+    from hardware.fleet_telemetry import FleetTelemetryIngest
+
+    store = _unified_store()
+    rows = FleetTelemetryIngest(store / "fleet_telemetry" / "ingest.jsonl").recent(
+        limit=min(max(limit, 1), 200)
+    )
+    return {"status": "ok", "count": len(rows), "records": rows}
 
 
 @app.get("/api/fleet/perf")
@@ -1089,7 +1185,7 @@ async def register_face(
             status_code=400,
             detail=(
                 f"face framing rejected ({framing.get('reason')}): "
-                "move closer, face the camera, fill more of the frame, then retake"
+                "move closer, face the camera, keep both eyes visible, then retake"
             ),
         )
     path = save_face_jpeg(_data_root(), driver_id, raw, split="enroll")
@@ -1100,6 +1196,7 @@ async def register_face(
         "face_frac": framing.get("face_frac"),
         "haar_ok": True,
         "haar_reason": framing.get("reason"),
+        "eye_count": framing.get("eye_count"),
         "frontal_ok": framing.get("frontal_ok"),
         "face_clean_count": st.get("face_clean_count"),
         **st,
@@ -1146,7 +1243,7 @@ async def register_voice(
             detail=(
                 "voice quality rejected "
                 f"({', '.join(notes) or 'low_quality'}): "
-                "speak clearly for at least 1 second, reduce background noise, then retry"
+                "speak clearly (audible speech), keep at least 1 second duration, reduce background noise, then retry"
             ),
         )
 
@@ -1154,6 +1251,39 @@ async def register_voice(
         "status": "ok",
         "path": str(path.relative_to(_data_root())),
         **voice_quality,
+        **enrollment_status(_data_root(), _register_store(), driver_id),
+    }
+
+
+@app.post("/api/register/finger")
+async def register_finger(
+    _admin: AdminAuth,
+    request: Request,
+    driver_id: str = Form(...),
+    file: UploadFile = File(...),
+) -> dict[str, Any]:
+    """Upload a 256×256 grayscale finger scan (65536 bytes) for optional enroll."""
+    try:
+        driver_id = validate_driver_id(driver_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _assert_register_writable(driver_id)
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="empty finger scan upload")
+    if len(raw) < 256 * 256:
+        raise HTTPException(
+            status_code=400,
+            detail=f"finger scan too short ({len(raw)} bytes; need 65536)",
+        )
+    try:
+        path = save_finger_scan(_data_root(), driver_id, raw, split="enroll")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "status": "ok",
+        "path": str(path.relative_to(_data_root())),
+        "bytes": 256 * 256,
         **enrollment_status(_data_root(), _register_store(), driver_id),
     }
 
@@ -1468,6 +1598,17 @@ async def standalone_auth(
             status_code=503,
             detail=f"failed to load live matchers for {did}: {exc}",
         ) from exc
+
+    m = auth._engine._m
+    if isinstance(m.voice, MockVoiceMatcher) or isinstance(m.face, MockFaceMatcher):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"live matchers required for standalone auth (driver={did}); "
+                "got MockVoiceMatcher/MockFaceMatcher — enroll voice/face or unset "
+                "DRIVEAUTH_USE_MOCK"
+            ),
+        )
 
     # Progressive unlock: finger only when the client sends a score.
     _apply_finger_manual(auth, finger)

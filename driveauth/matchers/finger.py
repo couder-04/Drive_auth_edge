@@ -43,12 +43,14 @@ class FingerMatcher:
         finger_enc = store / "fingers" / f"{driver_id}.enc"
         if finger_enc.exists():
             try:
-                from cryptography.fernet import Fernet  # type: ignore
+                from driveauth.key_protection import configured_protector
+                from driveauth.template_store import load_embedding
 
-                key_path = store / ".bio_key"
-                if key_path.exists():
-                    f = Fernet(key_path.read_bytes())
-                    driver_template = f.decrypt(finger_enc.read_bytes())
+                emb = load_embedding(
+                    store, f"fingers/{driver_id}.enc", configured_protector()
+                )
+                if emb is not None:
+                    driver_template = emb.astype(np.float32).tobytes()
                     logger.info("FingerMatcher: template loaded for %s", driver_id)
             except Exception as exc:
                 logger.error("FingerMatcher: template load failed: %s", exc)

@@ -37,4 +37,4 @@ RUN mkdir -p /data/store /data/data /data/hf /data/torch \
 
 EXPOSE 8765
 # Railway sets $PORT. Seed models via volume or scripts/phase2a_setup.py on first boot.
-CMD ["sh", "-c", "driveauth-dashboard --host 0.0.0.0 --port ${PORT:-8765} --strict-port"]
+CMD ["sh", "-c", "sh scripts/railway_first_boot.sh && driveauth-dashboard --host 0.0.0.0 --port ${PORT:-8765} --strict-port"]

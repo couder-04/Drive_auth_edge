@@ -222,10 +222,15 @@ class DecisionEngine:
             face_frac = getattr(face, "face_frac", None)
             frontal_ok = getattr(face, "frontal_ok", None)
             meta = getattr(face, "_last_meta", None) or {}
+            eye_count = meta.get("eye_count")
             if face_frac is None:
                 face_frac = meta.get("face_frac")
             if frontal_ok is None:
                 frontal_ok = meta.get("frontal_ok")
+            if eye_count != 2:
+                qflags.face_ok = False
+                qflags.notes.append(f"face_eye_count_{eye_count if eye_count is not None else 'unknown'}")
+                return ModalityResult(None, False, quality=0.0, available=True)
             ok, q, notes = score_face(frame, face_frac=face_frac, frontal_ok=frontal_ok)
             qflags.face_ok, qflags.face_q = ok, q
             qflags.notes.extend(notes)

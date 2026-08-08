@@ -93,7 +93,7 @@ def capture_faces(
         f"{CAPTURE_FRAME_WIDTH}×{CAPTURE_FRAME_HEIGHT}, "
         f"face_frac≥{config.FACE_MIN_FRAC:.2f}. q=quit."
     )
-    print("Fill the green oval; hold steady — saves automatically.")
+    print("Center face large in frame; hold steady — saves automatically.")
 
     while len(saved) < n:
         ok, frame = cap.read()
@@ -111,20 +111,8 @@ def capture_faces(
             )
         framing = assess_face_framing(frame)
         show = frame.copy()
-        h, w = show.shape[:2]
-        guide_h = int(0.40 * h)
-        guide_w = int(guide_h * 0.85)
+        h = show.shape[0]
         color = (40, 220, 120) if framing.get("ok") else (40, 40, 220)
-        cv2.ellipse(
-            show,
-            (w // 2, int(h * 0.45)),
-            (guide_w // 2, guide_h // 2),
-            0,
-            0,
-            360,
-            color,
-            2,
-        )
         box = framing.get("box")
         if box is not None:
             x, y, bw, bh = box
@@ -284,14 +272,14 @@ def _load_wav_mono(path: Path) -> np.ndarray:
 
 
 PHRASES = [
-    "pay Mom fifty",
-    "transfer two hundred to Raj",
-    "open navigation",
-    "pay Starbucks one fifty",
-    "confirm payment now",
-    "send five thousand home",
-    "unlock the cabin",
-    "authorize this purchase",
+    "please pay Mom fifty dollars from my checking account right now",
+    "transfer two hundred dollars to Raj for dinner last weekend",
+    "open navigation and take me home using the fastest route",
+    "pay Starbucks one fifty for my usual morning coffee order",
+    "please confirm this payment and authorize the transfer now",
+    "send five thousand rupees home to my parents this evening",
+    "unlock the cabin doors and start the climate control system",
+    "authorize this purchase of groceries from the nearby market",
 ]
 
 
@@ -327,7 +315,7 @@ def main() -> None:
     ap.add_argument("--camera", type=int, default=0)
     ap.add_argument("--face-n", type=int, default=22)
     ap.add_argument("--voice-n", type=int, default=24)
-    ap.add_argument("--voice-seconds", type=float, default=3.5)
+    ap.add_argument("--voice-seconds", type=float, default=5.0)
     ap.add_argument("--skip-face", action="store_true")
     ap.add_argument("--skip-voice", action="store_true")
     ap.add_argument("--cooldown", type=float, default=1.2)

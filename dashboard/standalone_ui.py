@@ -246,7 +246,7 @@ def panel_html() -> str:
         <div>
           <h2>Pay · standalone</h2>
           <div class="sub">
-            Voice + location first → face unlocks on threshold miss → finger unlocks on step-up
+            Live ECAPA voice + MobileFaceNet face · location first → face unlocks on miss · finger slider until HW
           </div>
         </div>
         <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap">
@@ -283,7 +283,7 @@ def panel_html() -> str:
           </div>
           <div class="finger-wrap locked-inline" id="pay-finger-wrap" data-lock="Fingerprint locked · wait for face escalate">
             <label style="display:block;font-size:0.72rem;color:var(--muted)">
-              Finger (manual until HW) <span id="pay-finger-val">—</span>
+              Finger (manual stand-in until HW) <span id="pay-finger-val">—</span>
             </label>
             <input id="pay-finger" type="range" min="0" max="1" step="0.01" value="0.85" style="width:100%" disabled aria-disabled="true" />
             <div class="lock-note" id="pay-finger-note">Locked until face also fails the accept bar.</div>
@@ -303,7 +303,8 @@ def panel_html() -> str:
             <button type="button" id="pay-run" disabled>Authorize payment</button>
           </div>
           <p style="margin:0.5rem 0 0;font-size:0.7rem;color:var(--faint)" id="pay-auth-hint">
-            First run: voice + location only. Ladder lights only unlocked rungs.
+            Live models: mic → ECAPA, camera → face. Finger stays a manual slider until HW.
+            First run: voice + location only.
           </p>
         </div>
       </div>

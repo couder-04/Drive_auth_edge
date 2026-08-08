@@ -53,10 +53,10 @@ SPLITS = {
 _REQUIRE_FACE = frozenset({"enroll", "genuine", "attack_blur", "attack_replay_screen"})
 
 HINTS = {
-    "enroll": "FRONTAL · good light · face LARGE in frame (fill guide oval)",
+    "enroll": "FRONTAL · good light · face LARGE in frame (center, ~40% height)",
     "genuine": "Same close-up as enroll · frontal · vary light/expression only (NOT distance)",
     "attack_side": "Clear PROFILE / strong side turn (>45°) — face gate optional",
-    "attack_blur": "Move during capture OR soft focus · still fill guide oval",
+    "attack_blur": "Move during capture OR soft focus · still keep face large/centered",
     "attack_replay_screen": "Show your face on a phone/laptop screen, photo that screen",
 }
 
@@ -170,15 +170,11 @@ def _open_capture(camera: int) -> cv2.VideoCapture:
 
 
 def _draw_guide(show: np.ndarray, framing: dict, *, require_face: bool) -> None:
-    h, w = show.shape[:2]
-    # Guide oval ≈ face_frac 0.40 of frame height (enroll-like close-up).
-    guide_h = int(0.40 * h)
-    guide_w = int(guide_h * 0.85)
-    cx, cy = w // 2, int(h * 0.45)
+    """Live framing feedback (Haar box + face_frac). Placement oval lives on /register."""
+    h, _w = show.shape[:2]
     color = (40, 220, 120) if framing.get("ok") else (40, 40, 220)
     if not require_face:
         color = (200, 180, 80)
-    cv2.ellipse(show, (cx, cy), (guide_w // 2, guide_h // 2), 0, 0, 360, color, 2)
     box = framing.get("box")
     if box is not None:
         x, y, bw, bh = box
@@ -326,7 +322,7 @@ def run_capture(
     if min_clean > 0 and clean < min_clean:
         raise SystemExit(
             f"Session ended with only {clean} clean (Haar-OK) captures; "
-            f"need ≥{min_clean}. Re-run and hold face in the guide until live "
+            f"need ≥{min_clean}. Re-run and hold face large/centered until live "
             f"face_frac clears, or lower --min-clean."
         )
 

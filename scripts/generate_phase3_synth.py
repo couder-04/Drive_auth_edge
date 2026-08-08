@@ -24,11 +24,9 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "driver1"
-KAGGLE_FACES = (
-    Path.home()
-    / ".cache/kagglehub/datasets/vasukipatel/face-recognition-dataset"
-    / "versions/1/Faces/Faces"
-)
+# Optional external OOD face source (e.g. curated consented other-id stills).
+# Default is None so this script has zero Kaggle/third-party dependency.
+DEFAULT_OOD_FACE_SOURCE = None
 # Matches driveauth.matchers.behavioral.BEHAVIORAL_FEATURE_KEYS + t_ms + label.
 CAN_COLS = [
     "t_ms",
@@ -284,7 +282,9 @@ def generate_behavioral(rng: np.random.Generator, out: Path) -> list[dict[str, s
     return rows_m
 
 
-def generate_ood_face(out: Path, n: int = 20) -> list[dict[str, str]]:
+def generate_ood_face(
+    out: Path, n: int = 20, source_dir: Path | None = None
+) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     face_dir = out / "face"
@@ -292,15 +292,12 @@ def generate_ood_face(out: Path, n: int = 20) -> list[dict[str, str]]:
     face_dir.mkdir(parents=True, exist_ok=True)
 
     src_files: list[Path] = []
-    if KAGGLE_FACES.is_dir():
-        # Prefer Brad Pitt (not RDJ enrolled identity)
-        src_files = sorted(KAGGLE_FACES.glob("Brad Pitt_*.jpg"))[:n]
-        if len(src_files) < n:
-            src_files += [
-                p
-                for p in sorted(KAGGLE_FACES.glob("Tom Cruise_*.jpg"))
-                if p not in src_files
-            ][: n - len(src_files)]
+    if source_dir is not None and source_dir.is_dir():
+        src_files = (
+            sorted(source_dir.glob("*.jpg"))
+            + sorted(source_dir.glob("*.jpeg"))
+            + sorted(source_dir.glob("*.png"))
+        )[:n]
     if len(src_files) < n:
         # Procedural fallback faces
         for i in range(len(src_files), n):
@@ -314,7 +311,7 @@ def generate_ood_face(out: Path, n: int = 20) -> list[dict[str, str]]:
                     "driver_id": "driver1",
                     "modality": "ood_face",
                     "split": "ood",
-                    "notes": "synthetic fallback face",
+                    "notes": "synthetic fallback face (no external source)",
                     "captured_at": now,
                 }
             )
@@ -329,7 +326,7 @@ def generate_ood_face(out: Path, n: int = 20) -> list[dict[str, str]]:
                 "driver_id": "driver1",
                 "modality": "ood_face",
                 "split": "ood",
-                "notes": f"kaggle other-id {src.name}",
+                "notes": f"external other-id {src.name}",
                 "captured_at": now,
             }
         )
@@ -372,11 +369,11 @@ def generate_ood_voice(out: Path, skip: bool) -> list[dict[str, str]]:
         return rows
 
     phrases = [
-        "Pay Mom fifty",
-        "Transfer two hundred to Raj",
-        "Pay Uber eighty",
-        "Authorize payment now",
-        "Confirm transfer please",
+        "Please pay Mom fifty dollars from my checking account right now",
+        "Transfer two hundred dollars to Raj for dinner last weekend",
+        "Pay Uber eighty dollars for the ride to the airport today",
+        "Please authorize this payment and confirm the transfer now",
+        "Confirm the transfer of five hundred to my savings account",
     ]
     voices = ["Ralph", "Kathy", "Zarvox", "Trinoids", "Whisper"]
     with tempfile.TemporaryDirectory() as tmp:
@@ -450,6 +447,15 @@ def main() -> None:
         action="store_true",
         help="Skip macOS say TTS for OOD voice",
     )
+    parser.add_argument(
+        "--ood-face-source",
+        type=Path,
+        default=DEFAULT_OOD_FACE_SOURCE,
+        help=(
+            "Optional folder of consented non-enrolled face stills "
+            "(.jpg/.jpeg/.png). If omitted, procedural fallback faces are used."
+        ),
+    )
     args = parser.parse_args()
     rng = np.random.default_rng(args.seed)
     data = args.data
@@ -461,14 +467,14 @@ def main() -> None:
     print("Generating OOD faces / fingers…")
     ood = data / "ood"
     ood.mkdir(parents=True, exist_ok=True)
-    m3 = generate_ood_face(ood)
+    m3 = generate_ood_face(ood, source_dir=args.ood_face_source)
     m4 = generate_ood_finger(rng, ood)
     print("Generating OOD voice…")
     m5 = generate_ood_voice(ood, skip=args.skip_ood_voice)
 
     (ood / "SOURCE.txt").write_text(
         "OOD Phase 3 negatives (not the enrolled driver)\n"
-        "face: other Kaggle identity (or synthetic fallback)\n"
+        "face: external consented other-id stills if provided, else synthetic fallback\n"
         "voice: macOS say TTS stand-ins\n"
         "finger: synthetic unknown prints\n"
         "Live OOD gating still uses store ood_stats/*.npz from enrollment.\n"

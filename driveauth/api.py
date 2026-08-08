@@ -168,7 +168,7 @@ class DriveAuth:
         enroll_dir: str | None = None,
         driver_id: str = "driver1",
         enabled: bool = True,
-        use_mock_matchers: bool = False,
+        use_mock_matchers: bool | None = None,
     ) -> DriveAuth:
         store = Path(store_dir or os.getenv("DRIVEAUTH_STORE_DIR", "./driveauth_store"))
         store.mkdir(parents=True, exist_ok=True)
@@ -178,7 +178,13 @@ class DriveAuth:
 
         verify_store_integrity(store)
 
-        if use_mock_matchers or os.getenv("DRIVEAUTH_USE_MOCK", "0") == "1":
+        # None → honor DRIVEAUTH_USE_MOCK; explicit False forces live (standalone).
+        want_mock = (
+            bool(use_mock_matchers)
+            if use_mock_matchers is not None
+            else os.getenv("DRIVEAUTH_USE_MOCK", "0") == "1"
+        )
+        if want_mock:
             matchers = MatcherBundle(
                 voice=MockVoiceMatcher(),
                 face=MockFaceMatcher(),
@@ -312,7 +318,9 @@ class DriveAuth:
             try:
                 from cryptography.fernet import Fernet  # type: ignore
 
-                key_path.write_bytes(Fernet.generate_key())
+                from driveauth.key_protection import configured_protector, write_store_key
+
+                write_store_key(store, Fernet.generate_key(), configured_protector())
             except Exception as exc:
                 logger.warning("DriveAuth: key gen failed (%s)", exc)
 

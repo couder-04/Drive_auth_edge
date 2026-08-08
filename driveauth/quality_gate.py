@@ -18,6 +18,8 @@ logger = logging.getLogger("driveauth.quality")
 _VOICE_MIN_SNR_DB = config.Q_VOICE_MIN_SNR
 _VOICE_CLIP_FRAC = config.Q_VOICE_CLIP_FRAC
 _VOICE_MIN_SECONDS = config.Q_VOICE_MIN_SEC
+_VOICE_MIN_ACTIVE_FRAC = 0.20
+_VOICE_MIN_ACTIVE_SEC = 0.20
 _FACE_MIN_SHARPNESS = config.Q_FACE_MIN_SHARP
 _FACE_MIN_BRIGHT = config.Q_FACE_MIN_BRIGHT
 _FACE_MAX_BRIGHT = config.Q_FACE_MAX_BRIGHT
@@ -41,6 +43,25 @@ def _snr_db(audio: np.ndarray) -> float:
     return float(20.0 * np.log10(max(speech / noise, 1e-6)))
 
 
+def _speech_presence(audio: np.ndarray, sample_rate: int) -> tuple[bool, float]:
+    """Return (speech_present, active_frame_fraction) via simple frame energy VAD."""
+    if audio.size == 0:
+        return False, 0.0
+    frame = max(1, int(0.02 * sample_rate))  # 20 ms
+    n = (audio.size // frame) * frame
+    if n < frame:
+        return False, 0.0
+    energies = np.sqrt((audio[:n].reshape(-1, frame) ** 2).mean(axis=1) + 1e-12)
+    peak = float(energies.max()) if energies.size else 0.0
+    if peak <= 1e-6:
+        return False, 0.0
+    active = energies >= max(0.12 * peak, 1e-4)
+    active_frac = float(active.mean()) if active.size else 0.0
+    active_sec = float(active.sum() * frame) / float(sample_rate)
+    present = active_frac >= _VOICE_MIN_ACTIVE_FRAC and active_sec >= _VOICE_MIN_ACTIVE_SEC
+    return present, active_frac
+
+
 def score_voice(
     audio_f32: np.ndarray, sample_rate: int = 16_000
 ) -> tuple[bool, float, list[str]]:
@@ -51,6 +72,9 @@ def score_voice(
     duration = audio_f32.size / sample_rate
     if duration < _VOICE_MIN_SECONDS:
         notes.append("voice_too_short")
+    speech_present, _active_frac = _speech_presence(audio_f32, sample_rate)
+    if not speech_present:
+        notes.append("voice_no_speech")
 
     clip_frac = float(np.mean(np.abs(audio_f32) > 0.995))
     if clip_frac > _VOICE_CLIP_FRAC:
@@ -65,6 +89,7 @@ def score_voice(
     quality = 0.6 * q_snr + 0.4 * q_clip
     ok = (
         (duration >= _VOICE_MIN_SECONDS)
+        and speech_present
         and (clip_frac <= _VOICE_CLIP_FRAC)
         and (snr >= _VOICE_MIN_SNR_DB)
     )

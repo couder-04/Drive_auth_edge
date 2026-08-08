@@ -182,16 +182,49 @@ class VaultSecretsProvider:
     ):
         self._addr = (addr or os.getenv("DRIVEAUTH_VAULT_ADDR", "")).rstrip("/")
         self._token = token if token is not None else os.getenv("DRIVEAUTH_VAULT_TOKEN", "")
+        self._role_id = os.getenv("DRIVEAUTH_VAULT_ROLE_ID", "").strip()
+        self._secret_id = os.getenv("DRIVEAUTH_VAULT_SECRET_ID", "").strip()
         self._mount = (mount or os.getenv("DRIVEAUTH_VAULT_MOUNT", "secret")).strip("/")
         self._path = (path or os.getenv("DRIVEAUTH_VAULT_PATH", "driveauth")).strip("/")
         self._http = http_client or _default_vault_http
         self._cache: dict[str, str] = dict(cache or {})
         self._fetched = False
 
+    def _resolve_token(self) -> str:
+        if self._token:
+            return self._token
+        if not self._role_id or not self._secret_id or not self._addr:
+            return ""
+        url = f"{self._addr}/v1/auth/approle/login"
+        body = json.dumps(
+            {"role_id": self._role_id, "secret_id": self._secret_id}
+        ).encode("utf-8")
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+        try:
+            status, resp = self._http("POST", url, headers, body)
+        except Exception as exc:
+            logger.error(
+                "VaultSecretsProvider: AppRole login failed (%s)",
+                type(exc).__name__,
+            )
+            return ""
+        if status != 200:
+            logger.error("VaultSecretsProvider: AppRole login HTTP %s", status)
+            return ""
+        try:
+            token = json.loads(resp).get("auth", {}).get("client_token", "")
+            if token:
+                logger.info("VaultSecretsProvider: AppRole login OK")
+            return str(token)
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            return ""
+
     def _fetch_all(self) -> None:
         if self._fetched:
             return
         self._fetched = True
+        if not self._token:
+            self._token = self._resolve_token()
         if not self._addr or not self._token:
             logger.warning(
                 "VaultSecretsProvider: DRIVEAUTH_VAULT_ADDR/TOKEN missing; "

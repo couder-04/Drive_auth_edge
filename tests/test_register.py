@@ -235,6 +235,12 @@ def test_register_api_init_and_uploads(tmp_path: Path, monkeypatch) -> None:
     ids = {row["driver_id"] for row in r.json()}
     assert "driverNew" in ids
 
+    r = client.get("/")
+    assert r.status_code == 200
+    assert "mode-standalone" in r.text
+    assert "Pay · standalone" in r.text
+    assert "Live ECAPA" in r.text
+
     r = client.get("/manual")
     assert r.status_code == 200
     assert "mode-manual" in r.text
@@ -244,6 +250,9 @@ def test_register_api_init_and_uploads(tmp_path: Path, monkeypatch) -> None:
     assert "Pay · standalone" in r.text
     assert "Face locked" in r.text
     assert "Location (required)" in r.text
+    assert "manual stand-in until HW" in r.text
+    assert "Manual pipeline · demo" in r.text
+    assert "Standalone pay · live" in r.text
 
 
 def test_register_face_rejects_bad_framing(tmp_path: Path, monkeypatch) -> None:
@@ -265,6 +274,68 @@ def test_register_face_rejects_bad_framing(tmp_path: Path, monkeypatch) -> None:
     assert r.status_code == 400
     assert "framing rejected" in r.json()["detail"]
     assert len(list_enroll_images(tmp_path / "driverFrame")) == 0
+
+
+def test_register_face_rejects_non_two_eye_detection(tmp_path: Path, monkeypatch) -> None:
+    import dashboard.app as app_mod
+
+    store = tmp_path / "store"
+    store.mkdir()
+    monkeypatch.setattr(app_mod, "_data_root", lambda: tmp_path)
+    monkeypatch.setattr(app_mod, "_register_store", lambda: store)
+    monkeypatch.setattr(app_mod, "_unified_store", lambda: store)
+    monkeypatch.setattr(
+        "driveauth.matchers.face.assess_face_framing",
+        lambda _bgr: {
+            "ok": False,
+            "face_frac": 0.4,
+            "frontal_ok": True,
+            "box": (10, 10, 40, 40),
+            "reason": "eye_count_1",
+            "eye_count": 1,
+        },
+    )
+
+    client = _client()
+    client.post("/api/register/init", json={"driver_id": "driverEye"})
+    r = client.post(
+        "/api/register/face",
+        data={"driver_id": "driverEye"},
+        files={"file": ("a.jpg", _tiny_jpeg_bytes(), "image/jpeg")},
+    )
+    assert r.status_code == 400
+    assert "eye_count_1" in r.json()["detail"]
+    assert len(list_enroll_images(tmp_path / "driverEye")) == 0
+
+
+def test_register_voice_rejects_no_speech(tmp_path: Path, monkeypatch) -> None:
+    import dashboard.app as app_mod
+
+    store = tmp_path / "store"
+    store.mkdir()
+    monkeypatch.setattr(app_mod, "_data_root", lambda: tmp_path)
+    monkeypatch.setattr(app_mod, "_register_store", lambda: store)
+    monkeypatch.setattr(app_mod, "_unified_store", lambda: store)
+
+    sr = 16_000
+    silent = np.zeros(sr * 2, dtype=np.int16)
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(sr)
+        w.writeframes(silent.tobytes())
+
+    client = _client()
+    client.post("/api/register/init", json={"driver_id": "driverSilent"})
+    r = client.post(
+        "/api/register/voice",
+        data={"driver_id": "driverSilent"},
+        files={"file": ("a.wav", buf.getvalue(), "audio/wav")},
+    )
+    assert r.status_code == 400
+    assert "voice_no_speech" in r.json()["detail"]
+    assert len(list_enroll_wavs(tmp_path / "driverSilent")) == 0
 
 
 def test_pipeline_next_unlock_voice_only(tmp_path: Path, monkeypatch) -> None:

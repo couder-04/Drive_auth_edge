@@ -55,7 +55,7 @@ python scripts/recapture_driver1_genuine.py --face-n 22 --voice-n 24 --camera 0
 ```
 
 Face: fill the green oval, hold still — auto-saves only on Haar OK.  
-Voice: Enter before each prompted phrase (~3.5 s, 16 kHz).
+Voice: Enter before each prompted phrase (~5 s, 16 kHz).
 
 **Target:** face Haar hit-rate ≫ old **3/20 (15%)** / overall **58.8%** — expect ~≥95% on new close-ups.
 

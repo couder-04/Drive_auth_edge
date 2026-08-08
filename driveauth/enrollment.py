@@ -42,8 +42,9 @@ FACE_SUBDIRS = (
     "attack_replay_screen",
 )
 
-MIN_FACE_ENROLL = 5
-MIN_VOICE_ENROLL = 5
+MIN_FACE_ENROLL = 3
+MIN_VOICE_ENROLL = 3
+MIN_FINGER_ENROLL = 1
 
 
 def validate_driver_id(driver_id: str) -> str:
@@ -216,6 +217,83 @@ def mean_embed_face(
     return mean
 
 
+def list_enroll_finger_scans(driver_dir: Path) -> list[Path]:
+    finger_dir = driver_dir / "finger" / "enroll"
+    if not finger_dir.is_dir():
+        return []
+    return sorted(finger_dir.glob("*.bin")) + sorted(finger_dir.glob("*.raw"))
+
+
+def save_finger_scan(
+    data_root: str | Path,
+    driver_id: str,
+    scan_bytes: bytes,
+    *,
+    split: str = "enroll",
+) -> Path:
+    """Persist a 256×256 grayscale scan (65536 bytes) from the finger daemon."""
+    if len(scan_bytes) < 256 * 256:
+        raise ValueError(f"finger scan too short: {len(scan_bytes)} bytes (need 65536)")
+    root = ensure_driver_layout(data_root, driver_id)
+    out_dir = root / "finger" / split
+    out_dir.mkdir(parents=True, exist_ok=True)
+    idx = next_enroll_index(out_dir, split, "bin")
+    path = out_dir / f"{split}_{idx:02d}.bin"
+    path.write_bytes(scan_bytes[: 256 * 256])
+    return path
+
+
+def _embed_finger_scan(store: Path, scan_bytes: bytes) -> np.ndarray | None:
+    onnx_path = store / "fingernet_lite_int8.onnx"
+    if not onnx_path.is_file():
+        return None
+    try:
+        import onnxruntime as ort  # type: ignore
+
+        session = ort.InferenceSession(
+            str(onnx_path),
+            providers=["CPUExecutionProvider"],
+        )
+        img = np.frombuffer(scan_bytes[: 256 * 256], dtype=np.uint8).reshape(
+            1, 1, 256, 256
+        )
+        blob = img.astype(np.float32) / 255.0
+        input_name = session.get_inputs()[0].name
+        minutiae = session.run(None, {input_name: blob})[0][0].astype(np.float32)
+        norm = float(np.linalg.norm(minutiae))
+        if norm > 1e-8:
+            minutiae /= norm
+        return minutiae
+    except Exception as exc:
+        logger.warning("finger embed failed: %s", exc)
+        return None
+
+
+def mean_embed_finger(
+    store: Path,
+    scans: list[Path],
+    driver_id: str,
+    *,
+    protector: KeyProtector | None = None,
+) -> np.ndarray:
+    embs: list[np.ndarray] = []
+    for p in scans:
+        raw = p.read_bytes()
+        emb = _embed_finger_scan(store, raw)
+        if emb is not None:
+            embs.append(emb)
+            logger.info("finger ok: %s", p.name)
+        else:
+            logger.warning("finger skip: %s", p.name)
+    if not embs:
+        raise RuntimeError(
+            "no finger embeddings produced — need fingernet_lite_int8.onnx in store"
+        )
+    mean = np.mean(np.stack(embs), axis=0).astype(np.float32)
+    save_embedding(store, f"fingers/{driver_id}.enc", mean, protector=protector)
+    return mean
+
+
 def list_registered_drivers(
     data_root: str | Path,
     store_dir: str | Path,
@@ -381,7 +459,9 @@ def enroll_driver(
         from driveauth.consent import require_consent as _require_consent
 
         _require_consent(store, driver_id)
-    protector = key_protector or SoftwareKeyProtector()
+    from driveauth.key_protection import configured_protector
+
+    protector = key_protector or configured_protector()
     TemplateStore(store, protector=protector).ensure_key()
 
     wavs = list_enroll_wavs(data)
@@ -402,6 +482,12 @@ def enroll_driver(
 
     v_emb = mean_embed_voice(store, wavs, driver_id, protector=protector)
     f_emb = mean_embed_face(store, images, driver_id, protector=protector)
+
+    finger_scans = list_enroll_finger_scans(data)
+    finger_template: str | None = None
+    if finger_scans:
+        mean_embed_finger(store, finger_scans, driver_id, protector=protector)
+        finger_template = f"fingers/{driver_id}.enc"
 
     OODDetector.seed_baselines(
         str(store),
@@ -427,6 +513,8 @@ def enroll_driver(
         "face_samples": len(images),
         "voice_template": f"voices/{driver_id}.enc",
         "face_template": f"faces/{driver_id}.enc",
+        "finger_template": finger_template,
+        "finger_samples": len(finger_scans),
         "store_dir": str(store),
         "data_dir": str(data),
         "key_protector": type(protector).__name__,

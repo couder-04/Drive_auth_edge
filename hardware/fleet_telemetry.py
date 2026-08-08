@@ -115,6 +115,64 @@ def summarize_audit_file(audit_path: Path) -> dict[str, int]:
     return counts
 
 
+class FleetTelemetryIngest:
+    """Local pilot collector — append-only JSONL, no biometric fields."""
+
+    def __init__(self, ingest_path: Path):
+        self.ingest_path = Path(ingest_path)
+        self.ingest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def ingest(self, payload: dict[str, Any]) -> dict[str, Any]:
+        assert_no_biometric_content(payload)
+        if payload.get("schema") != "driveauth.fleet_telemetry.v1":
+            raise ValueError("unsupported telemetry schema")
+        record = dict(payload)
+        record["received_at"] = time.strftime(
+            "%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time())
+        )
+        with self.ingest_path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, separators=(",", ":")) + "\n")
+        return record
+
+    def recent(self, limit: int = 50) -> list[dict[str, Any]]:
+        if not self.ingest_path.is_file():
+            return []
+        lines = self.ingest_path.read_text(encoding="utf-8").splitlines()
+        out: list[dict[str, Any]] = []
+        for line in lines[-limit:]:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                out.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+        return out
+
+
+def fleet_opt_in_enabled() -> bool:
+    """Explicit opt-in — URL alone is not enough to start outbound reporting."""
+    raw = os.getenv("DRIVEAUTH_FLEET_TELEMETRY_OPT_IN", "0").strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
+
+def live_sensor_flags() -> dict[str, bool]:
+    """Best-effort hardware presence flags for fleet rollups."""
+    finger_on = os.getenv("DRIVEAUTH_FINGERPRINT_AVAILABLE", "0").strip() in (
+        "1",
+        "true",
+        "yes",
+    )
+    hailo_on = os.getenv("DRIVEAUTH_FACE_BACKEND", "onnx").strip().lower() == "hailo"
+    return {
+        "voice": True,
+        "face": True,
+        "finger": finger_on,
+        "gps": True,
+        "hailo": hailo_on,
+    }
+
+
 class FleetTelemetryReporter:
     """Periodically POST aggregated health. Opt-in via URL env / constructor."""
 
@@ -145,7 +203,7 @@ class FleetTelemetryReporter:
 
     @property
     def enabled(self) -> bool:
-        return bool(self.url)
+        return bool(self.url) and fleet_opt_in_enabled()
 
     def build_payload(self) -> dict[str, Any]:
         counts = {"accept": 0, "reject": 0, "step_up": 0}

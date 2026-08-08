@@ -1,134 +1,103 @@
-# DriveAuth Edge — TODO (from roadmap-2026-07.md)
+# DriveAuth Edge — Active TODO
 
-## ★ DO NOW — Own face (top priority)
-- [x] **Replace RDJ face enroll/genuine with YOUR own face**
-      → enroll + Stage 2 PAD/calibrators trained; re-check thresholds before
-        applying `phase2b_suggested.env` (face overlap improved via PAD reject)
+Last updated: 2026-08-06
 
-## Deferred (as planned — not blocking Mac work)
-- [ ] **Real CAN → re-run** `scripts/train_behavioral_bakeoff.py` when you have
-      recorder dumps under `data/*/behavioral/{genuine,attack}/`
-      (8 features in `BEHAVIORAL_FEATURE_KEYS`); re-enroll after. Synth bake-off
-      metrics are pipeline-only, not production FAR/FRR.
-- [ ] **Do not** apply `phases/phase2b_suggested.env` as default until you
-      re-check policy bars (post–Stage 2 PAD / calibrators).
-- [ ] Wire GPS into Nova (`update_vehicle_context`) when integrating pipeline
-      (manual GPS/zone/speed in dashboard until then)
-- [ ] Replace synth finger / CAN with real HW captures when sensors arrive
-      (OOD voice+face Stage-1 set already real/TTS; finger OOD still synth)
+---
 
-## Sprint 1 — done
-- [x] Voice/face capture protocols + Phase 3 min sets
-- [x] Phase 2a voice+face enroll (ECAPA + MobileFaceNet)
-- [x] Manual score API + dashboard Nova I/O contract
-- [x] Timing side-channel test (`tests/test_security_sprint1.py`)
-- [x] OOD-drift attack simulation (`tests/test_security_sprint1.py`)
-- [x] README + demo GIF polish
-      (`docs/demo.gif` + `scripts/capture_dashboard_demo_gif.py`)
+## ✅ Done in repo (no action needed)
 
-## Phase 1 — Edge (Thor)
-- [x] Thor install + deps + GPU/NPU (CPU EP for mock; GPU visible via nvidia-smi)
-- [x] End-to-end demo on device (pytest · driveauth-demo ACCEPT · dashboard)
-- [x] Baseline hardware profile (CPU / GPU / RAM / latency)
-      → `phases/mac.txt` · `phases/thor.txt` · [`phases/phase1.md`](phases/phase1.md)
-      (mock auth p95 ≤ 10 ms: Mac 0.8 · Thor 0.9)
+Code, docs, and scripts below are **landed**. Do not re-implement.
 
-## Phase 2a — Off-the-shelf models
-- [x] Risk — LightGBM → `risk_gbt.onnx`
-- [x] Voice — ECAPA-TDNN pretrained + enrolled
-- [x] Face — MobileFaceNet pretrained + enrolled (own-face; RDJ retired)
-- [x] Mac latency profile — `phases/phase2a-mac.txt` (`scripts/phase2a_bench.py`)
-- [x] Thor latency profile — `phases/phase2a-thor.txt`
-      (ECAPA+face CUDA · ORT SM110 build · micro p95 7.7 · high 9.2 ms)
-- [ ] Fingerprint — vendor SDK (mock + ManualScores until HW) ## NEED HARDWARE
-- [x] Behavioral — LSTM/GRU/GBM bake-off on synth → best wired
-      (`scripts/train_behavioral_bakeoff.py` → `behavioral_model.onnx` +
-      `behavioral/{driver}.enc` + `behavioral_bakeoff.json`)
-      ## Real CAN still required before trusting metrics (see Deferred)
-- [x] Trust fusion — Stage 1 static; Stage 2 logreg wired (`trust_fusion.onnx`)
-- [x] Real OOD where possible (Stage 1)
-      → voice TTS OOD in `data/driver1/ood/voice/` (5 WAVs)
-      → face other-id stills in `data/driver1/ood/face/` (20 JPGs)
-      → eval: `scripts/eval_ood_negatives.py` → `phases/phase2a_ood_eval.json`
-      → tests: `tests/test_ood_stage1.py`
-      → finger OOD remains synth until sensor HW
+| # | Item | Artifacts |
+|---|------|-----------|
+| 1–3 | Minimal enrollment + face/voice quality gates | `driveauth/enrollment.py`, `quality_gate.py`, `matchers/face.py`, `/register` |
+| 5 | Fleet telemetry pilot (ingest + opt-in reporter) | `POST/GET /api/fleet/telemetry`, `hardware/fleet_telemetry.py` |
+| 6 | Bootstrap tuning tooling | `scripts/tune_bootstrap_params.py`, `phases/fleet_bootstrap.env` |
+| 7 | CAN retrain orchestration | `scripts/can_retrain_pipeline.py`, `hardware/can_logger.py` |
+| 8 | Finger enroll software path | `POST /api/register/finger`, `mean_embed_finger()` |
+| 9 | MAP OTP dev docs + mock | `docs/bluetooth-map-setup.md`, `scripts/mock_map_agent.py` |
+| 10 | BLE GATT car-side server hook | `DRIVEAUTH_BLE_GATT_ENABLED=1` in dashboard lifespan |
+| 11 | TPM config wiring | `DRIVEAUTH_KEY_PROTECTOR=tpm`, `configured_protector()` |
+| 12 | Hailo bench harness | `scripts/bench_hailo_face.py` |
+| 13 | HIL workflow + runner script | `.github/workflows/hardware-hil.yml`, `scripts/setup_hil_runner.sh` |
+| 14 | Compliance engineering checklist | `docs/compliance-checklist.md` |
+| 15 | Fairness protocol + proxy script | `docs/fairness-validation-protocol.md`, `scripts/analyze_fairness.py` |
+| 16 | Secure-boot rollout plan (doc) | `docs/secure-boot-rollout.md` |
+| 17 | Vault policies + ops runbook | `deploy/vault/policies/`, `docs/vault-operations.md`, AppRole in `secrets.py` |
+| 4 | Railway deploy runbook + first-boot | `docs/deploy/railway.md`, `scripts/railway_first_boot.sh`, `Dockerfile` |
 
-## Stage 1 — Finish Phase 2a (HW-gated remainder)
-- [x] Real OOD where possible + static trust fusion locked
-- [ ] Finger SDK + real captures → drop `ManualScores` for finger ## NEED HARDWARE
-- [ ] Real CAN windows → re-run `train_behavioral_bakeoff.py` ## NEED HARDWARE
+---
 
-## Stage 2 / Phase 2b — Fine-tune (score adapters + PAD; frozen 2a backbones)
-- [x] Voice calibrator — `voice_calibrator.onnx` (`scripts/train_voice_calibrator.py`)
-- [x] Face PAD + calibrator — `face_pad.onnx` + `face_calibrator.onnx`
-      (`scripts/train_face_pad.py`, `train_face_calibrator.py`)
-- [x] Behavioral re-bake on **current** CAN (synth stand-in) — refresh
-      `behavioral_model.onnx` + `behavioral_bakeoff.json` (retrain when real CAN)
-- [x] Trust fusion logistic regression → `trust_fusion.onnx`
-- [x] Eval: `phases/phase2a_bio_baseline.json` → `phases/phase2b_bio_eval.json`
-      (`scripts/eval_bio_far_frr.py`); overfit audit `scripts/overfit_audit_stage2.py`
+## 👤 YOUR action items (manual — only you can close these)
 
-## Phase 3 — Datasets
-- [x] Txns 50k · voice · face (own-face) · finger/beh/ood synth
-- [x] Own-face enroll/genuine/attacks (HW finger/CAN still deferred)
-- [ ] Real CAN windows replacing synth behavioral (same 8-feature schema)
+### Deploy & ops (do first)
 
-## Phase 4 — Training (risk ✅ done)
-- [x] Trust fusion logreg → ONNX (`trust_fusion.onnx`)
-- [x] Behavioral → ONNX (synth bake-off winner; redo on real CAN)
-- [x] Stage-2 heads from Phase 2b (calibrators + PAD; not full ECAPA/MFN FT)
+- [ ] **(4) Railway `/data` volume** — Follow [`docs/deploy/railway.md`](docs/deploy/railway.md):
+  - Create Railway service from this repo
+  - Attach volume at `/data`
+  - Set env vars (`DRIVEAUTH_DASHBOARD_API_KEY`, `OPENROUTER_API_KEY`, store paths)
+  - Retire Cloudflare tunnel demo; use public Railway URL
+- [ ] **(5) Point pilot vehicles at collector** — Set on each unit or Railway service:
+  ```bash
+  DRIVEAUTH_FLEET_TELEMETRY_OPT_IN=1
+  DRIVEAUTH_FLEET_TELEMETRY_URL=https://<your-service>/api/fleet/telemetry
+  DRIVEAUTH_VEHICLE_ID=vehicle_01
+  ```
+- [ ] **(6) Tune bootstrap from real data** — After ~1 week of pilot auth:
+  ```bash
+  python scripts/tune_bootstrap_params.py --store /data/store --write phases/fleet_bootstrap.env
+  ```
+  Review output, apply env on fleet, commit tuned values.
 
-## Phase 5 — Testing
-- [x] Timing side-channel test
-- [x] OOD-drift simulation
-- [x] Real-model failure modes
-- [x] Threshold re-baselining after own-face / real models
-- [x] Grow toward 150+ tests
-      → **167** tests (pytest); see `phases/phase5.md`
+### Hardware validation (blocked until parts connected)
 
-## Phase 6 — Benchmarking
-- [x] FAR / FRR / EER / ROC · PAD · risk · latency · vs OTP/static MFA/staged
-      → `scripts/phase6_benchmark.py` → `phases/phase6_sprint6.json` +
-        [`phases/phase6.md`](phases/phase6.md) (Sprint 6 table + ablations)
-      → tests: `tests/test_phase6_benchmark.py`
+- [ ] **(7) CAN bus** — Run `driveauth-can-logger` on vehicle; collect `behavioral/*/can_*.csv`; then:
+  ```bash
+  python scripts/can_retrain_pipeline.py --real-data-dir /var/driveauth/fleet/vehicle_01 --store /data/store
+  ```
+- [ ] **(8) Fingerprint sensor** — Install sensor + `fingernet_lite_int8.onnx` in store; enroll via `/api/register/finger`; verify live `FingerMatcher` score (not mock).
+- [ ] **(9) Bluetooth MAP OTP** — Pair real head unit + phone; follow [`docs/bluetooth-map-setup.md`](docs/bluetooth-map-setup.md); run with `DRIVEAUTH_BT_HW_TEST=1`.
+- [ ] **(10) BLE GATT OTP** — Test companion PWA (`companion/ble_otp_pwa/`) against car with `DRIVEAUTH_BLE_GATT_ENABLED=1`; confirm ack roundtrip in logs.
+- [ ] **(11) TPM / ATECC** — On TPM-capable board: `DRIVEAUTH_KEY_PROTECTOR=tpm`, enroll driver, reboot, verify templates still load.
+- [ ] **(12) Hailo NPU** — On Hailo board: `DRIVEAUTH_HAILO_HW_TEST=1 python scripts/bench_hailo_face.py --store /data/store`.
+- [ ] **(13) Self-hosted CI runner** — On a Pi/host with BT + optional Hailo:
+  ```bash
+  export GITHUB_REPO=<owner>/Drive_auth_edge
+  export RUNNER_TOKEN=<from GitHub Actions → Runners → New>
+  ./scripts/setup_hil_runner.sh
+  ```
+  Then trigger **Hardware-in-the-loop** workflow manually.
 
-## Phase 7 — Docs
-- [x] README refresh (July 2026 status / Phase 2a–3 / Nova contract)
-- [x] Demo GIF (`docs/demo.gif` — dashboard ACCEPT → STEP_UP)
-- [x] Security assumptions (`docs/security-assumptions.md` · README linked)
-- [x] LinkedIn / Medium posts — drafts in [`docs/public-posts.md`](docs/public-posts.md)
-      (publish URLs still open; tick table in that file after posting)
+### Legal & compliance (counsel / field study)
 
-## Standalone product (OpenRouter + Cloudflare + Railway)
-- [x] secrets.env.example · OpenRouter STT/TTS/LLM · intent slot-fill
-- [x] Robust `INTENT_SYSTEM_PROMPT` · `ask_field` column TTS follow-ups
-- [x] Live `/api/standalone/auth` (ECAPA/face; finger manual) · unified store
-- [x] Register Maps home pin · pay GPS → `dist_from_home_km`
-- [x] Separate pages: `/manual` · `/standalone` · `/register`
-      (Actions / Live pipeline / Result / Audit on both pipeline pages)
-- [x] Register **Registered drivers** list (`/api/register/drivers`)
-- [x] Dockerfile · railway.toml · [`docs/standalone.md`](docs/standalone.md)
-- [x] Local `secrets.env` filled (OpenRouter + Maps) — **do not commit**
-- [x] Cloudflare quick tunnel (`cloudflared tunnel --url http://127.0.0.1:8765`)
-      → public trycloudflare.com URL; Mac + dashboard must stay up
-      → add `*.trycloudflare.com` to Maps API HTTP referrers
-- [ ] Deploy Railway volume at `/data` (always-on; Mac can sleep)
-      ## Still open — tunnel is demo-only, not always-on host
+- [ ] **(14) BIPA/GDPR sign-off** — Walk [`docs/compliance-checklist.md`](docs/compliance-checklist.md) with legal counsel; fill sign-off table; do not enroll non-test drivers until done.
+- [ ] **(15) Fairness field study** — Run protocol in [`docs/fairness-validation-protocol.md`](docs/fairness-validation-protocol.md); write results to `phases/fairness_report.md`.
+- [ ] **(16) Secure-boot on silicon** — Execute phases 1–3 in [`docs/secure-boot-rollout.md`](docs/secure-boot-rollout.md) with OEM/BSP (eFuse, dm-verity, OTA).
+- [ ] **(17) Vault in production** — Deploy Vault; apply policies in `deploy/vault/`; provision AppRole per vehicle per [`docs/vault-operations.md`](docs/vault-operations.md); rotate tokens on schedule.
 
-## Phase 8 — Publications
-- [x] Venue locked → **IEEE IV 2027** (deadline **15 Nov 2026**); ITSC 2026 missed;
-      CCS/NDSS only if security-led reframing — [`phases/phase8.md`](phases/phase8.md)
-- [x] White paper → [`docs/paper/whitepaper.md`](docs/paper/whitepaper.md)
-- [x] Conference draft → [`docs/paper/iv2027-draft.md`](docs/paper/iv2027-draft.md)
-- [x] Demo storyboard + VO → [`docs/paper/demo-video.md`](docs/paper/demo-video.md)
-- [ ] Authors · white-paper PDF/arXiv · IEEE template port · figures · non-claims review
-- [ ] Record dashboard (+ optional Thor) · edit 5–8 min · publish URL
-- [ ] Submit IV portal · paste submission ID in `phases/phase8.md`
-- [ ] Done when: paper submitted + demo video published
+### Publication & launch (deadline-driven)
 
-## Explicit non-goals
-- Retrain risk on real txns before ~5k labels
-- Apply `phase2b_suggested.env` until face overlap improves
-- Latency optimisation before Phase 2a Thor (real model) profile
-- ~~Paper before Sprint 6~~ — Sprint 6 table filled; paper unblocked
-- Treat synth-CAN behavioral metrics as production biometric quality
+- [ ] **(18) Paper package** — Fill authors in `docs/paper/*.md`; port to IEEE template; generate Figs 1–3; run claims review vs `docs/security-assumptions.md`; upload PDF/arXiv (`docs/paper/arxiv-metadata.txt`).
+- [ ] **(19) Demo video** — Follow shot list in `docs/paper/demo-video.md`; record 5–8 min; publish URL in `phases/phase8.md`.
+- [ ] **(20) IEEE IV 2027 submit** — Portal open ~Jul 2026, **deadline 15 Nov 2026**; record submission ID in `phases/phase8.md`.
+- [ ] **(21) Social posts** — Publish drafts from `docs/public-posts.md`; paste LinkedIn/Medium URLs back into that file.
+
+---
+
+## Explicit non-goals (do not do yet)
+
+- Do not retrain risk head before ~5k real labeled transactions.
+- Do not require high-friction enrollment capture counts as a quality workaround.
+- Do not apply `phases/phase2b_suggested.env` as default while face attack/genuine overlap remains high.
+- Do not prioritize end-to-end latency optimization before Phase 2a real-model Thor profiling follow-up is complete.
+- Do not spend cycles yet on in-graph risk calibration, multimodal home clustering, or SHAP-per-call.
+
+---
+
+## Completed milestones (archived)
+
+- [x] Core Phase 1–7 implementation and benchmarking artifacts
+- [x] Own-face migration + Stage-2 PAD/calibrator pipeline
+- [x] Standalone OpenRouter + Cloudflare + Railway demo pipeline
+- [x] IEEE IV 2027 venue lock + paper/demo draft artifacts
+- [x] Minimal-capture enrollment + mandatory face/voice quality gates (items 1–3)

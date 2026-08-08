@@ -104,6 +104,27 @@ def test_vault_provider_with_injected_http_client():
     assert len(calls) == 1
 
 
+def test_vault_provider_approle_login(monkeypatch):
+    calls: list[tuple[str, str]] = []
+
+    def fake_http(method, url, headers, body):
+        calls.append((method, url))
+        if "auth/approle/login" in url:
+            return 200, json.dumps({"auth": {"client_token": "approle.tok"}})
+        assert headers["X-Vault-Token"] == "approle.tok"
+        return 200, json.dumps({"data": {"data": {"API": "secret-val"}}})
+
+    monkeypatch.setenv("DRIVEAUTH_VAULT_ROLE_ID", "role-abc")
+    monkeypatch.setenv("DRIVEAUTH_VAULT_SECRET_ID", "secret-xyz")
+    provider = VaultSecretsProvider(
+        addr="https://vault.example:8200",
+        token="",
+        http_client=fake_http,
+    )
+    assert provider.get("API") == "secret-val"
+    assert any("approle/login" in u for _, u in calls)
+
+
 def test_vault_provider_selected_via_factory(monkeypatch):
     monkeypatch.setenv("DRIVEAUTH_SECRETS_PROVIDER", "vault")
 

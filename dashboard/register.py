@@ -408,7 +408,7 @@ def render_register() -> str:
 
     <section class="grid2">
       <div class="panel" id="panel_face">
-        <h3>2 · Face (need 5)</h3>
+        <h3>2 · Face (need 3)</h3>
         <p style="color:var(--muted);font-size:0.85rem;margin:0 0 0.5rem">
           Close-up frontal at 640×480 — center your face in the green oval
           (same framing as enroll / Haar gate). Far / tiny faces are rejected at capture time.
@@ -441,11 +441,11 @@ def render_register() -> str:
       </div>
 
       <div class="panel" id="panel_voice">
-        <h3>3 · Voice (need 5)</h3>
+        <h3>3 · Voice (need 3)</h3>
         <p class="phrase" id="phrase">Say: “please pay Mom fifty dollars from my checking account right now”</p>
         <div class="row">
           <button id="btn_mic" class="secondary" type="button">Enable mic</button>
-          <button id="btn_rec" type="button" disabled>Hold to record · 5s</button>
+          <button id="btn_rec" type="button" disabled>Hold to record · short phrase</button>
         </div>
         <div class="clips" id="voice_clips"></div>
       </div>
@@ -473,7 +473,7 @@ def render_register() -> str:
         <button id="btn_clear" class="secondary danger" type="button">Clear enroll samples</button>
       </div>
       <p style="margin-top:0.75rem;color:var(--muted);font-size:0.85rem" id="enroll_hint">
-        Needs 5 face + 5 voice samples <strong>and</strong> a saved home pin.
+        Needs 3 face + 3 voice samples <strong>and</strong> a saved home pin.
         Models: <code>python scripts/phase2a_setup.py</code>.
       </p>
       <div class="log" id="log" style="margin-top:0.75rem">Ready.</div>
@@ -664,7 +664,7 @@ def render_register() -> str:
       } else if (!homeOk) {
         hint.innerHTML = "Pin and <strong>save home</strong> on the map before enroll is enabled.";
       } else if (!(faceOk && voiceOk)) {
-        hint.innerHTML = "Needs 5 face + 5 voice samples. Models: <code>python scripts/phase2a_setup.py</code>.";
+        hint.innerHTML = "Needs 3 face + 3 voice samples. Models: <code>python scripts/phase2a_setup.py</code>.";
       } else {
         hint.innerHTML = "Ready — enroll writes templates into the Phase 2a store.";
       }
@@ -792,7 +792,7 @@ def render_register() -> str:
       }
     };
 
-    async function recordClip(seconds = 5.0) {
+    async function recordClip(seconds = 2.5) {
       if (state.locked) throw new Error("enrolled driver is locked");
       if (!state.micStream || !state.audioCtx) throw new Error("Enable mic first");
       if (state.recording) return;
@@ -837,7 +837,7 @@ def render_register() -> str:
 
       state.recording = false;
       $("btn_rec").classList.remove("recording");
-      $("btn_rec").textContent = "Hold to record · 5s";
+      $("btn_rec").textContent = "Hold to record · short phrase";
 
       const fd = new FormData();
       fd.append("driver_id", driverId());
@@ -859,7 +859,7 @@ def render_register() -> str:
       recordClip().catch((e) => {
         state.recording = false;
         $("btn_rec").classList.remove("recording");
-        $("btn_rec").textContent = "Hold to record · 5s";
+        $("btn_rec").textContent = "Hold to record · short phrase";
         log("Voice capture failed: " + e.message);
       });
     };

@@ -1099,8 +1099,8 @@ def render_dashboard(*, mode: str = "manual") -> str:
     </div>
     <div class="header-right">
       <nav class="nav-tabs" aria-label="Pipeline pages">
-        <a class="nav-link __NAV_MANUAL__" href="/manual">Manual pipeline</a>
-        <a class="nav-link __NAV_STANDALONE__" href="/standalone">Standalone pay</a>
+        <a class="nav-link __NAV_STANDALONE__" href="/standalone">Standalone pay · live</a>
+        <a class="nav-link __NAV_MANUAL__" href="/manual">Manual pipeline · demo</a>
         <a class="nav-link" href="/register">Register driver</a>
         <a class="nav-link" href="/improved-auth">Improved Auth</a>
         <a class="nav-link" href="/fleet">Fleet health</a>
@@ -2189,9 +2189,9 @@ def render_dashboard(*, mode: str = "manual") -> str:
     pay_js = panel_script() if mode == "standalone" else ""
     pay_css = panel_css() if mode == "standalone" else ""
     sub = (
-        "Standalone · OpenRouter STT/TTS · live ECAPA/face · Maps GPS"
+        "Live · ECAPA voice + MobileFaceNet face · finger slider until HW · Maps GPS"
         if mode == "standalone"
-        else "Manual · slider stand-ins · Trust / Risk / Confidence pipeline"
+        else "Demo · slider stand-ins (not live models) · Trust / Risk / Confidence"
     )
     return (
         html.replace("__PAGE_TITLE__", title)
