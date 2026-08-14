@@ -4,8 +4,11 @@
 grayscale scan (``SCAN\\n`` → bytes). Sensor SDKs differ; isolate them behind
 :class:`FingerSensorAdapter` so swapping vendors is a one-file change.
 
-Default concrete adapter: :class:`PyFingerprintAdapter` for the common
-R307 / AS608 / R303 / ZFM-20 UART family that ``pyfingerprint`` targets.
+Concrete adapters:
+  - :class:`PyFingerprintAdapter` — R307 / AS608 / R303 / ZFM-20 (``pyfingerprint``)
+  - :class:`GT511C3Adapter` — GT-511C3 / ADH-Tech (``hardware.gt511c3``)
+
+Selection via ``DRIVEAUTH_FINGER_SENSOR`` = ``auto`` | ``gt511`` | ``r307`` | ``manual``.
 """
 
 from __future__ import annotations
@@ -237,6 +240,25 @@ def probe_pyfingerprint(
     return None
 
 
+def _finger_sensor_pref() -> str:
+    """Normalize ``DRIVEAUTH_FINGER_SENSOR`` / legacy ``DRIVEAUTH_FINGER_MANUAL``."""
+    if os.getenv("DRIVEAUTH_FINGER_MANUAL", "0") == "1":
+        return "manual"
+    raw = (os.getenv("DRIVEAUTH_FINGER_SENSOR", "auto") or "auto").strip().lower()
+    aliases = {
+        "auto": "auto",
+        "gt511": "gt511",
+        "gt511c3": "gt511",
+        "adh": "gt511",
+        "r307": "r307",
+        "as608": "r307",
+        "zfm": "r307",
+        "pyfingerprint": "r307",
+        "manual": "manual",
+    }
+    return aliases.get(raw, "auto")
+
+
 def open_default_sensor(
     *,
     port: str | None = None,
@@ -245,27 +267,60 @@ def open_default_sensor(
 ) -> tuple[FingerSensorAdapter, str]:
     """Select the live sensor for the finger daemon.
 
-    Preference order:
-    1. ``ManualFingerSensor`` when ``manual=True`` / ``DRIVEAUTH_FINGER_MANUAL=1``
-    2. Probed :class:`PyFingerprintAdapter` when a UART module answers
-    3. ``ManualFingerSensor`` fallback (so the Unix-socket path stays up for
-       demos) when ``allow_manual_fallback`` — otherwise raises ``RuntimeError``
+    Preference order (``DRIVEAUTH_FINGER_SENSOR=auto``):
+    1. ``ManualFingerSensor`` when ``manual=True`` / ``…_MANUAL=1`` / ``…=manual``
+    2. :class:`GT511C3Adapter` when a GT-511C3 answers (9600 UART)
+    3. :class:`PyFingerprintAdapter` when an R307/AS608 answers (57600)
+    4. ``ManualFingerSensor`` fallback when ``allow_manual_fallback`` — else raises
 
-    Returns ``(sensor, kind)`` where ``kind`` is ``"manual"``, ``"pyfingerprint"``,
-    or ``"manual_fallback"``.
+    Force a family with ``DRIVEAUTH_FINGER_SENSOR=gt511`` or ``r307``.
+
+    Returns ``(sensor, kind)`` where ``kind`` is ``"manual"``, ``"gt511"``,
+    ``"pyfingerprint"``, or ``"manual_fallback"``.
     """
-    force_manual = manual or os.getenv("DRIVEAUTH_FINGER_MANUAL", "0") == "1"
-    if force_manual:
-        logger.info("Finger sensor: ManualFingerSensor (DRIVEAUTH_FINGER_MANUAL)")
+    pref = "manual" if manual else _finger_sensor_pref()
+    if pref == "manual":
+        logger.info("Finger sensor: ManualFingerSensor (DRIVEAUTH_FINGER_MANUAL/SENSOR)")
         return ManualFingerSensor(), "manual"
 
-    real = probe_pyfingerprint(port)
-    if real is not None:
-        return real, "pyfingerprint"
+    if pref in ("gt511", "auto"):
+        try:
+            from hardware.gt511c3 import probe_gt511
+
+            gt = probe_gt511(port)
+            if gt is not None:
+                return gt, "gt511"
+        except Exception as exc:
+            logger.warning("Finger sensor: GT511 probe error (%s)", type(exc).__name__)
+        if pref == "gt511":
+            if allow_manual_fallback:
+                logger.warning(
+                    "Finger sensor: GT511 requested but not detected — falling back to "
+                    "ManualFingerSensor"
+                )
+                return ManualFingerSensor(), "manual_fallback"
+            raise RuntimeError(
+                "GT-511C3 UART sensor not detected and manual fallback disabled"
+            )
+
+    if pref in ("r307", "auto"):
+        real = probe_pyfingerprint(port)
+        if real is not None:
+            return real, "pyfingerprint"
+        if pref == "r307":
+            if allow_manual_fallback:
+                logger.warning(
+                    "Finger sensor: R307/AS608 requested but not detected — falling "
+                    "back to ManualFingerSensor"
+                )
+                return ManualFingerSensor(), "manual_fallback"
+            raise RuntimeError(
+                "R307/AS608 UART sensor not detected and manual fallback disabled"
+            )
 
     if allow_manual_fallback:
         logger.warning(
-            "Finger sensor: no R307/AS608 UART detected — falling back to "
+            "Finger sensor: no GT511/R307 UART detected — falling back to "
             "ManualFingerSensor (set DRIVEAUTH_FINGER_MANUAL=1 to silence)"
         )
         return ManualFingerSensor(), "manual_fallback"

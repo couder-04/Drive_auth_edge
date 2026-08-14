@@ -52,6 +52,7 @@ class MockFaceMatcher:
         bad_quality: bool = False,
         face_frac: float = 0.35,
         frontal_ok: bool = True,
+        eye_count: int = 2,
     ):
         self._score = score
         self._confident = confident
@@ -59,11 +60,21 @@ class MockFaceMatcher:
         self._bad_quality = bad_quality
         self.face_frac = face_frac
         self.frontal_ok = frontal_ok
+        # 2 = pass DecisionEngine eye gate; use 0/1 to simulate reject.
+        self.eye_count = 0 if bad_quality else int(eye_count)
+        self._last_meta: dict = {}
 
     def capture_frame(self) -> np.ndarray | None:
         if not self._available:
+            self._last_meta = {}
             return None
-        return _bad_face_gray() if self._bad_quality else _good_face_gray()
+        frame = _bad_face_gray() if self._bad_quality else _good_face_gray()
+        self._last_meta = {
+            "face_frac": self.face_frac,
+            "frontal_ok": self.frontal_ok and not self._bad_quality,
+            "eye_count": self.eye_count,
+        }
+        return frame
 
     def score_frame(self, frame_gray: np.ndarray) -> ModalityResult:
         if not self._available or frame_gray is None:

@@ -55,7 +55,9 @@ Code, docs, and scripts below are **landed**. Do not re-implement.
   ```bash
   python scripts/can_retrain_pipeline.py --real-data-dir /var/driveauth/fleet/vehicle_01 --store /data/store
   ```
-- [ ] **(8) Fingerprint sensor** — Install sensor + `fingernet_lite_int8.onnx` in store; enroll via `/api/register/finger`; verify live `FingerMatcher` score (not mock).
+- [ ] **(8) Fingerprint sensor** — Wire GT-511C3 (3.3 V TTL); `source phases/jetson_orin.env`; `driveauth-finger-daemon`; enroll via `/api/register/finger`; verify live `FingerMatcher` score (not mock). Soft: `DRIVEAUTH_FINGER_SENSOR=gt511`.
+- [ ] **(8b) Kinect face/voice** — Xbox 360 Kinect + libfreenect; `DRIVEAUTH_CAMERA_BACKEND=kinect`; `DRIVEAUTH_IR_LIVENESS_ENABLED=1` + `ENSEMBLE=1`; recapture genuines; `driveauth-probe-hw`.
+- [ ] **(8c) Jetson Orin first-boot** — `bash scripts/setup_jetson.sh`; confirm CUDA ONNX providers; dashboard + real matchers (no mock).
 - [ ] **(9) Bluetooth MAP OTP** — Pair real head unit + phone; follow [`docs/bluetooth-map-setup.md`](docs/bluetooth-map-setup.md); run with `DRIVEAUTH_BT_HW_TEST=1`.
 - [ ] **(10) BLE GATT OTP** — Test companion PWA (`companion/ble_otp_pwa/`) against car with `DRIVEAUTH_BLE_GATT_ENABLED=1`; confirm ack roundtrip in logs.
 - [ ] **(11) TPM / ATECC** — On TPM-capable board: `DRIVEAUTH_KEY_PROTECTOR=tpm`, enroll driver, reboot, verify templates still load.

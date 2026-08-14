@@ -629,7 +629,7 @@ auth.update_vehicle_context(gps_lat=…, gps_lon=…, gps_accuracy_m=…, speed_
 | `onnx` | Risk model + orchestrator MLP |
 | `orchestrator` | Dynamic trust weights (PolicyMLP) |
 | `dashboard` | FastAPI web UI + pipeline API |
-| `finger` | R307/AS608 UART via `pyfingerprint` |
+| `finger` | R307/AS608 **or GT-511C3** UART (`pyfingerprint` / `hardware.gt511c3`) |
 | `bluetooth` | BlueZ MAP / BLE GATT ladder OTP |
 | `gpio` | RPi.GPIO actuation relay |
 | `can` | python-can logger |
@@ -646,7 +646,9 @@ Install helpers: [`scripts/install.sh`](scripts/install.sh) · Pi first-boot: [`
 
 | Item | Status |
 |------|--------|
-| R307/AS608 UART adapter + daemon auto-detect | **Shipped** (`hardware/finger_uart.py`) |
+| R307/AS608 + **GT-511C3** UART adapters + daemon auto-detect | **Shipped** (`hardware/finger_uart.py`, `hardware/gt511c3.py`) |
+| Kinect RGB/depth capture + depth liveness signal | **Shipped** (`hardware/kinect_capture.py`, `score_depth`) |
+| Jetson Orin first-boot + probe CLI | **Shipped** (`scripts/setup_jetson.sh`, `driveauth-probe-hw`) |
 | Full-pipeline Docker + compose | **Shipped** (`Dockerfile.edge`, `docker-compose.yml`) |
 | One-command install / Pi setup scripts | **Shipped** (`scripts/install.sh`, `setup_pi.sh`) |
 | Always-on inference latency + CPU/RAM telemetry | **Shipped** (`driveauth/perf_telemetry.py`, `/fleet` panel) |

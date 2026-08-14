@@ -60,7 +60,7 @@ class FingerDaemon:
 
     @property
     def sensor_kind(self) -> str:
-        """``manual`` | ``pyfingerprint`` | ``manual_fallback`` | ``injected``."""
+        """``manual`` | ``gt511`` | ``pyfingerprint`` | ``manual_fallback`` | ``injected``."""
         return self._sensor_kind
 
     def start(self) -> bool:
@@ -188,10 +188,11 @@ def run_daemon_main(
 ) -> None:
     """CLI entry for ``python -m hardware.finger_daemon``.
 
-    Default path: probe R307/AS608 UART via ``pyfingerprint``; if the sensor
-    is absent, fall back to :class:`ManualFingerSensor` so the Unix-socket
+    Default path: probe GT-511C3 then R307/AS608 UART; if neither sensor
+    answers, fall back to :class:`ManualFingerSensor` so the Unix-socket
     protocol stays available for demos (override with
     ``DRIVEAUTH_FINGER_NO_FALLBACK=1`` to fail hard instead).
+    Force a family with ``DRIVEAUTH_FINGER_SENSOR=gt511`` or ``r307``.
     """
     from driveauth import config
 

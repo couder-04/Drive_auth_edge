@@ -51,6 +51,39 @@ def test_mock_face_unavailable_and_bad_quality():
     frame = bad.capture_frame()
     assert frame is not None
     assert float(frame.mean()) < 50.0
+    assert bad.eye_count == 0
+    assert (bad._last_meta or {}).get("eye_count") == 0
+
+
+def test_probe_face_unknown_eye_count_does_not_zero_score():
+    """Regression: missing eye_count must not force face score=None."""
+    from testsupport import make_auth
+    from driveauth.types import QualityFlags
+
+    auth = make_auth()
+    face = MockFaceMatcher(score=0.91)
+    # Simulate older mocks / matchers that never set _last_meta.eye_count
+    face.eye_count = None  # type: ignore[assignment]
+    face._last_meta = {"face_frac": 0.35, "frontal_ok": True}
+    auth._engine._m.face = face
+    qflags = QualityFlags()
+    r = auth._engine._probe_face(qflags)
+    assert r.score == pytest.approx(0.91)
+    assert r.confident is True
+
+
+def test_probe_face_notes_nonideal_eye_count_but_still_scores():
+    """Match-time eye count is diagnostic; enroll gate remains strict."""
+    from testsupport import make_auth
+    from driveauth.types import QualityFlags
+
+    auth = make_auth()
+    face = MockFaceMatcher(score=0.95, eye_count=1)
+    auth._engine._m.face = face
+    qflags = QualityFlags()
+    r = auth._engine._probe_face(qflags)
+    assert r.score == pytest.approx(0.95)
+    assert any("face_eye_count_1" in n for n in qflags.notes)
 
 
 def test_mock_finger_none_score():

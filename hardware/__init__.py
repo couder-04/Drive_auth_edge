@@ -36,6 +36,7 @@ from hardware.finger_uart import (
     open_default_sensor,
     probe_pyfingerprint,
 )
+from hardware.gt511c3 import GT511C3Adapter, probe_gt511, resize_gt511_to_scan
 from hardware.fleet_telemetry import FleetTelemetryReporter, build_telemetry_payload
 from hardware.hailo_face import HailoFaceMatcher
 from hardware.ir_capture import IRCameraCapture, MicArrayCapture, RGBCameraCapture
@@ -44,7 +45,16 @@ from hardware.ir_liveness import (
     LivenessResult,
     combine_liveness_scores,
     score_blink_motion,
+    score_depth,
     score_moire,
+)
+from hardware.kinect_capture import (
+    FreenectDepthBackend,
+    FreenectRGBBackend,
+    KinectCapture,
+    SoundDeviceAudioBackend,
+    open_ir_capture,
+    open_mic_capture,
 )
 from hardware.ladder_otp import LadderOTPLane
 from hardware.ota_client import OTAClient
@@ -64,10 +74,14 @@ __all__ = [
     "FingerSensorAdapter",
     "FlakyAckRelay",
     "FleetTelemetryReporter",
+    "FreenectDepthBackend",
+    "FreenectRGBBackend",
     "GPIORelay",
+    "GT511C3Adapter",
     "HailoFaceMatcher",
     "IRCameraCapture",
     "IRLivenessChecker",
+    "KinectCapture",
     "LadderOTPLane",
     "LivenessResult",
     "LogSpeaker",
@@ -81,13 +95,19 @@ __all__ = [
     "PyFingerprintAdapter",
     "R307Adapter",
     "RGBCameraCapture",
+    "SoundDeviceAudioBackend",
     "TXN_CSV_COLUMNS",
     "TelematicsIngest",
     "build_telemetry_payload",
     "combine_liveness_scores",
     "open_default_sensor",
+    "open_ir_capture",
+    "open_mic_capture",
+    "probe_gt511",
     "probe_pyfingerprint",
+    "resize_gt511_to_scan",
     "sanitize_vehicle_fields",
     "score_blink_motion",
+    "score_depth",
     "score_moire",
 ]

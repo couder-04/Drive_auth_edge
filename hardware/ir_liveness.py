@@ -8,10 +8,13 @@ Signals (when ``ensemble=True``):
   (a) IR reflectance — existing mid-tone / contrast / texture heuristic
   (b) Micro-motion / blink — mean absolute change across a 2–3 frame burst
   (c) Moiré / screen-grid — frequency-domain peaks typical of display replay
+  (d) Depth (optional) — Kinect / depth-cam face-region validity + relief
 
 Default ``ensemble=False`` preserves the Phase-3 reflectance-only gate
 verbatim (fail-closed on missing crops). Opt in via
 ``DRIVEAUTH_IR_LIVENESS_ENSEMBLE=1`` / ``IRLivenessChecker(ensemble=True)``.
+Pass ``depth=`` from a Kinect depth crop to enable signal (d); missing depth
+is dropped from the weighted average (RGB-only hosts unchanged).
 
 Extension point: pass a custom ``classifier`` callable
 ``(feats: np.ndarray) -> float`` returning a live-probability in ``[0, 1]``
@@ -36,7 +39,12 @@ _DEFAULT_ENSEMBLE_WEIGHTS = {
     "reflectance": 0.45,
     "blink": 0.30,
     "moire": 0.25,
+    # Applied only when a depth crop is passed; combine() renormalizes.
+    "depth": 0.35,
 }
+
+# Kinect v1 11-bit disparity: 2047 commonly marks invalid samples.
+_DEPTH_INVALID = 2047
 
 
 @dataclass(frozen=True)
@@ -185,6 +193,55 @@ def score_blink_motion(frames: Sequence[np.ndarray]) -> float:
     return float(np.clip(score, 0.0, 1.0))
 
 
+def score_depth(depth_crop: np.ndarray | None) -> float:
+    """
+    Live-probability from a face-region depth map (Kinect / ToF).
+
+    Live faces show a contiguous valid-depth blob with modest relief
+    (nose/cheek vs background). Phone-screen replays are either
+    flat/invalid (no depth) or a planar slab with near-zero variance.
+    Returns ``[0, 1]``. ``None`` / empty → 0.0 (caller should omit the
+    signal from the ensemble rather than force-fail when depth HW is absent).
+    """
+    if depth_crop is None:
+        return 0.0
+    img = np.asarray(depth_crop, dtype=np.float32)
+    if img.size == 0:
+        return 0.0
+    flat = img.reshape(-1)
+    # Treat 0 and sensor-invalid sentinels as missing.
+    valid = flat[(flat > 0.0) & (flat < float(_DEPTH_INVALID))]
+    if valid.size < max(16, flat.size // 20):
+        return 0.05  # almost no depth → screen / far field
+
+    valid_frac = float(valid.size) / float(flat.size)
+    std = float(np.std(valid))
+    p10, p90 = (float(x) for x in np.percentile(valid, [10, 90]))
+    relief = p90 - p10
+    med = float(np.median(valid))
+
+    score = 0.2
+    if valid_frac >= 0.55:
+        score += 0.25
+    elif valid_frac >= 0.30:
+        score += 0.1
+    else:
+        score -= 0.2
+
+    # Face relief in Kinect disparity units is typically tens of counts.
+    if 8.0 <= relief <= 400.0 and std >= 4.0:
+        score += 0.35
+    elif relief >= 4.0 and std >= 2.0:
+        score += 0.15
+    else:
+        score -= 0.3  # planar slab / frozen screen
+
+    # Implausibly near/far medians (USB noise) soften confidence.
+    if med < 50.0 or med > 1800.0:
+        score -= 0.15
+    return float(np.clip(score, 0.0, 1.0))
+
+
 def score_moire(ir_crop: np.ndarray) -> float:
     """
     Live-probability from a frequency-domain screen-grid / moiré check.
@@ -280,16 +337,21 @@ class IRLivenessChecker:
         self,
         ir_crop: np.ndarray | None,
         frames: Sequence[np.ndarray] | None = None,
+        depth: np.ndarray | None = None,
     ) -> LivenessResult:
         if self.ensemble:
-            return self._check_ensemble(ir_crop, frames)
+            return self._check_ensemble(ir_crop, frames, depth=depth)
         return self._check_reflectance_only(ir_crop)
 
-    def check_sequence(self, frames: Sequence[np.ndarray | None]) -> LivenessResult:
+    def check_sequence(
+        self,
+        frames: Sequence[np.ndarray | None],
+        depth: np.ndarray | None = None,
+    ) -> LivenessResult:
         """Ensemble path from an explicit 2–3 frame burst."""
         usable = [f for f in frames if f is not None]
         crop = usable[0] if usable else None
-        return self._check_ensemble(crop, usable)
+        return self._check_ensemble(crop, usable, depth=depth)
 
     def _check_reflectance_only(self, ir_crop: np.ndarray | None) -> LivenessResult:
         if ir_crop is None:
@@ -325,6 +387,7 @@ class IRLivenessChecker:
         self,
         ir_crop: np.ndarray | None,
         frames: Sequence[np.ndarray] | None,
+        depth: np.ndarray | None = None,
     ) -> LivenessResult:
         burst: list[np.ndarray] = []
         if frames:
@@ -352,6 +415,8 @@ class IRLivenessChecker:
                 "blink": blink,
                 "moire": moire,
             }
+            if depth is not None:
+                signal_scores["depth"] = score_depth(depth)
             score = combine_liveness_scores(signal_scores, self._weights)
             live = score >= self.threshold
             if live:

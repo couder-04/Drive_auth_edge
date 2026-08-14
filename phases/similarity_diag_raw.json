@@ -1,0 +1,437 @@
+{
+  "store": "/Users/par_04/Drive_auth_edge/driveauth_store_phase2a",
+  "raw": true,
+  "stock_bars": {
+    "voice": 0.72,
+    "face": 0.7,
+    "finger": 0.7
+  },
+  "drivers": {
+    "parth": {
+      "driver_id": "parth",
+      "raw": true,
+      "ready": {
+        "face": true,
+        "voice": true
+      },
+      "stage2": {
+        "driver_id": "parth",
+        "artifacts": {
+          "face_pad": {
+            "source": "missing",
+            "path": null,
+            "relpath": null,
+            "present": false,
+            "training_origin": "unknown"
+          },
+          "face_calibrator": {
+            "source": "missing",
+            "path": null,
+            "relpath": null,
+            "present": false,
+            "training_origin": "unknown"
+          },
+          "voice_calibrator": {
+            "source": "missing",
+            "path": null,
+            "relpath": null,
+            "present": false,
+            "training_origin": "unknown"
+          }
+        },
+        "pad_enabled": false,
+        "pad_loo_auc": null,
+        "pad_threshold": null,
+        "face_calibrator_loo_auc": null,
+        "voice_calibrator_loo_auc": null,
+        "calibration_timestamps": {
+          "face_pad": null,
+          "face_calibrator": null,
+          "voice_calibrator": null
+        },
+        "needs_retrain": false,
+        "modality_scope": {
+          "modalities": [
+            "voice",
+            "face"
+          ],
+          "finger_enrolled": false,
+          "fingernet_present": false,
+          "scope_note": "2-modality golden reference (voice + face; no fingerprint enrolled). Missing fingers/{id}.enc is intentional scoping, not a defect."
+        },
+        "mode": "incomplete"
+      },
+      "face": {
+        "genuine": {
+          "n": 5,
+          "mean": 0.9192,
+          "p10": 0.8755,
+          "p50": 0.9344,
+          "p90": 0.9565,
+          "min": 0.8747,
+          "max": 0.9618
+        },
+        "attack": {
+          "n": 6,
+          "mean": 0.1593,
+          "p10": 0.0558,
+          "p50": 0.1905,
+          "p90": 0.2316,
+          "min": 0.0,
+          "max": 0.2578
+        },
+        "by_class": {
+          "attack_blur": {
+            "scores": {
+              "n": 5,
+              "mean": 0.1912,
+              "p10": 0.1387,
+              "p50": 0.2018,
+              "p90": 0.2369,
+              "min": 0.1116,
+              "max": 0.2578
+            },
+            "meta": {
+              "haar_ok": 5,
+              "scored": 5,
+              "pad_reject": 0,
+              "none": 0,
+              "quality_ok": 0
+            }
+          },
+          "attack_side": {
+            "scores": {
+              "n": 1,
+              "mean": 0.0,
+              "p10": 0.0,
+              "p50": 0.0,
+              "p90": 0.0,
+              "min": 0.0,
+              "max": 0.0
+            },
+            "meta": {
+              "haar_ok": 0,
+              "scored": 0,
+              "pad_reject": 1,
+              "none": 0,
+              "quality_ok": 0
+            }
+          }
+        },
+        "meta_genuine": {
+          "haar_ok": 5,
+          "scored": 5,
+          "pad_reject": 0,
+          "none": 0,
+          "quality_ok": 5
+        },
+        "separation": 0.7599,
+        "stock_bar": 0.7,
+        "pct_ge_stock": 1.0,
+        "blur_err": null,
+        "n_enroll": 5
+      },
+      "voice": {
+        "genuine": {
+          "n": 5,
+          "mean": 0.7853,
+          "p10": 0.7284,
+          "p50": 0.8127,
+          "p90": 0.8204,
+          "min": 0.6939,
+          "max": 0.8225
+        },
+        "attack": {
+          "n": 6,
+          "mean": 0.0,
+          "p10": 0.0,
+          "p50": 0.0,
+          "p90": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "by_class": {
+          "attack_silent": {
+            "scores": {
+              "n": 5,
+              "mean": 0.0,
+              "p10": 0.0,
+              "p50": 0.0,
+              "p90": 0.0,
+              "min": 0.0,
+              "max": 0.0
+            },
+            "meta": {
+              "scored": 5,
+              "none": 0,
+              "quality_ok": 0
+            }
+          },
+          "noisy": {
+            "scores": {
+              "n": 1,
+              "mean": 0.0,
+              "p10": 0.0,
+              "p50": 0.0,
+              "p90": 0.0,
+              "min": 0.0,
+              "max": 0.0
+            },
+            "meta": {
+              "scored": 1,
+              "none": 0,
+              "quality_ok": 0
+            }
+          }
+        },
+        "meta_genuine": {
+          "scored": 5,
+          "none": 0,
+          "quality_ok": 5
+        },
+        "separation": 0.7853,
+        "stock_bar": 0.72,
+        "pct_ge_stock": 0.8,
+        "silent_err": null,
+        "n_enroll": 5
+      }
+    },
+    "pranjal": {
+      "driver_id": "pranjal",
+      "raw": true,
+      "ready": {
+        "face": true,
+        "voice": true
+      },
+      "stage2": {
+        "driver_id": "pranjal",
+        "artifacts": {
+          "face_pad": {
+            "source": "missing",
+            "path": null,
+            "relpath": null,
+            "present": false,
+            "training_origin": "unknown"
+          },
+          "face_calibrator": {
+            "source": "missing",
+            "path": null,
+            "relpath": null,
+            "present": false,
+            "training_origin": "unknown"
+          },
+          "voice_calibrator": {
+            "source": "missing",
+            "path": null,
+            "relpath": null,
+            "present": false,
+            "training_origin": "unknown"
+          }
+        },
+        "pad_enabled": false,
+        "pad_loo_auc": null,
+        "pad_threshold": null,
+        "face_calibrator_loo_auc": null,
+        "voice_calibrator_loo_auc": null,
+        "calibration_timestamps": {
+          "face_pad": null,
+          "face_calibrator": null,
+          "voice_calibrator": null
+        },
+        "needs_retrain": false,
+        "modality_scope": {
+          "modalities": [
+            "voice",
+            "face"
+          ],
+          "finger_enrolled": false,
+          "fingernet_present": false,
+          "scope_note": "2-modality golden reference (voice + face; no fingerprint enrolled). Missing fingers/{id}.enc is intentional scoping, not a defect."
+        },
+        "mode": "incomplete"
+      },
+      "face": {
+        "genuine": {
+          "n": 6,
+          "mean": 0.9351,
+          "p10": 0.9039,
+          "p50": 0.9412,
+          "p90": 0.96,
+          "min": 0.8926,
+          "max": 0.9611
+        },
+        "attack": {
+          "n": 5,
+          "mean": 0.4659,
+          "p10": 0.441,
+          "p50": 0.4728,
+          "p90": 0.4889,
+          "min": 0.4372,
+          "max": 0.4989
+        },
+        "by_class": {
+          "attack_blur": {
+            "scores": {
+              "n": 5,
+              "mean": 0.4659,
+              "p10": 0.441,
+              "p50": 0.4728,
+              "p90": 0.4889,
+              "min": 0.4372,
+              "max": 0.4989
+            },
+            "meta": {
+              "haar_ok": 5,
+              "scored": 5,
+              "pad_reject": 0,
+              "none": 0,
+              "quality_ok": 0
+            }
+          }
+        },
+        "meta_genuine": {
+          "haar_ok": 6,
+          "scored": 6,
+          "pad_reject": 0,
+          "none": 0,
+          "quality_ok": 6
+        },
+        "separation": 0.4691,
+        "stock_bar": 0.7,
+        "pct_ge_stock": 1.0,
+        "blur_err": null,
+        "n_enroll": 6
+      },
+      "voice": {
+        "genuine": {
+          "n": 5,
+          "mean": 0.8737,
+          "p10": 0.8602,
+          "p50": 0.8721,
+          "p90": 0.8867,
+          "min": 0.8548,
+          "max": 0.8877
+        },
+        "attack": {
+          "n": 5,
+          "mean": 0.0,
+          "p10": 0.0,
+          "p50": 0.0,
+          "p90": 0.0,
+          "min": 0.0,
+          "max": 0.0
+        },
+        "by_class": {
+          "attack_silent": {
+            "scores": {
+              "n": 5,
+              "mean": 0.0,
+              "p10": 0.0,
+              "p50": 0.0,
+              "p90": 0.0,
+              "min": 0.0,
+              "max": 0.0
+            },
+            "meta": {
+              "scored": 5,
+              "none": 0,
+              "quality_ok": 0
+            }
+          }
+        },
+        "meta_genuine": {
+          "scored": 5,
+          "none": 0,
+          "quality_ok": 5
+        },
+        "separation": 0.8737,
+        "stock_bar": 0.72,
+        "pct_ge_stock": 1.0,
+        "silent_err": null,
+        "n_enroll": 5
+      }
+    }
+  },
+  "cross_driver": {
+    "face": {
+      "parth_vs_parth": {
+        "n": 5,
+        "mean": 0.9192,
+        "p10": 0.8755,
+        "p50": 0.9344,
+        "p90": 0.9565,
+        "min": 0.8747,
+        "max": 0.9618
+      },
+      "pranjal_vs_parth": {
+        "n": 6,
+        "mean": 0.2852,
+        "p10": 0.2529,
+        "p50": 0.2601,
+        "p90": 0.3426,
+        "min": 0.2521,
+        "max": 0.3506
+      },
+      "parth_vs_pranjal": {
+        "n": 5,
+        "mean": 0.2803,
+        "p10": 0.2331,
+        "p50": 0.2929,
+        "p90": 0.322,
+        "min": 0.2216,
+        "max": 0.3362
+      },
+      "pranjal_vs_pranjal": {
+        "n": 6,
+        "mean": 0.9351,
+        "p10": 0.9039,
+        "p50": 0.9412,
+        "p90": 0.96,
+        "min": 0.8926,
+        "max": 0.9611
+      }
+    },
+    "voice": {
+      "parth_vs_parth": {
+        "n": 5,
+        "mean": 0.7853,
+        "p10": 0.7284,
+        "p50": 0.8127,
+        "p90": 0.8204,
+        "min": 0.6939,
+        "max": 0.8225
+      },
+      "pranjal_vs_parth": {
+        "n": 5,
+        "mean": 0.2586,
+        "p10": 0.2216,
+        "p50": 0.2589,
+        "p90": 0.3001,
+        "min": 0.2189,
+        "max": 0.3217
+      },
+      "parth_vs_pranjal": {
+        "n": 5,
+        "mean": 0.2324,
+        "p10": 0.1703,
+        "p50": 0.2611,
+        "p90": 0.2718,
+        "min": 0.136,
+        "max": 0.2727
+      },
+      "pranjal_vs_pranjal": {
+        "n": 5,
+        "mean": 0.8737,
+        "p10": 0.8602,
+        "p50": 0.8721,
+        "p90": 0.8867,
+        "min": 0.8548,
+        "max": 0.8877
+      }
+    }
+  },
+  "issues": [
+    "parth stage2 missing: face_pad, face_calibrator, voice_calibrator",
+    "pranjal stage2 missing: face_pad, face_calibrator, voice_calibrator"
+  ]
+}

@@ -121,13 +121,18 @@ hardware:
   finger_socket: ${DRIVEAUTH_FINGER_SOCKET:/tmp/driveauth_finger.sock}
   # UART device for hardware.finger_daemon (optional extras).
   finger_uart: ${DRIVEAUTH_FINGER_UART:/dev/ttyUSB0}
+  # auto | gt511 | r307 | manual — see hardware.finger_uart.open_default_sensor
+  finger_sensor: ${DRIVEAUTH_FINGER_SENSOR:auto}
   # Face matcher backend: onnx (default) | hailo
   face_backend: ${DRIVEAUTH_FACE_BACKEND:onnx}
   hailo_hef: ${DRIVEAUTH_HAILO_HEF:}
+  # Capture backend for IR liveness: auto | kinect | opencv
+  camera_backend: ${DRIVEAUTH_CAMERA_BACKEND:auto}
+  kinect_index: ${DRIVEAUTH_KINECT_INDEX:0}
   # IR liveness gate (independent of Stage-2 PAD logreg).
   ir_liveness_enabled: ${DRIVEAUTH_IR_LIVENESS_ENABLED:0}
   ir_liveness_threshold: ${DRIVEAUTH_IR_LIVENESS_THRESHOLD:0.55}
-  # Liveness v2: reflectance + blink + moiré ensemble (off = Phase-3 reflectance only).
+  # Liveness v2: reflectance + blink + moiré (+ depth when Kinect present).
   ir_liveness_ensemble: ${DRIVEAUTH_IR_LIVENESS_ENSEMBLE:0}
   # GPIO relay BCM pin for ACCEPT actuation (optional).
   relay_gpio_pin: ${DRIVEAUTH_RELAY_GPIO_PIN:17}

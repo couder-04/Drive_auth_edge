@@ -70,7 +70,9 @@ when available), then runs `install.sh --with-hardware`.
 | `dashboard` | fastapi, uvicorn, multipart, psutil | web UI + `/api/fleet/perf` |
 | `orchestrator` | onnxruntime | PolicyMLP dynamic weights |
 | `train` | lightgbm, sklearn, onnx export | training scripts only |
-| `finger` | pyfingerprint | R307/AS608 UART (`PyFingerprintAdapter`) |
+| `finger` | pyfingerprint + pyserial | R307/AS608 **or** GT-511C3 UART |
+| `kinect` | sounddevice + face | Kinect mic + OpenCV; freenect is system-installed |
+| `jetson` | finger+bluetooth+face+can+voice+onnx+dashboard+kinect | Orin edge bundle (no RPi.GPIO) |
 | `bluetooth` | dbus-python | BlueZ MAP / BLE GATT OTP |
 | `gpio` | RPi.GPIO | actuation relay |
 | `can` | python-can | CAN logger |
@@ -114,9 +116,15 @@ only splits dashboard vs finger daemon (Unix socket), matching real topology.
 ## Fingerprint daemon
 
 ```bash
-# Auto-detect R307/AS608 on DRIVEAUTH_FINGER_UART (default /dev/ttyUSB0);
-# falls back to ManualFingerSensor when no UART answers.
+# Auto-detect GT-511C3 (9600) then R307/AS608 (57600) on DRIVEAUTH_FINGER_UART
+# (default /dev/ttyUSB0); falls back to ManualFingerSensor when no UART answers.
 driveauth-finger-daemon
+
+# Force GT-511C3 (Jetson Orin + SparkFun/ADH module)
+DRIVEAUTH_FINGER_SENSOR=gt511 DRIVEAUTH_FINGER_UART=/dev/ttyUSB0 driveauth-finger-daemon
+
+# Force R307/AS608
+DRIVEAUTH_FINGER_SENSOR=r307 driveauth-finger-daemon
 
 # Force manual / CI stand-in
 DRIVEAUTH_FINGER_MANUAL=1 driveauth-finger-daemon
@@ -126,6 +134,19 @@ DRIVEAUTH_FINGER_NO_FALLBACK=1 driveauth-finger-daemon
 ```
 
 Set `DRIVEAUTH_FINGERPRINT_AVAILABLE=1` so the decision ladder probes finger.
+
+## Jetson Orin Nano
+
+```bash
+bash scripts/setup_jetson.sh
+set -a && source phases/jetson_orin.env && set +a
+driveauth-probe-hw
+driveauth-finger-daemon &
+driveauth-dashboard
+```
+
+Kinect (Xbox 360 / v1) needs system `libfreenect` + Python `freenect` bindings;
+`DRIVEAUTH_CAMERA_BACKEND=kinect` enables RGB+depth for IR liveness ensemble.
 
 ## Perf telemetry
 
@@ -140,15 +161,15 @@ Fleet UI: `/fleet` → latency + CPU/RAM panel (`GET /api/fleet/perf`).
 
 ## Physical checklist (script cannot do this)
 
-Same list printed by `setup_pi.sh`:
+Same list printed by `setup_pi.sh` / `setup_jetson.sh`:
 
-1. IR/RGB camera — CSI/USB; `DRIVEAUTH_IR_CAMERA_INDEX` / `DRIVEAUTH_RGB_CAMERA_INDEX`
-2. Mic array — USB/I2S
-3. Fingerprint UART — R307/AS608 on `/dev/ttyUSB0` (or `DRIVEAUTH_FINGER_UART`)
+1. IR/RGB camera — CSI/USB/Kinect; `DRIVEAUTH_IR_CAMERA_INDEX` / `DRIVEAUTH_CAMERA_BACKEND`
+2. Mic array — USB/I2S/Kinect; `DRIVEAUTH_MIC_DEVICE`
+3. Fingerprint UART — **GT-511C3** (`DRIVEAUTH_FINGER_SENSOR=gt511`) or R307/AS608 on `/dev/ttyUSB0`
 4. CAN HAT — enable overlay; `driveauth-can-logger`
 5. Bluetooth head-unit — pair phone; write `store/contacts/<driver>.bt_mac`
 6. Optional Hailo — vendor SDK + `.hef`; `DRIVEAUTH_FACE_BACKEND=hailo`
-7. GPIO relay — BCM pin for `GPIORelay`
+7. GPIO relay — BCM pin for `GPIORelay` (Pi; not Jetson)
 
 See also: [troubleshooting.md](troubleshooting.md), [api-reference.md](api-reference.md),
 [configuration.md](configuration.md).

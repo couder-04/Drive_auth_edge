@@ -423,18 +423,17 @@ class FaceMatcher:
 
             meta = self._extract_face_meta(frame_bgr, cv2)
             if meta is None:
-                h, w = frame_bgr.shape[:2]
-                side = min(h, w)
-                y0, x0 = (h - side) // 2, (w - side) // 2
-                crop = frame_bgr[y0 : y0 + side, x0 : x0 + side]
-            else:
-                crop, face_frac, frontal_ok, eye_count = meta
-                self._last_meta = {
-                    "face_frac": face_frac,
-                    "frontal_ok": frontal_ok,
-                    "eye_count": eye_count,
-                    "bgr": crop,
-                }
+                # Refuse center-crop fallback for enrollment / OOD seeding —
+                # loose crops dilute the template and inflate impostor cosine.
+                logger.info("FaceMatcher.embed_bgr: no usable face — skip")
+                return None
+            crop, face_frac, frontal_ok, eye_count = meta
+            self._last_meta = {
+                "face_frac": face_frac,
+                "frontal_ok": frontal_ok,
+                "eye_count": eye_count,
+                "bgr": crop,
+            }
             return self._embed_crop_bgr(crop)
         except Exception as exc:
             logger.error("FaceMatcher.embed_bgr: %s", exc)
@@ -634,6 +633,12 @@ class FaceMatcher:
             y0 = max(0, y - pad)
             x1 = min(frame_w, x + w + pad)
             y1 = min(frame_h, y + h + pad)
+            # Eye count is diagnostic metadata for capture UX / DecisionEngine.
+            # Do NOT refuse the face box when Haar eyes ≠ 2 — glasses, yaw, and
+            # cabin lighting commonly yield 0–1 eyes on otherwise valid faces,
+            # which used to force inject_fallback → score=None and invert
+            # genuine vs blur-attack means. Enroll still enforces eyes via
+            # assess_face_framing().
             eye_detector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml")
             roi = gray[max(0, y) : min(frame_h, y + h), max(0, x) : min(frame_w, x + w)]
             eyes = eye_detector.detectMultiScale(
@@ -642,8 +647,6 @@ class FaceMatcher:
                 minNeighbors=4,
                 minSize=(12, 12),
             )
-            if len(eyes) != 2:
-                return None
             return frame[y0:y1, x0:x1], face_frac, True, int(len(eyes))
         except Exception as exc:
             logger.debug(

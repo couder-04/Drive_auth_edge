@@ -184,6 +184,7 @@ class DecisionEngine:
         if self._ir_liveness is not None:
             ir_crop = None
             frames = None
+            depth = None
             if self._ir_capture is not None:
                 try:
                     if getattr(self._ir_capture, "started", True):
@@ -194,17 +195,25 @@ class DecisionEngine:
                             ir_crop = frames[0] if frames else None
                         elif hasattr(self._ir_capture, "capture_gray"):
                             ir_crop = self._ir_capture.capture_gray()
+                        if hasattr(self._ir_capture, "capture_depth_crop"):
+                            depth = self._ir_capture.capture_depth_crop()
                 except Exception as exc:
                     logger.warning("DecisionEngine: IR capture failed: %s", exc)
                     ir_crop = None
                     frames = None
+                    depth = None
             try:
                 t_live = time.perf_counter()
                 try:
-                    live = self._ir_liveness.check(ir_crop, frames=frames)
+                    live = self._ir_liveness.check(
+                        ir_crop, frames=frames, depth=depth
+                    )
                 except TypeError:
-                    # Older checker without frames kwarg.
-                    live = self._ir_liveness.check(ir_crop)
+                    # Older checker without frames/depth kwargs.
+                    try:
+                        live = self._ir_liveness.check(ir_crop, frames=frames)
+                    except TypeError:
+                        live = self._ir_liveness.check(ir_crop)
                 self._last_liveness_ms = (time.perf_counter() - t_live) * 1000.0
             except Exception as exc:
                 logger.error("DecisionEngine: IR liveness crashed: %s", exc)
@@ -223,14 +232,18 @@ class DecisionEngine:
             frontal_ok = getattr(face, "frontal_ok", None)
             meta = getattr(face, "_last_meta", None) or {}
             eye_count = meta.get("eye_count")
+            if eye_count is None:
+                eye_count = getattr(face, "eye_count", None)
             if face_frac is None:
                 face_frac = meta.get("face_frac")
             if frontal_ok is None:
                 frontal_ok = meta.get("frontal_ok")
-            if eye_count != 2:
-                qflags.face_ok = False
-                qflags.notes.append(f"face_eye_count_{eye_count if eye_count is not None else 'unknown'}")
-                return ModalityResult(None, False, quality=0.0, available=True)
+            # Eye count is enforced at enroll/capture (assess_face_framing), not
+            # as a hard auth reject. Match-time Haar often sees 0–1 eyes on
+            # valid cabin frames; zeroing the face score caused FRR spikes and
+            # inverted genuine vs attack similarity stats.
+            if eye_count is not None and int(eye_count) != 2:
+                qflags.notes.append(f"face_eye_count_{eye_count}")
             ok, q, notes = score_face(frame, face_frac=face_frac, frontal_ok=frontal_ok)
             qflags.face_ok, qflags.face_q = ok, q
             qflags.notes.extend(notes)

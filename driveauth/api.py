@@ -813,7 +813,7 @@ class DriveAuth:
             self._engine._ladder_otp = None
 
     def _attach_ir_liveness(self) -> None:
-        """Optional IR liveness gate (``DRIVEAUTH_IR_LIVENESS_ENABLED=1``)."""
+        """Optional IR/Kinect liveness gate (``DRIVEAUTH_IR_LIVENESS_ENABLED=1``)."""
         if not config.IR_LIVENESS_ENABLED:
             self._engine._ir_liveness = None
             self._engine._ir_capture = None
@@ -821,11 +821,13 @@ class DriveAuth:
         try:
             from hardware.ir_capture import IRCameraCapture, NumpyFrameBackend
             from hardware.ir_liveness import IRLivenessChecker
+            from hardware.kinect_capture import open_ir_capture
 
-            # Prefer live OpenCV; fall back to inject-only backend so the gate
-            # fail-closes on missing frames rather than crashing import.
-            capture = IRCameraCapture(config.IR_CAMERA_INDEX)
-            if not capture.start():
+            # Prefer Kinect (RGB+depth) when freenect is present / requested;
+            # otherwise OpenCV V4L2. Numpy inject fallback keeps the gate
+            # fail-closed on missing frames rather than crashing import.
+            capture = open_ir_capture(config.IR_CAMERA_INDEX)
+            if not getattr(capture, "started", False):
                 capture = IRCameraCapture(
                     config.IR_CAMERA_INDEX, backend=NumpyFrameBackend()
                 )
@@ -835,10 +837,15 @@ class DriveAuth:
                 threshold=config.IR_LIVENESS_THRESHOLD,
                 ensemble=config.IR_LIVENESS_ENSEMBLE,
             )
+            depth_note = ""
+            if getattr(capture, "depth_available", False):
+                depth_note = " depth=on"
             logger.info(
-                "DriveAuth: IR liveness enabled (thr=%.3f ensemble=%s)",
+                "DriveAuth: IR liveness enabled (thr=%.3f ensemble=%s backend=%s%s)",
                 config.IR_LIVENESS_THRESHOLD,
                 config.IR_LIVENESS_ENSEMBLE,
+                type(capture).__name__,
+                depth_note,
             )
         except Exception as exc:
             logger.warning("DriveAuth: IR liveness unavailable (%s)", exc)

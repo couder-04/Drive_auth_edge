@@ -200,9 +200,18 @@ IR_CAMERA_INDEX = _as_int(_P["hardware"]["ir_camera_index"])
 RGB_CAMERA_INDEX = _as_int(_P["hardware"].get("rgb_camera_index", 1))
 FINGER_SOCKET = str(_P["hardware"]["finger_socket"])
 FINGER_UART = str(_P["hardware"].get("finger_uart", "/dev/ttyUSB0"))
+_FINGER_SENSOR_RAW = str(_P["hardware"].get("finger_sensor", "auto")).strip().lower()
+FINGER_SENSOR = _FINGER_SENSOR_RAW if _FINGER_SENSOR_RAW else "auto"
 _FACE_BACKEND_RAW = str(_P["hardware"].get("face_backend", "onnx")).strip().lower()
 FACE_BACKEND = _FACE_BACKEND_RAW if _FACE_BACKEND_RAW in ("onnx", "hailo") else "onnx"
 HAILO_HEF = str(_P["hardware"].get("hailo_hef", "") or "")
+_CAMERA_BACKEND_RAW = str(_P["hardware"].get("camera_backend", "auto")).strip().lower()
+CAMERA_BACKEND = (
+    _CAMERA_BACKEND_RAW
+    if _CAMERA_BACKEND_RAW in ("auto", "kinect", "opencv", "freenect")
+    else "auto"
+)
+KINECT_INDEX = _as_int(_P["hardware"].get("kinect_index", 0))
 IR_LIVENESS_ENABLED = _as_bool01(_P["hardware"].get("ir_liveness_enabled", 0))
 IR_LIVENESS_THRESHOLD = _as_float(_P["hardware"].get("ir_liveness_threshold", 0.55))
 IR_LIVENESS_ENSEMBLE = _as_bool01(_P["hardware"].get("ir_liveness_ensemble", 0))

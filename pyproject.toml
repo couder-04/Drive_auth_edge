@@ -35,16 +35,20 @@ dashboard = [
 standalone = [
     "driveauth-edge[voice,face,onnx,dashboard]",
 ]
-# Optional hardware extras (Pi UART finger + BlueZ Bluetooth OTP + Hailo + GPIO).
-finger = ["pyfingerprint>=1.5"]
+# Optional hardware extras (Pi/Jetson UART finger + BlueZ Bluetooth OTP + Hailo + GPIO).
+finger = ["pyfingerprint>=1.5", "pyserial>=3.5"]
 bluetooth = ["dbus-python>=1.3"]
 can = ["python-can>=4.3"]
 tpm = ["tpm2-pytss>=2.1"]
 hailo = []  # hailo_platform is device-SDK installed; declare extra for docs/CI grouping
 gpio = ["RPi.GPIO>=0.7"]
+# Kinect mic via PortAudio; freenect itself is a system/lib install (not PyPI).
+kinect = ["sounddevice>=0.4", "driveauth-edge[face]"]
 hardware = ["driveauth-edge[finger,bluetooth,gpio,face,can]"]
+# Jetson Orin edge bundle — skip RPi.GPIO (won't import on Tegra).
+jetson = ["driveauth-edge[finger,bluetooth,face,can,voice,onnx,dashboard,kinect]"]
 perf = ["psutil>=5.9"]
-all = ["driveauth-edge[onnx,voice,face,orchestrator,dev,dashboard,train,standalone,hardware,tpm,perf]"]
+all = ["driveauth-edge[onnx,voice,face,orchestrator,dev,dashboard,train,standalone,hardware,tpm,perf,kinect]"]
 
 [project.scripts]
 driveauth-demo = "demo.run_demo:main"
@@ -52,6 +56,7 @@ driveauth-dashboard = "dashboard.server:main"
 driveauth-finger-daemon = "hardware.finger_daemon:run_daemon_main"
 driveauth-can-logger = "hardware.can_logger:main"
 driveauth-ble-gatt = "hardware.ble_gatt_server:main"
+driveauth-probe-hw = "hardware.probe_hw:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

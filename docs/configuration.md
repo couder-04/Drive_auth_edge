@@ -83,4 +83,16 @@ bootstrap, escalation, confidence weights, …).
 | Matcher | Env | Default |
 |---------|-----|---------|
 | IR camera index | `DRIVEAUTH_IR_CAMERA_INDEX` | 0 |
+| RGB camera index | `DRIVEAUTH_RGB_CAMERA_INDEX` | 1 |
+| Camera backend | `DRIVEAUTH_CAMERA_BACKEND` | `auto` (`kinect` \| `opencv`) |
+| Kinect index | `DRIVEAUTH_KINECT_INDEX` | 0 |
+| Mic device | `DRIVEAUTH_MIC_DEVICE` | *(default PortAudio input)* |
 | Fingerprint socket | `DRIVEAUTH_FINGER_SOCKET` | `/tmp/driveauth_finger.sock` |
+| Finger UART | `DRIVEAUTH_FINGER_UART` | `/dev/ttyUSB0` |
+| Finger sensor family | `DRIVEAUTH_FINGER_SENSOR` | `auto` (`gt511` \| `r307` \| `manual`) |
+| GT511 baud | `DRIVEAUTH_GT511_BAUD` | `9600` (auto-upgrades to 115200 after Open) |
+| IR liveness | `DRIVEAUTH_IR_LIVENESS_ENABLED` | `0` |
+| Liveness ensemble | `DRIVEAUTH_IR_LIVENESS_ENSEMBLE` | `0` (adds blink/moiré; depth when Kinect) |
+
+Jetson Orin + Kinect + GT-511C3 starter env: [`phases/jetson_orin.env`](../phases/jetson_orin.env).
+First-boot: `bash scripts/setup_jetson.sh`, then `driveauth-probe-hw`.

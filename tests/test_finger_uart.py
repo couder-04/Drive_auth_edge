@@ -75,6 +75,7 @@ def test_open_default_manual_env(monkeypatch, tmp_path: Path):
 
 def test_open_default_falls_back_without_uart(monkeypatch, tmp_path: Path):
     monkeypatch.delenv("DRIVEAUTH_FINGER_MANUAL", raising=False)
+    monkeypatch.setenv("DRIVEAUTH_FINGER_SENSOR", "r307")
     monkeypatch.setenv("DRIVEAUTH_FINGER_UART", str(tmp_path / "missing-port"))
     sensor, kind = open_default_sensor(allow_manual_fallback=True)
     assert kind == "manual_fallback"
@@ -83,8 +84,9 @@ def test_open_default_falls_back_without_uart(monkeypatch, tmp_path: Path):
 
 def test_open_default_no_fallback_raises(monkeypatch, tmp_path: Path):
     monkeypatch.delenv("DRIVEAUTH_FINGER_MANUAL", raising=False)
+    monkeypatch.setenv("DRIVEAUTH_FINGER_SENSOR", "r307")
     monkeypatch.setenv("DRIVEAUTH_FINGER_UART", str(tmp_path / "missing-port"))
-    with pytest.raises(RuntimeError, match="No fingerprint"):
+    with pytest.raises(RuntimeError, match="R307/AS608"):
         open_default_sensor(allow_manual_fallback=False)
 
 

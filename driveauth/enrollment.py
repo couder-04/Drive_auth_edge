@@ -160,6 +160,15 @@ def _load_wav(path: Path, sr: int = TARGET_SAMPLE_RATE) -> np.ndarray:
     return load_wav(path, sr)
 
 
+def _l2_normalize(emb: np.ndarray) -> np.ndarray:
+    """Unit-norm an averaged embedding so cosine == raw dot product."""
+    out = emb.astype(np.float32, copy=True)
+    norm = float(np.linalg.norm(out))
+    if norm > 1e-8:
+        out /= norm
+    return out
+
+
 def mean_embed_voice(
     store: Path,
     wavs: list[Path],
@@ -181,7 +190,9 @@ def mean_embed_voice(
             logger.warning("voice skip: %s", p.name)
     if not embs:
         raise RuntimeError("no voice embeddings produced")
-    mean = np.mean(np.stack(embs), axis=0).astype(np.float32)
+    # Re-normalize after averaging unit vectors — otherwise ||mean||<1
+    # systematically deflates cosine scores vs stock ladder bars.
+    mean = _l2_normalize(np.mean(np.stack(embs), axis=0))
     save_embedding(store, f"voices/{driver_id}.enc", mean, protector=protector)
     return mean
 
@@ -212,7 +223,7 @@ def mean_embed_face(
             logger.warning("face skip: %s", p.name)
     if not embs:
         raise RuntimeError("no face embeddings produced")
-    mean = np.mean(np.stack(embs), axis=0).astype(np.float32)
+    mean = _l2_normalize(np.mean(np.stack(embs), axis=0))
     save_embedding(store, f"faces/{driver_id}.enc", mean, protector=protector)
     return mean
 
@@ -289,7 +300,7 @@ def mean_embed_finger(
         raise RuntimeError(
             "no finger embeddings produced — need fingernet_lite_int8.onnx in store"
         )
-    mean = np.mean(np.stack(embs), axis=0).astype(np.float32)
+    mean = _l2_normalize(np.mean(np.stack(embs), axis=0))
     save_embedding(store, f"fingers/{driver_id}.enc", mean, protector=protector)
     return mean
 

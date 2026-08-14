@@ -24,16 +24,34 @@ Search logs for the quoted strings.
 | Symptom / log | Cause | Fix |
 |---------------|-------|-----|
 | `PyFingerprintAdapter: pyfingerprint not installed` | Missing extra | `pip install -e ".[finger]"` |
-| `PyFingerprintAdapter: port /dev/ttyUSB0 not found` | No USB-serial node | Check cable/CH340; try `DRIVEAUTH_FINGER_UART=/dev/ttyAMA0` |
-| `PyFingerprintAdapter: open failed on …` | Wrong port / baud / wiring | Confirm 57600 8N1; 3.3 V TTL (not RS-232) |
+| `GT511C3Adapter: pyserial not installed` | Missing extra | `pip install -e ".[finger]"` |
+| `PyFingerprintAdapter: port /dev/ttyUSB0 not found` | No USB-serial node | Check cable/CH340; try `DRIVEAUTH_FINGER_UART=/dev/ttyTHS1` (Orin) |
+| `GT511C3Adapter: Open failed` | Wrong baud / wiring / 5 V TTL | Confirm **9600** 8N1; **3.3 V TTL** (not RS-232); TX↔RX |
+| `PyFingerprintAdapter: open failed on …` | Wrong port / baud / wiring | Confirm 57600 8N1; 3.3 V TTL |
 | `PyFingerprintAdapter: password verify failed` | Non-default sensor password | Pass `password=` into `PyFingerprintAdapter` |
-| `PyFingerprintAdapter: readImage timed out` | No finger on platen | Place finger; raise `DRIVEAUTH_FINGER_CAPTURE_TIMEOUT_S` |
-| `Finger sensor: no R307/AS608 UART detected — falling back to ManualFingerSensor` | Expected without HW | Set `DRIVEAUTH_FINGER_MANUAL=1` to silence, or attach sensor |
+| `…: readImage timed out` / finger press timeout | No finger on platen | Place finger; raise `DRIVEAUTH_FINGER_CAPTURE_TIMEOUT_S` |
+| `Finger sensor: no GT511/R307 UART detected — falling back…` | Expected without HW | Set `DRIVEAUTH_FINGER_SENSOR=gt511` or attach sensor |
 | `FingerDaemon: sensor open failed — refusing to listen` | `open()` returned False with no fallback | Check adapter; or allow manual fallback |
 | Matcher never probes finger | Flag off | `DRIVEAUTH_FINGERPRINT_AVAILABLE=1` and real/non-mock finger matcher |
 
+Force family: `DRIVEAUTH_FINGER_SENSOR=gt511` (GT-511C3) or `r307` (ZFM).
 Daemon protocol: client sends `SCAN\n` on `DRIVEAUTH_FINGER_SOCKET` (default
 `/tmp/driveauth_finger.sock`); expects exactly 65536 raw bytes.
+
+## Kinect / camera / mic
+
+| Symptom / log | Cause | Fix |
+|---------------|-------|-----|
+| `FreenectRGBBackend: freenect not installed` | No libfreenect bindings | Build OpenKinect wrappers; or `DRIVEAUTH_CAMERA_BACKEND=opencv` |
+| `KinectCapture: RGB open failed` | USB claim / power | Powered hub; disable USB autosuspend (`setup_jetson.sh`) |
+| `KinectCapture: depth unavailable` | Depth stream failed | Check Kinect power LED; re-plug; RGB-only still works |
+| `OpenCVFrameBackend: opencv not installed` | Missing face extra | `pip install -e ".[face]"` |
+| `…: camera N open failed` | Wrong index / permissions | Try `DRIVEAUTH_IR_CAMERA_INDEX=0`; add user to `video` group |
+| `SoundDeviceAudioBackend: open failed` | Wrong mic device | `DRIVEAUTH_MIC_DEVICE=Kinect` (substring) or device index |
+| `MicArrayCapture: read failed` | Backend/device drop | Reconnect USB; check PortAudio |
+| Face `available=False` after disconnect | Fail-closed probe | Reconnect camera; next `authenticate()` recovers |
+
+Bring-up: `driveauth-probe-hw` · Jetson: `bash scripts/setup_jetson.sh`
 
 ## Bluetooth pairing / OTP fails
 
@@ -59,15 +77,6 @@ Bluetooth OTP — do not share `OTPStepUp` instances across the two.
 | `DriveAuth: Hailo backend requested but not ready — ONNX/mock face` | Fail-soft fallback | Expected when `DRIVEAUTH_FACE_BACKEND=hailo` without a live device |
 
 Code-only work cannot produce real Hailo latency numbers — benchmark on device.
-
-## Camera / mic
-
-| Symptom / log | Cause | Fix |
-|---------------|-------|-----|
-| `OpenCVFrameBackend: opencv not installed` | Missing face extra | `pip install -e ".[face]"` |
-| `…: camera N open failed` | Wrong index / permissions | Try `DRIVEAUTH_IR_CAMERA_INDEX=0`; add user to `video` group |
-| `MicArrayCapture: read failed` | Backend/device drop | Reconnect USB; check PortAudio |
-| Face `available=False` after disconnect | Fail-closed probe | Reconnect camera; next `authenticate()` recovers (see `tests/test_phase6_failure_recovery.py`) |
 
 ## Tests failing on a fresh clone
 
