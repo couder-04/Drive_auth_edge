@@ -8,16 +8,25 @@ from driveauth.types import Decision
 from testsupport import good_audio, mature
 
 
-def test_bootstrap_accepts_on_strong_voice_ladder():
-    """Immature profile still Accepts when Voice clears the ladder bar."""
+def test_bootstrap_requires_stage3_even_with_strong_voice():
+    """Immature (bootstrap) profile cannot Accept on voice alone — bootstrap
+    rigor requires 2+ modalities AND a stage-3 (finger/OTP) probe. With mock
+    finger available it still resolves to Accept, but via finger, not voice.
+    """
     store = tempfile.mkdtemp()
     auth = DriveAuth.load(store_dir=store, use_mock_matchers=True)
     result = auth.authenticate(
         audio_np=good_audio(), amount=50.0, beneficiary_known=True, beneficiary="Mom"
     )
-    assert result.decision == Decision.ACCEPT
     assert result.fraud_state == "bootstrap"
-    assert any("ladder_accept" in e for e in result.explanations)
+    assert not any(
+        e.startswith("ladder_accept_voice") for e in result.explanations
+    )
+    assert any(
+        "ladder_rigor_requires_more_after_voice" in e for e in result.explanations
+    )
+    assert result.decision == Decision.ACCEPT
+    assert any(e.startswith("ladder_accept_finger") for e in result.explanations)
 
 
 def test_driveauth_accept_when_profile_mature():

@@ -358,6 +358,12 @@ class DecisionEngine:
         rigor = self._fraud.effective_rigor(profile_mature)
         eff_state = self._fraud.effective_state(profile_mature)
 
+        req_min_modalities = int(rigor.get("min_modalities", 1))
+        req_force_step_up = bool(rigor.get("force_step_up", False))
+        if tier == "high_value":
+            req_min_modalities = max(req_min_modalities, 2)
+            req_force_step_up = True
+
         expect_voice = (
             audio_np is not None if voice_expected is None else voice_expected
         )
@@ -428,13 +434,29 @@ class DecisionEngine:
                     if pad_thr is None:
                         pad_thr = getattr(face_m, "_pad_threshold", None)
 
-                if self._escalation.should_accept(
+                would_accept = self._escalation.should_accept(
                     plan=plan,
                     score=score,
                     modality=nxt,
                     pad_proba=pad_proba,
                     pad_threshold=pad_thr,
-                ):
+                )
+                stage3_reached = any(p in ("finger", "otp") for p in probed)
+                rigor_satisfied = len(probed) >= req_min_modalities and (
+                    not req_force_step_up or stage3_reached
+                )
+
+                if would_accept and not rigor_satisfied:
+                    # Ladder cleared this modality's bar, but fraud/transaction rigor
+                    # requires more than one modality (and/or a stage-3 probe
+                    # specifically) before Accept is allowed. Keep probing instead of
+                    # early-stopping here.
+                    explanations.append(
+                        f"ladder_rigor_requires_more_after_{nxt}"
+                        f"_min_modalities_{req_min_modalities}"
+                        f"_force_step_up_{req_force_step_up}"
+                    )
+                elif would_accept:
                     ladder_decision = Decision.ACCEPT
                     ladder_rule = f"{config.POLICY_VERSION}:ladder_accept_{nxt}"
                     explanations.append(

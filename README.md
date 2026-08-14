@@ -219,22 +219,23 @@ flowchart LR
 
 Probe order is fixed: **voice → face → finger**.
 
-- **High score** (per-modality bar + fraud `trust_margin`) → **ACCEPT** immediately:
+- **High score** (per-modality bar + fraud `trust_margin`) can Accept **only if** fraud/tier rigor is also met (`min_modalities`, `force_step_up`):
   - voice `≥ ladder.accept_voice` (default **0.72**)
   - face `≥ ladder.accept_face` (default **0.70**)
   - finger `≥ ladder.accept_finger` (default **0.70**, “match OK”)
-- **Low / missing score** → escalate to the next modality.
-- After fingerprint (last option) still fails → **REJECT**.
+- Bootstrap and `high_value` require a stage-3 (finger/OTP) probe; they never Accept on voice (or voice+face) alone.
+- **Low / missing score**, or a score that clears the bar but not rigor → escalate to the next modality.
+- After fingerprint (last option) still fails, or rigor cannot be met → **REJECT**.
 - No OTP mid-ladder. Risk hard-ceiling and fraud-lock can still force REJECT. Guest mode may still request PIN (`STEP_UP_REQUIRED`).
 - Re-baseline with `python scripts/calibrate_bio_thresholds.py --store ./driveauth_store_phase2a`.
 
 ```mermaid
 flowchart TD
   START[Payment auth] --> V2["1. Probe voice"]
-  V2 --> VOK{score ≥ accept?}
+  V2 --> VOK{score ≥ accept and rigor ok?}
   VOK -->|Yes| ACC[ACCEPT]
   VOK -->|No| F2["2. Probe face"]
-  F2 --> FOK{score ≥ accept?}
+  F2 --> FOK{score ≥ accept and rigor ok?}
   FOK -->|Yes| ACC
   FOK -->|No| G2["3. Probe finger"]
   G2 --> GOK{match OK?}

@@ -24,11 +24,12 @@ the risk model's `amount_z` was a constant.
 - `driveauth/escalation.py` — `EscalationPolicy` builds a per-call probe plan
   (cheapest-friction-first: voice → face → finger) and a `should_stop` rule.
 - `DecisionEngine.authenticate()` computes risk first (free), then probes
-  modalities one at a time, stopping as soon as the tier bar is met.
-- **Security floor:** `should_stop` never stops below the fraud ladder's
-  `min_modalities`, and never at all when the plan mandates the full set —
-  so single-modality accept is a deliberate, tier-gated decision, not an
-  accident of parallelism. Toggle with `DRIVEAUTH_ESCALATION_ENABLED`.
+  modalities one at a time. A modality that clears its score bar is not
+  enough to Accept: the engine also enforces fraud `min_modalities` /
+  `force_step_up`, and `high_value` always requires a stage-3 (finger/OTP)
+  probe. If rigor cannot be met, the ladder fail-closes to REJECT.
+- **Security floor:** single-modality Accept is only allowed when rigor
+  permits it (mature, non-high-value). Toggle with `DRIVEAUTH_ESCALATION_ENABLED`.
 
 ## 3. Timing side-channel mitigation
 

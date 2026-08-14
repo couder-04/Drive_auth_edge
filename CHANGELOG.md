@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+
+- DecisionEngine now enforces fraud `min_modalities` / `force_step_up` before
+  ladder early-accept. High-value transfers always require a stage-3
+  (finger/OTP) probe; bootstrap cannot Accept on voice alone. If stage-3 is
+  unavailable, high-value fail-closes to Reject.
+
 ## [1.0.0] — 2026-07-21
 
 ### Added

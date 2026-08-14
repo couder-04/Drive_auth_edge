@@ -1,6 +1,6 @@
 # DriveAuth Edge — Active TODO
 
-Last updated: 2026-08-06
+Last updated: 2026-08-14
 
 ---
 
@@ -25,6 +25,7 @@ Code, docs, and scripts below are **landed**. Do not re-implement.
 | 16 | Secure-boot rollout plan (doc) | `docs/secure-boot-rollout.md` |
 | 17 | Vault policies + ops runbook | `deploy/vault/policies/`, `docs/vault-operations.md`, AppRole in `secrets.py` |
 | 4 | Railway deploy runbook + first-boot | `docs/deploy/railway.md`, `scripts/railway_first_boot.sh`, `Dockerfile` |
+| 22 | Ladder rigor enforcement | `decision_engine.py` now enforces fraud `min_modalities` / `force_step_up`; `high_value` requires stage-3 (finger/OTP) before Accept |
 
 ---
 
@@ -103,3 +104,4 @@ Code, docs, and scripts below are **landed**. Do not re-implement.
 - [x] Standalone OpenRouter + Cloudflare + Railway demo pipeline
 - [x] IEEE IV 2027 venue lock + paper/demo draft artifacts
 - [x] Minimal-capture enrollment + mandatory face/voice quality gates (items 1–3)
+- [x] Biometric ladder enforces fraud/tier modality floors (no voice-only Accept on high-value or bootstrap)

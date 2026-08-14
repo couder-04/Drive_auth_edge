@@ -68,18 +68,25 @@ def test_low_voice_escalates_to_face_accept():
     assert any(e.startswith("probed_voice+face") for e in r.explanations)
 
 
-def test_bootstrap_ladder_accepts_strong_voice():
+def test_bootstrap_ladder_accepts_via_stage3():
+    """Bootstrap still Accepts with mock finger, but not on voice alone."""
     auth = make_auth()
     r = auth.authenticate(
         audio_np=good_audio(), amount=50.0, beneficiary_known=True, beneficiary="Mom"
     )
     assert r.decision == Decision.ACCEPT
     assert r.fraud_state == "bootstrap"
-    assert any("ladder_accept" in e for e in r.explanations)
+    assert not any(e.startswith("ladder_accept_voice") for e in r.explanations)
+    assert any(e.startswith("ladder_accept_finger") for e in r.explanations)
 
 
-def test_high_value_ladder_accepts_strong_voice():
-    """High-value probes the ladder; strong voice Accepts (no mandatory OTP)."""
+def test_high_value_requires_stage3_even_with_strong_voice():
+    """High-value transfers cannot Accept on voice alone, even when voice is
+    strong — a tier-based modality floor requires a stage-3 (finger/OTP)
+    probe regardless of fraud state. Previously this ladder accepted on
+    voice alone for a high-value payment to an unknown payee; that was the
+    vulnerability, not the intended design.
+    """
     auth = make_auth()
     mature(auth)
     r = auth.authenticate(
@@ -88,9 +95,33 @@ def test_high_value_ladder_accepts_strong_voice():
         beneficiary_known=False,
         beneficiary="new_merchant",
     )
-    assert r.decision == Decision.ACCEPT
     assert r.tier == "high_value"
-    assert any("ladder_accept" in e for e in r.explanations)
+    assert not any(
+        e.startswith("ladder_accept_voice") for e in r.explanations
+    )
+    assert any(
+        "ladder_rigor_requires_more_after_voice" in e for e in r.explanations
+    )
+    assert r.decision == Decision.ACCEPT
+    assert any(e.startswith("ladder_accept_finger") for e in r.explanations)
+
+
+def test_high_value_rejects_when_no_stage3_available():
+    """If no stage-3 modality is available at all, a high-value transfer
+    must fail closed (Reject), never fall back to accepting on voice+face.
+    """
+    auth = make_auth()
+    mature(auth)
+    auth._engine._m.finger = MockFingerMatcher(available=False)
+    r = auth.authenticate(
+        audio_np=good_audio(),
+        amount=75_000.0,
+        beneficiary_known=False,
+        beneficiary="new_merchant",
+    )
+    assert r.tier == "high_value"
+    assert r.decision == Decision.REJECT
+    assert "ladder_exhausted_reject" in r.explanations
 
 
 # ── 4–5 / 21–23 cache ────────────────────────────────────────────────────────

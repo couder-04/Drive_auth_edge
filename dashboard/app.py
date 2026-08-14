@@ -2063,7 +2063,7 @@ def scenarios() -> list[dict[str, Any]]:
         },
         {
             "id": "bootstrap_ladder",
-            "label": "New driver bootstrap (ladder ACCEPT on strong voice)",
+            "label": "New driver bootstrap (ladder ACCEPT via stage-3, not voice alone)",
             "profile": "bootstrap",
             "request": AuthenticateRequest(
                 amount=50.0, beneficiary_known=True
@@ -2071,7 +2071,7 @@ def scenarios() -> list[dict[str, Any]]:
         },
         {
             "id": "high_value_ladder",
-            "label": "High value (ladder ACCEPT if voice/face strong)",
+            "label": "High value (ladder ACCEPT only after stage-3 finger/OTP)",
             "profile": "mature",
             "request": AuthenticateRequest(
                 amount=75_000.0, beneficiary_known=False, beneficiary="new_merchant"
