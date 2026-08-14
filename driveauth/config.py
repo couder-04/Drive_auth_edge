@@ -409,5 +409,57 @@ def warn_policy_bar_overrides(*, stream=None) -> list[dict[str, Any]]:
     return overrides
 
 
+def manual_scores_permitted() -> bool:
+    """Manual score injection is a demo/HW-stand-in. Blocked in production
+    unless ``DRIVEAUTH_ALLOW_MANUAL_SCORES=1`` is also set."""
+    allow = (os.getenv("DRIVEAUTH_ALLOW_MANUAL_SCORES") or "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    if allow:
+        return True
+    return not is_production()
+
+
+def warn_manual_scores(*, active: bool, refused: bool = False, stream=None) -> None:
+    """Loud stderr banner when ``DRIVEAUTH_MANUAL_SCORES`` would override biometrics."""
+    import logging
+    import sys
+
+    out = stream if stream is not None else sys.stderr
+    if refused:
+        lines = [
+            "",
+            "!" * 72,
+            "WARNING: DRIVEAUTH_MANUAL_SCORES IGNORED IN PRODUCTION",
+            "!" * 72,
+            "Biometric score overrides are refused when DRIVEAUTH_ENV=production.",
+            "Set DRIVEAUTH_ALLOW_MANUAL_SCORES=1 if you truly intend to inject scores.",
+            "!" * 72,
+            "",
+        ]
+    elif active:
+        lines = [
+            "",
+            "!" * 72,
+            "WARNING: DRIVEAUTH_MANUAL_SCORES IS ACTIVE",
+            "!" * 72,
+            "Real matcher scores are being replaced by env/file stand-ins.",
+            "This is a HW/demo override — not production biometric evidence.",
+            "Unset DRIVEAUTH_MANUAL_SCORES, or keep it off any production image.",
+            "!" * 72,
+            "",
+        ]
+    else:
+        return
+    print("\n".join(lines), file=out, flush=True)
+    logging.getLogger("driveauth.security").warning(
+        "DRIVEAUTH_MANUAL_SCORES %s",
+        "refused (production)" if refused else "ACTIVE — scores overridden",
+    )
+
+
 # Call ``warn_policy_bar_overrides()`` after secrets/env load (see dashboard.server).
 # Do not auto-emit at import — config often loads before secrets.env is applied.

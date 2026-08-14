@@ -366,10 +366,21 @@ class DriveAuth:
         auth._attach_ir_liveness()
         # Optional HW stand-in: DRIVEAUTH_MANUAL_SCORES=path.json or inline JSON
         try:
-            from driveauth.matchers.score_provider import apply_manual_scores_from_env
+            from driveauth.matchers.score_provider import (
+                ManualScores,
+                apply_manual_scores,
+            )
 
-            if apply_manual_scores_from_env(auth):
-                logger.info("DriveAuth: applied DRIVEAUTH_MANUAL_SCORES")
+            scores = ManualScores.from_env()
+            if scores is not None:
+                if not config.manual_scores_permitted():
+                    config.warn_manual_scores(active=False, refused=True)
+                else:
+                    config.warn_manual_scores(active=True)
+                    apply_manual_scores(auth, scores)
+                    logger.warning(
+                        "DriveAuth: applied DRIVEAUTH_MANUAL_SCORES (demo/HW stand-in)"
+                    )
         except Exception as exc:
             logger.warning("DriveAuth: manual scores skipped (%s)", exc)
         return auth

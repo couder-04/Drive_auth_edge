@@ -1737,8 +1737,9 @@ def authenticate(
     request: Request,
     req: AuthenticateRequest,
 ) -> dict[str, Any]:
-    auth = get_auth(use_mock=True, request=request)
-    _apply_mock_scores(auth, req.mock_scores)
+    auth = get_auth(use_mock=_want_mock(), request=request)
+    if _want_mock():
+        _apply_mock_scores(auth, req.mock_scores)
     if req.fingerprint_available is not None:
         auth._engine._m.fingerprint_available = bool(req.fingerprint_available)
 

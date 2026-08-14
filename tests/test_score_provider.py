@@ -50,3 +50,37 @@ def test_happy_manual_finger_still_accepts_micro():
         audio_np=good_audio(), amount=50.0, beneficiary_known=True, beneficiary="Mom"
     )
     assert result.decision == Decision.ACCEPT
+
+
+def test_manual_scores_from_env_apply_outside_production(monkeypatch, tmp_path):
+    from driveauth.matchers.mock import MockFingerMatcher
+
+    monkeypatch.delenv("DRIVEAUTH_ENV", raising=False)
+    monkeypatch.delenv("DRIVEAUTH_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("DRIVEAUTH_ALLOW_MANUAL_SCORES", raising=False)
+    monkeypatch.setenv("DRIVEAUTH_MANUAL_SCORES", '{"finger": 0.11, "behavioral": 0.95}')
+    auth = DriveAuth.load(store_dir=str(tmp_path / "store"), use_mock_matchers=True)
+    assert isinstance(auth._engine._m.finger, MockFingerMatcher)
+    assert auth._engine._m.finger.capture_and_score().score == 0.11
+
+
+def test_manual_scores_refused_in_production(monkeypatch, tmp_path):
+    from driveauth.matchers.mock import MockFingerMatcher
+
+    monkeypatch.setenv("DRIVEAUTH_ENV", "production")
+    monkeypatch.setenv("DRIVEAUTH_INTEGRITY_CHECK", "0")
+    monkeypatch.delenv("DRIVEAUTH_ALLOW_MANUAL_SCORES", raising=False)
+    monkeypatch.setenv("DRIVEAUTH_MANUAL_SCORES", '{"finger": 0.11, "behavioral": 0.95}')
+    auth = DriveAuth.load(store_dir=str(tmp_path / "store"), use_mock_matchers=True)
+    # Default mock finger score is not the injected 0.11.
+    assert isinstance(auth._engine._m.finger, MockFingerMatcher)
+    assert auth._engine._m.finger.capture_and_score().score != 0.11
+
+
+def test_manual_scores_allowed_in_production_with_override(monkeypatch, tmp_path):
+    monkeypatch.setenv("DRIVEAUTH_ENV", "production")
+    monkeypatch.setenv("DRIVEAUTH_INTEGRITY_CHECK", "0")
+    monkeypatch.setenv("DRIVEAUTH_ALLOW_MANUAL_SCORES", "1")
+    monkeypatch.setenv("DRIVEAUTH_MANUAL_SCORES", '{"finger": 0.11, "behavioral": 0.95}')
+    auth = DriveAuth.load(store_dir=str(tmp_path / "store"), use_mock_matchers=True)
+    assert auth._engine._m.finger.capture_and_score().score == 0.11

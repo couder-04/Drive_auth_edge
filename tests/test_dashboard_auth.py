@@ -137,3 +137,25 @@ def test_no_module_level_auth_singletons():
     assert not hasattr(dash, "_auth") or getattr(dash, "_auth", "missing") is None
     # Prefer app.state — module globals for DriveAuth cache must be gone.
     assert getattr(dash, "_auth_key", "gone") == "gone" or not hasattr(dash, "_auth_key")
+
+
+def test_authenticate_honors_use_mock_config(client, monkeypatch):
+    """``/api/authenticate`` must not hardcode mock matchers."""
+    import dashboard.app as dash
+
+    seen: dict[str, bool | None] = {}
+    real = dash.get_auth
+
+    def _wrap(*, use_mock=None, request=None, driver_id=None, mature=True):
+        seen["use_mock"] = use_mock
+        return real(use_mock=True, request=request, driver_id=driver_id, mature=mature)
+
+    monkeypatch.setattr(dash, "get_auth", _wrap)
+    monkeypatch.setenv("DRIVEAUTH_USE_MOCK", "0")
+    res = client.post(
+        "/api/authenticate",
+        json={"amount": 50.0, "beneficiary_known": True},
+        headers={"X-API-Key": "test-dashboard-key"},
+    )
+    assert res.status_code == 200
+    assert seen.get("use_mock") is False
