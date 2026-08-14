@@ -87,6 +87,45 @@ def test_face_borderline_clear_scores_still_early_stop(monkeypatch):
     )
 
 
+def test_face_borderline_default_margin_blocks_accept():
+    """Shipping default (0.05) withholds borderline face+PAD without an override."""
+    from driveauth import config
+    from driveauth.escalation import (
+        EscalationPolicy,
+        EscalationPlan,
+        face_pad_borderline_blocks_accept,
+    )
+
+    assert config.FACE_BORDERLINE_MARGIN == 0.05
+    pol = EscalationPolicy()
+    plan = EscalationPlan(
+        order=("voice", "face", "finger"),
+        accept_bar=0.70,
+        accept_bars={"voice": 0.72, "face": 0.70, "finger": 0.70},
+    )
+    # Face 0.72 is +0.02 above 0.70; PAD 0.41 is +0.02 above 0.39 — both < 0.05
+    assert face_pad_borderline_blocks_accept(
+        plan=plan, score=0.72, pad_proba=0.41, pad_threshold=0.39
+    )
+    assert (
+        pol.should_accept(
+            plan=plan,
+            score=0.72,
+            modality="face",
+            pad_proba=0.41,
+            pad_threshold=0.39,
+        )
+        is False
+    )
+    # Same pair would not be blocked if the mitigation were off.
+    assert (
+        face_pad_borderline_blocks_accept(
+            plan=plan, score=0.72, pad_proba=0.41, pad_threshold=0.39, margin=0.0
+        )
+        is False
+    )
+
+
 def test_face_borderline_both_barely_pass_escalates(monkeypatch):
     """Face + PAD both within margin of their bars → withhold face early-stop."""
     from driveauth import config
@@ -117,7 +156,7 @@ def test_face_borderline_both_barely_pass_escalates(monkeypatch):
         )
         is False
     )
-    # Margin off (default behavior) → still accepts
+    # Explicit 0 still fully disables the mitigation
     monkeypatch.setattr(config, "FACE_BORDERLINE_MARGIN", 0.0)
     assert (
         pol.should_accept(

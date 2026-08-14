@@ -106,8 +106,8 @@ def face_pad_borderline_blocks_accept(
     """True when face would clear its bar but face+PAD both sit in the borderline band.
 
     Opt-in via ``DRIVEAUTH_FACE_BORDERLINE_MARGIN`` / ``FACE_BORDERLINE_MARGIN``
-    (default 0 = never blocks). Mitigation for PAD's measured off-angle FPs —
-    not a fix to PAD itself. See docs/security-assumptions.md.
+    (default 0.05; set 0 to never block). Mitigation for PAD's measured off-angle
+    FPs — not a fix to PAD itself. See docs/security-assumptions.md.
     """
     m = float(config.FACE_BORDERLINE_MARGIN if margin is None else margin)
     if m <= 0.0:

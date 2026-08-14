@@ -246,16 +246,16 @@ off-angle presentation attacks on real `attack_side` data (driver1 **6/10**,
 driver7 **8/10** Haar-OK sides). That is a PAD feature/model limitation — not a
 pipeline labeling bug to keep chasing with more synth warps.
 
-**Mitigation (opt-in, default off):** when `DRIVEAUTH_FACE_BORDERLINE_MARGIN` > 0
-(typical enable: `0.05`), a face-stage score that clears the ladder face bar
+**Mitigation (on by default at 0.05):** when `DRIVEAUTH_FACE_BORDERLINE_MARGIN` > 0
+(disable with `0`), a face-stage score that clears the ladder face bar
 **and** whose PAD bonafide proba clears the PAD threshold, but where **both**
 clearances sit within that margin of their bars, does **not** early-stop ACCEPT
 on face alone — the ladder escalates to stage-3 (finger / OTP). Comfortably clear
 face+PAD scores still early-stop as today.
 
 This is defense-in-depth at the policy/ladder layer, **not** a fix to PAD's
-underlying off-angle weakness. Default margin `0` leaves shipping ladder
-behavior unchanged.
+underlying off-angle weakness. Set the env var to `0` to restore the previous
+inert behavior.
 
 ---
 
