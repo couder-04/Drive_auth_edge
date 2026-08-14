@@ -23,6 +23,10 @@ secrets.env
 !.env.example
 !secrets.env.example
 
+# On-device Fernet / TPM-wrapped template keys (never commit)
+**/.bio_key
+**/.bio_key.*
+
 # Phase 3 biometric datasets (keep local)
 data/**/*.wav
 data/**/*.jpg
