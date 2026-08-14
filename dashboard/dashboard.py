@@ -1409,16 +1409,17 @@ def render_dashboard(*, mode: str = "manual") -> str:
 
   <script>
     function adminHeaders(extra = {}) {
-      const headers = Object.assign({}, extra || {});
-      if (window.__DRIVEAUTH_ADMIN_KEY__) {
-        headers["X-API-Key"] = window.__DRIVEAUTH_ADMIN_KEY__;
-      }
-      return headers;
+      return Object.assign({}, extra || {});
     }
     async function adminFetch(path, opts = {}) {
-      const opts2 = Object.assign({}, opts);
+      const opts2 = Object.assign({ credentials: "same-origin" }, opts);
       opts2.headers = adminHeaders(opts2.headers || {});
-      return fetch(path, opts2);
+      const res = await fetch(path, opts2);
+      if (res.status === 401) {
+        const overlay = document.getElementById("driveauth-login");
+        if (overlay) overlay.style.display = "flex";
+      }
+      return res;
     }
 
     const PHASES = [

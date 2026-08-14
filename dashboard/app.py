@@ -11,11 +11,24 @@ from typing import Any
 import numpy as np
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field
 
-from dashboard.security import AdminAuth, admin_key_js_bootstrap
+from dashboard.security import (
+    SESSION_COOKIE,
+    AdminAuth,
+    admin_required,
+    allow_insecure_dashboard,
+    clear_session_cookie,
+    configured_api_key,
+    issue_session,
+    request_has_admin_session,
+    revoke_session,
+    session_ui_html,
+    set_session_cookie,
+    verify_configured_key,
+)
 from dashboard.state import DashboardState
 
 from driveauth import DriveAuth
@@ -733,48 +746,82 @@ app = FastAPI(
     description=(
         "Live Trust/Risk/Confidence pipeline tester with Nova I/O contract. "
         "Mutating admin endpoints require ``DRIVEAUTH_DASHBOARD_API_KEY`` "
-        "(Bearer or X-API-Key)."
+        "(Bearer, X-API-Key, or an HttpOnly session cookie from "
+        "``POST /api/admin/login``)."
     ),
     version="1.0.0",
     lifespan=_lifespan,
 )
 
 
-def _with_admin_bootstrap(html: str) -> str:
-    boot = admin_key_js_bootstrap()
+def _with_session_ui(html: str, request: Request) -> str:
+    required = admin_required()
+    authenticated = (not required) or request_has_admin_session(request)
+    boot = session_ui_html(required=required, authenticated=authenticated)
     if "</head>" in html:
         return html.replace("</head>", boot + "\n</head>", 1)
     return boot + html
 
 
 @app.get("/", response_class=HTMLResponse)
-def index() -> str:
-    return _with_admin_bootstrap(render_dashboard(mode="standalone"))
+def index(request: Request) -> str:
+    return _with_session_ui(render_dashboard(mode="standalone"), request)
 
 
 @app.get("/manual", response_class=HTMLResponse)
-def manual_page() -> str:
-    return _with_admin_bootstrap(render_dashboard(mode="manual"))
+def manual_page(request: Request) -> str:
+    return _with_session_ui(render_dashboard(mode="manual"), request)
 
 
 @app.get("/standalone", response_class=HTMLResponse)
-def standalone_page() -> str:
-    return _with_admin_bootstrap(render_dashboard(mode="standalone"))
+def standalone_page(request: Request) -> str:
+    return _with_session_ui(render_dashboard(mode="standalone"), request)
 
 
 @app.get("/register", response_class=HTMLResponse)
-def register_page() -> str:
-    return _with_admin_bootstrap(render_register())
+def register_page(request: Request) -> str:
+    return _with_session_ui(render_register(), request)
 
 
 @app.get("/fleet", response_class=HTMLResponse)
-def fleet_page() -> str:
-    return _with_admin_bootstrap(render_fleet())
+def fleet_page(request: Request) -> str:
+    return _with_session_ui(render_fleet(), request)
 
 
 @app.get("/improved-auth", response_class=HTMLResponse)
-def improved_auth_page() -> str:
-    return _with_admin_bootstrap(render_improved_auth())
+def improved_auth_page(request: Request) -> str:
+    return _with_session_ui(render_improved_auth(), request)
+
+
+class AdminLoginRequest(BaseModel):
+    api_key: str = Field("", min_length=0)
+
+
+@app.post("/api/admin/login")
+def admin_login(body: AdminLoginRequest, request: Request, response: Response) -> dict[str, Any]:
+    expected = configured_api_key()
+    if expected is None:
+        if allow_insecure_dashboard():
+            return {"ok": True, "mode": "insecure"}
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "DRIVEAUTH_DASHBOARD_API_KEY is not set. Configure a secret or set "
+                "DRIVEAUTH_ALLOW_INSECURE_DASHBOARD=1 for local demos only."
+            ),
+        )
+    if not verify_configured_key(body.api_key):
+        raise HTTPException(status_code=401, detail="Invalid or missing dashboard API key")
+    token = issue_session(request)
+    set_session_cookie(request, response, token)
+    return {"ok": True}
+
+
+@app.post("/api/admin/logout")
+def admin_logout(request: Request, response: Response) -> dict[str, Any]:
+    revoke_session(request, request.cookies.get(SESSION_COOKIE))
+    clear_session_cookie(response)
+    return {"ok": True}
 
 
 @app.get("/api/improved-auth/status")

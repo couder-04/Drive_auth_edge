@@ -368,18 +368,20 @@ def render_improved_auth() -> str:
     const driverId = () => ($("driver_id").value || "").trim();
 
     function adminHeaders(extra = {}) {
-      const headers = Object.assign({}, extra || {});
-      if (window.__DRIVEAUTH_ADMIN_KEY__) headers["X-API-Key"] = window.__DRIVEAUTH_ADMIN_KEY__;
-      return headers;
+      return Object.assign({}, extra || {});
     }
     async function api(path, opts = {}) {
-      const opts2 = Object.assign({}, opts);
+      const opts2 = Object.assign({ credentials: "same-origin" }, opts);
       const isForm = opts2.body instanceof FormData;
       opts2.headers = adminHeaders(opts2.headers || {});
       if (!isForm && opts2.body && typeof opts2.body === "string" && !opts2.headers["Content-Type"]) {
         opts2.headers["Content-Type"] = "application/json";
       }
       const res = await fetch(path, opts2);
+      if (res.status === 401) {
+        const overlay = document.getElementById("driveauth-login");
+        if (overlay) overlay.style.display = "flex";
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const detail = data.detail || data.error || res.statusText;

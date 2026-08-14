@@ -87,11 +87,48 @@ def test_openapi_documents_api_key_security(client):
     assert "security" in auth_path or schemes
 
 
-def test_html_injects_admin_key_bootstrap(client):
+def test_html_never_contains_configured_api_key(client):
+    """Regression: dashboard HTML must never ship the raw admin key to the browser."""
     res = client.get("/")
     assert res.status_code == 200
-    assert "__DRIVEAUTH_ADMIN_KEY__" in res.text
-    assert "test-dashboard-key" in res.text
+    assert "test-dashboard-key" not in res.text
+    assert "__DRIVEAUTH_ADMIN_KEY__" not in res.text
+    assert "driveauth-login" in res.text
+    assert "__DRIVEAUTH_ADMIN_REQUIRED__" in res.text
+
+
+def test_authenticated_html_never_contains_configured_api_key(client):
+    login = client.post("/api/admin/login", json={"api_key": "test-dashboard-key"})
+    assert login.status_code == 200
+    res = client.get("/")
+    assert res.status_code == 200
+    assert "test-dashboard-key" not in res.text
+    assert "__DRIVEAUTH_ADMIN_KEY__" not in res.text
+
+
+def test_login_sets_httponly_session_cookie(client):
+    res = client.post("/api/admin/login", json={"api_key": "test-dashboard-key"})
+    assert res.status_code == 200
+    assert res.json()["ok"] is True
+    cookie = res.cookies.get("driveauth_admin_session")
+    assert cookie
+    # Subsequent mutating calls ride the cookie — no header needed.
+    follow = client.post("/api/fraud/reset")
+    assert follow.status_code == 200
+
+
+def test_login_rejects_wrong_key(client):
+    res = client.post("/api/admin/login", json={"api_key": "definitely-wrong"})
+    assert res.status_code == 401
+    assert client.post("/api/fraud/reset").status_code == 401
+
+
+def test_logout_clears_session_cookie(client):
+    assert client.post("/api/admin/login", json={"api_key": "test-dashboard-key"}).status_code == 200
+    assert client.post("/api/fraud/reset").status_code == 200
+    out = client.post("/api/admin/logout")
+    assert out.status_code == 200
+    assert client.post("/api/fraud/reset").status_code == 401
 
 
 def test_no_module_level_auth_singletons():

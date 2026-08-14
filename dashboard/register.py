@@ -566,15 +566,11 @@ def render_register() -> str:
     }
 
     function adminHeaders(extra = {}) {
-      const headers = Object.assign({}, extra || {});
-      if (window.__DRIVEAUTH_ADMIN_KEY__) {
-        headers["X-API-Key"] = window.__DRIVEAUTH_ADMIN_KEY__;
-      }
-      return headers;
+      return Object.assign({}, extra || {});
     }
 
     async function api(path, opts = {}) {
-      const opts2 = Object.assign({}, opts);
+      const opts2 = Object.assign({ credentials: "same-origin" }, opts);
       const isForm = (typeof FormData !== "undefined") && opts2.body instanceof FormData;
       opts2.headers = adminHeaders(opts2.headers || {});
       if (!isForm && opts2.body && typeof opts2.body === "string" && !opts2.headers["Content-Type"]) {
@@ -588,6 +584,10 @@ def render_register() -> str:
         throw new Error(
           `${why} — is driveauth-dashboard still running on this host/port?`
         );
+      }
+      if (res.status === 401) {
+        const overlay = document.getElementById("driveauth-login");
+        if (overlay) overlay.style.display = "flex";
       }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
