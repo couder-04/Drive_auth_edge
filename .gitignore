@@ -5,6 +5,7 @@ dist/
 *.egg-info/
 driveauth_store/
 driveauth_store_phase2a/
+driveauth_store_pha/
 example_store/
 .pytest_cache/
 .ruff_cache/

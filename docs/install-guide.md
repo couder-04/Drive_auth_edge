@@ -33,6 +33,13 @@ python scripts/bootstrap.py --check-only
 ```
 
 - Real matchers require Stage-1 ECAPA + MobileFaceNet (and enrollment).
+  `mobilefacenet.onnx` (and the int8 copy) are **not** in git after a fresh
+  clone — `driveauth_store_pha/` is gitignored like the other store dirs.
+  Download them with `scripts/phase2a_setup.py` (Hailo model-zoo ArcFace
+  MobileFaceNet zip → `models/mobilefacenet.onnx`, then copies to the store
+  root as `mobilefacenet.onnx` / `mobilefacenet_int8.onnx`). `bootstrap.py`
+  runs that setup when Stage-1 face is missing:
+  `python scripts/phase2a_setup.py --store ./driveauth_store_phase2a --skip-voice`
 - Missing voice/face raises unless `DRIVEAUTH_USE_MOCK=1` or explicit
   `DRIVEAUTH_ALLOW_MOCK_FALLBACK=1`.
 - Stage-2 heads (`risk_gbt.onnx`, `trust_fusion.onnx`, PAD/calibrators) are
