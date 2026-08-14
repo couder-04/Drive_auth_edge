@@ -45,8 +45,8 @@ def test_policy_accept_low_risk():
     assert "accept" in rule
 
 
-def test_policy_honors_ladder_accept_even_on_high_value():
-    """High-value no longer forces STEP_UP — ladder Accept wins."""
+def test_policy_rejects_high_value_voice_accept_without_stage3():
+    """High-value ladder_accept_voice must not pass PolicyEngine without stage-3."""
     from driveauth.types import Decision
 
     engine = PolicyEngine()
@@ -66,9 +66,91 @@ def test_policy_honors_ladder_accept_even_on_high_value():
         ladder_decision=Decision.ACCEPT,
         ladder_rule="driveauth-1.0:ladder_accept_voice",
     )
-    assert decision == Decision.ACCEPT
-    assert "ladder_accept" in rule
+    assert decision == Decision.REJECT
+    assert "policy_stage3_reject" in rule
     assert method is None
+
+
+def test_policy_honors_high_value_accept_when_stage3_verified():
+    """High-value Accept is allowed only when a real stage-3 probe is attested."""
+    from driveauth.types import Decision
+
+    engine = PolicyEngine()
+    decision, rule, _, method = engine.decide(
+        trust=0.95,
+        risk=0.05,
+        confidence=0.90,
+        tier="high_value",
+        n_confident_modalities=2,
+        fraud_rigor={
+            "min_modalities": 2,
+            "force_step_up": True,
+            "block": False,
+            "trust_margin": 0.0,
+        },
+        explanations=[],
+        ladder_decision=Decision.ACCEPT,
+        ladder_rule="driveauth-1.0:ladder_accept_finger",
+        stage3_reached=True,
+        finger_is_mock=False,
+    )
+    assert decision == Decision.ACCEPT
+    assert "ladder_accept_finger" in rule
+    assert method is None
+
+
+def test_policy_rejects_high_value_accept_via_mock_finger():
+    from driveauth.types import Decision
+
+    engine = PolicyEngine()
+    decision, rule, _, _ = engine.decide(
+        trust=0.95,
+        risk=0.05,
+        confidence=0.90,
+        tier="high_value",
+        n_confident_modalities=2,
+        fraud_rigor={
+            "min_modalities": 2,
+            "force_step_up": True,
+            "block": False,
+            "trust_margin": 0.0,
+        },
+        explanations=[],
+        ladder_decision=Decision.ACCEPT,
+        ladder_rule="driveauth-1.0:ladder_accept_finger",
+        stage3_reached=True,  # ladder bookkeeping lied
+        finger_is_mock=True,
+    )
+    assert decision == Decision.REJECT
+    assert "policy_stage3_reject" in rule
+
+
+def test_policy_step_up_when_high_value_has_no_stage3():
+    """Missing real hardware is STEP_UP (OTP), not silent Accept or silent Reject."""
+    from driveauth.types import Decision
+
+    engine = PolicyEngine()
+    decision, rule, _, method = engine.decide(
+        trust=0.90,
+        risk=0.10,
+        confidence=0.80,
+        tier="high_value",
+        n_confident_modalities=1,
+        fraud_rigor={
+            "min_modalities": 2,
+            "force_step_up": True,
+            "block": False,
+            "trust_margin": 0.0,
+        },
+        explanations=[],
+        ladder_decision=Decision.REJECT,
+        ladder_rule="driveauth-1.0:ladder_reject",
+        stage3_reached=False,
+        finger_is_mock=True,
+    )
+    assert decision == Decision.STEP_UP_REQUIRED
+    assert "policy_stage3_step_up" in rule
+    assert method == "otp_mobile"
 
 
 def test_policy_honors_ladder_reject():

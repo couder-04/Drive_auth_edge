@@ -5,7 +5,6 @@ from __future__ import annotations
 import time
 
 import numpy as np
-
 from driveauth.intent import is_payment_utterance, parse_transaction_intent
 from driveauth.matchers.mock import (
     MockBehavioralMonitor,
@@ -17,13 +16,13 @@ from driveauth.policy_engine import classify_tier
 from driveauth.step_up_fallback import enroll_pin
 from driveauth.types import Decision, RiskContext
 from testsupport import (
+    HardwareFingerStandIn,
     clear_ood,
     good_audio,
     make_auth,
     mature,
     write_beneficiaries,
 )
-
 
 # ── 1–3 happy / bootstrap / high-value ───────────────────────────────────────
 
@@ -69,8 +68,11 @@ def test_low_voice_escalates_to_face_accept():
 
 
 def test_bootstrap_ladder_accepts_via_stage3():
-    """Bootstrap still Accepts with mock finger, but not on voice alone."""
+    """Bootstrap still Accepts with real stage-3, but not on voice alone."""
     auth = make_auth()
+    # Non-mock stand-in: MockFingerMatcher cannot satisfy bootstrap force_step_up.
+    auth._engine._m.finger = HardwareFingerStandIn()
+    auth._engine._m.fingerprint_available = True
     r = auth.authenticate(
         audio_np=good_audio(), amount=50.0, beneficiary_known=True, beneficiary="Mom"
     )
@@ -89,6 +91,9 @@ def test_high_value_requires_stage3_even_with_strong_voice():
     """
     auth = make_auth()
     mature(auth)
+    # Non-mock stand-in represents real fingerprint hardware present.
+    auth._engine._m.finger = HardwareFingerStandIn()
+    auth._engine._m.fingerprint_available = True
     r = auth.authenticate(
         audio_np=good_audio(),
         amount=75_000.0,
@@ -108,7 +113,8 @@ def test_high_value_requires_stage3_even_with_strong_voice():
 
 def test_high_value_rejects_when_no_stage3_available():
     """If no stage-3 modality is available at all, a high-value transfer
-    must fail closed (Reject), never fall back to accepting on voice+face.
+    must not Accept on voice+face. PolicyEngine turns the ladder Reject
+    into STEP_UP_REQUIRED (otp_mobile) rather than a silent Reject.
     """
     auth = make_auth()
     mature(auth)
@@ -120,8 +126,51 @@ def test_high_value_rejects_when_no_stage3_available():
         beneficiary="new_merchant",
     )
     assert r.tier == "high_value"
-    assert r.decision == Decision.REJECT
+    assert r.decision == Decision.STEP_UP_REQUIRED
+    assert r.step_up_method == "otp_mobile"
     assert "ladder_exhausted_reject" in r.explanations
+    assert "policy_stage3_step_up" in r.explanations
+
+
+def test_high_value_cannot_accept_via_mock_finger_alone():
+    """A mock fingerprint matcher must never be sufficient to satisfy the
+    stage-3 requirement for a high-value transaction. If fingerprint
+    hardware isn't real, high-value must fail closed (Reject or
+    StepUpRequired), never Accept.
+    """
+    auth = make_auth()  # use_mock_matchers=True, fingerprint_available now defaults False
+    mature(auth)
+    r = auth.authenticate(
+        audio_np=good_audio(),
+        amount=75_000.0,
+        beneficiary_known=False,
+        beneficiary="new_merchant",
+    )
+    assert r.tier == "high_value"
+    assert r.decision != Decision.ACCEPT
+    assert not any(e.startswith("ladder_accept_finger") for e in r.explanations)
+
+
+def test_high_value_still_rejects_even_if_mock_finger_forced_available():
+    """Forcing fingerprint_available=True on a MockFingerMatcher must still
+    not Accept a high-value transfer — the isinstance(mock) check and
+    PolicyEngine re-verify both have to catch this misconfiguration.
+    """
+    auth = make_auth()
+    mature(auth)
+    auth._engine._m.finger = MockFingerMatcher(score=0.99)
+    auth._engine._m.fingerprint_available = True
+    r = auth.authenticate(
+        audio_np=good_audio(),
+        amount=75_000.0,
+        beneficiary_known=False,
+        beneficiary="new_merchant",
+    )
+    assert r.tier == "high_value"
+    assert r.decision != Decision.ACCEPT
+    assert any(
+        "ladder_rigor_blocks_mock_finger_stage3" in e for e in r.explanations
+    )
 
 
 # ── 4–5 / 21–23 cache ────────────────────────────────────────────────────────

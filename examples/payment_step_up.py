@@ -1,7 +1,11 @@
-"""Payment flow that triggers step-up on high-value tier."""
+"""High-value payment without real fingerprint hardware.
+
+Without a real stage-3 probe, PolicyEngine must not Accept. It returns
+STEP_UP_REQUIRED (otp_mobile) so a legitimate driver can fall back to OTP/PIN
+instead of a silent Accept (the old bug) or a silent Reject.
+"""
 
 import numpy as np
-
 from driveauth import DriveAuth
 from driveauth.types import Decision
 
@@ -20,5 +24,6 @@ result = auth.authenticate(
 )
 
 assert result.decision == Decision.STEP_UP_REQUIRED
+assert result.step_up_method == "otp_mobile"
 print("High-value payment requires step-up:", result.step_up_method)
 print("Policy:", result.policy_rule)

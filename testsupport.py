@@ -6,9 +6,35 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
-
 from driveauth import DriveAuth
 from driveauth.ood_detector import OODDetector
+from driveauth.types import ModalityResult
+
+
+class HardwareFingerStandIn:
+    """Finger matcher that is not ``MockFingerMatcher``.
+
+    Tests that still need the "Accept via real stage-3" path inject this and
+    set ``fingerprint_available=True``. ``isinstance(..., MockFingerMatcher)``
+    must stay false so forced stage-3 rigor cannot be satisfied by a mock.
+    """
+
+    def __init__(self, score: float = 0.85):
+        self._score = score
+        self.contact = 0.8
+        self.pressure = 0.7
+        self.clarity = 0.9
+
+    def capture_metrics(self):
+        return self.contact, self.clarity, self.pressure
+
+    def score_scan(self):
+        return ModalityResult(
+            self._score, True, embedding=np.zeros(64, dtype=np.float32)
+        )
+
+    def capture_and_score(self):
+        return self.score_scan()
 
 
 def good_audio(seconds: float = 1.5, sr: int = 16_000) -> np.ndarray:

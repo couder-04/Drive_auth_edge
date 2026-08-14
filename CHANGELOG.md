@@ -11,8 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - DecisionEngine now enforces fraud `min_modalities` / `force_step_up` before
   ladder early-accept. High-value transfers always require a stage-3
-  (finger/OTP) probe; bootstrap cannot Accept on voice alone. If stage-3 is
-  unavailable, high-value fail-closes to Reject.
+  (finger/OTP) probe; bootstrap cannot Accept on voice alone.
+- `DRIVEAUTH_FINGERPRINT_AVAILABLE` defaults to `0`. `MockFingerMatcher`
+  cannot satisfy a forced stage-3 Accept (checked in DecisionEngine and
+  independently in PolicyEngine). High-value / bootstrap with no real
+  stage-3 becomes `STEP_UP_REQUIRED` (`otp_mobile`), not silent Accept.
 
 ## [1.0.0] — 2026-07-21
 

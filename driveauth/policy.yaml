@@ -115,7 +115,7 @@ step_up:
   fallback_min_trust: ${DRIVEAUTH_FALLBACK_MIN_TRUST:0.80}
 
 hardware:
-  fingerprint_available: ${DRIVEAUTH_FINGERPRINT_AVAILABLE:1}
+  fingerprint_available: ${DRIVEAUTH_FINGERPRINT_AVAILABLE:0}
   ir_camera_index: ${DRIVEAUTH_IR_CAMERA_INDEX:0}
   rgb_camera_index: ${DRIVEAUTH_RGB_CAMERA_INDEX:1}
   finger_socket: ${DRIVEAUTH_FINGER_SOCKET:/tmp/driveauth_finger.sock}

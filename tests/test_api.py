@@ -1,20 +1,23 @@
 import tempfile
 from pathlib import Path
 
-
 from driveauth import DriveAuth
 from driveauth.fraud_state import FraudState, FraudStateMachine
 from driveauth.types import Decision
-from testsupport import good_audio, mature
+from testsupport import HardwareFingerStandIn, good_audio, mature
 
 
 def test_bootstrap_requires_stage3_even_with_strong_voice():
     """Immature (bootstrap) profile cannot Accept on voice alone — bootstrap
-    rigor requires 2+ modalities AND a stage-3 (finger/OTP) probe. With mock
-    finger available it still resolves to Accept, but via finger, not voice.
+    rigor requires 2+ modalities AND a stage-3 (finger/OTP) probe. With a
+    non-mock finger stand-in (real hardware present) it still resolves to
+    Accept, but via finger, not voice.
     """
     store = tempfile.mkdtemp()
     auth = DriveAuth.load(store_dir=store, use_mock_matchers=True)
+    # MockFingerMatcher cannot satisfy force_step_up; this stand-in is not that class.
+    auth._engine._m.finger = HardwareFingerStandIn()
+    auth._engine._m.fingerprint_available = True
     result = auth.authenticate(
         audio_np=good_audio(), amount=50.0, beneficiary_known=True, beneficiary="Mom"
     )
@@ -62,9 +65,8 @@ def test_bootstrap_high_amount_uses_ladder_not_stepup():
     result = auth.authenticate(
         audio_np=good_audio(), amount=99999.0, beneficiary_known=True, beneficiary="Mom"
     )
-    # Ladder Accept/Reject only (no OTP mid-ladder); strong mocks → ACCEPT.
-    assert result.decision in (Decision.ACCEPT, Decision.REJECT)
-    assert result.decision != Decision.STEP_UP_REQUIRED
+    # Mock finger is not real stage-3; high-value bootstrap must not Accept.
+    assert result.decision != Decision.ACCEPT
 
 
 def test_second_layer_reuses_cached_decision():

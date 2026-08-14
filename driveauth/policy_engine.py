@@ -36,11 +36,14 @@ def classify_tier(ctx: RiskContext, is_guest: bool = False) -> str:
 
 class PolicyEngine:
     """
-    Hard security gates only.
+    Hard security gates plus independent stage-3 verification.
 
-    Biometric Accept / Reject is decided by the Voice → Face → Finger ladder in
-    ``DecisionEngine``.  This engine only applies irreversible rejects (fraud
-    lock, risk ceiling) and guest handling.
+    Biometric Accept / Reject is proposed by the Voice → Face → Finger ladder in
+    ``DecisionEngine``. This engine applies irreversible rejects (fraud lock,
+    risk ceiling), guest PIN handling, and a second check that a forced
+    stage-3 ACCEPT actually used a real (non-mock) finger or OTP probe.
+    Missing real stage-3 on high-value / force_step_up becomes STEP_UP
+    (otp_mobile), not silent Accept.
     """
 
     def decide(
@@ -55,6 +58,10 @@ class PolicyEngine:
         explanations: list[str],
         ladder_decision: Decision | None = None,
         ladder_rule: str | None = None,
+        # Fail-closed defaults: callers must pass a verified stage-3, not rely
+        # on "assume true" when the ladder omitted the kwargs.
+        stage3_reached: bool = False,
+        finger_is_mock: bool = False,
     ) -> tuple[Decision, str, dict[str, float], str | None]:
         trust_bar = _TRUST_ACCEPT.get(tier, _TRUST_ACCEPT["standard"])
         trust_bar += float(fraud_rigor.get("trust_margin", 0.0))
@@ -91,7 +98,40 @@ class PolicyEngine:
             return Decision.REJECT, f"{POLICY_VERSION}:risk_ceiling", active, None
 
         # Ladder already chose ACCEPT or REJECT from biometric probes.
+        # Independently verify forced stage-3 rather than trusting the ladder.
         if ladder_decision is not None:
+            needs_stage3 = tier == "high_value" or bool(
+                fraud_rigor.get("force_step_up")
+            )
+            via_mock_finger = finger_is_mock and "ladder_accept_finger" in (
+                ladder_rule or ""
+            )
+            if (
+                ladder_decision == Decision.ACCEPT
+                and needs_stage3
+                and (not stage3_reached or via_mock_finger)
+            ):
+                # Ladder claims accept but policy's own check disagrees — fail closed.
+                explanations.append("policy_stage3_verification_failed")
+                return (
+                    Decision.REJECT,
+                    f"{POLICY_VERSION}:policy_stage3_reject",
+                    active,
+                    None,
+                )
+            if (
+                ladder_decision == Decision.REJECT
+                and needs_stage3
+                and not stage3_reached
+            ):
+                # No real stage-3 available — PIN/OTP fallback, not silent Reject.
+                explanations.append("policy_stage3_step_up")
+                return (
+                    Decision.STEP_UP_REQUIRED,
+                    f"{POLICY_VERSION}:policy_stage3_step_up",
+                    active,
+                    "otp_mobile",
+                )
             rule = ladder_rule or f"{POLICY_VERSION}:ladder"
             return ladder_decision, rule, active, None
 

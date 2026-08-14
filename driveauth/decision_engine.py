@@ -14,6 +14,7 @@ from driveauth import config
 from driveauth.escalation import EscalationPolicy, face_pad_borderline_blocks_accept
 from driveauth.fraud_state import FraudStateMachine
 from driveauth.fusion import ConfidenceScorer, TrustFusion
+from driveauth.matchers.mock import MockFingerMatcher
 from driveauth.ood_detector import OODDetector
 from driveauth.policy_engine import PolicyEngine, classify_tier
 from driveauth.quality_gate import QualityGate, score_face, score_finger
@@ -33,7 +34,7 @@ class MatcherBundle:
     face: Any
     finger: Any
     behavioral: Any
-    fingerprint_available: bool = True
+    fingerprint_available: bool = False
 
 
 class DecisionEngine:
@@ -396,6 +397,8 @@ class DecisionEngine:
         ladder_decision: Decision | None = None
         ladder_rule: str | None = None
         stage3_method: str | None = None
+        finger_is_mock = isinstance(self._m.finger, MockFingerMatcher)
+        stage3_reached = False
 
         if config.ESCALATION_ENABLED and not is_guest:
             plan = self._escalation.plan(
@@ -441,16 +444,29 @@ class DecisionEngine:
                     pad_proba=pad_proba,
                     pad_threshold=pad_thr,
                 )
-                stage3_reached = any(p in ("finger", "otp") for p in probed)
-                rigor_satisfied = len(probed) >= req_min_modalities and (
-                    not req_force_step_up or stage3_reached
+                probed_stage3 = any(p in ("finger", "otp") for p in probed)
+                stage3_reached = ("otp" in probed) or (
+                    "finger" in probed and not finger_is_mock
                 )
+                rigor_satisfied = len(probed) >= req_min_modalities and (
+                    not req_force_step_up or probed_stage3
+                )
+                mock_finger_blocks = (
+                    req_force_step_up
+                    and nxt == "finger"
+                    and finger_is_mock
+                    and "otp" not in probed
+                )
+                if mock_finger_blocks:
+                    rigor_satisfied = False
 
                 if would_accept and not rigor_satisfied:
                     # Ladder cleared this modality's bar, but fraud/transaction rigor
                     # requires more than one modality (and/or a stage-3 probe
                     # specifically) before Accept is allowed. Keep probing instead of
                     # early-stopping here.
+                    if mock_finger_blocks:
+                        explanations.append("ladder_rigor_blocks_mock_finger_stage3")
                     explanations.append(
                         f"ladder_rigor_requires_more_after_{nxt}"
                         f"_min_modalities_{req_min_modalities}"
@@ -536,6 +552,8 @@ class DecisionEngine:
             explanations=explanations,
             ladder_decision=ladder_decision,
             ladder_rule=ladder_rule,
+            stage3_reached=stage3_reached,
+            finger_is_mock=finger_is_mock,
         )
 
         result = DriveAuthResult(
