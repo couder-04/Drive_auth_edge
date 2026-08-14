@@ -58,6 +58,29 @@ def test_ood_detector_flags_far_embedding():
     assert det.face.is_ood(far)[0] is True
 
 
+def test_ood_baselines_are_encrypted_at_rest(tmp_path: Path):
+    """On-disk OOD npz must not be a plaintext numpy archive of the embedding."""
+    mean = np.linspace(0.1, 0.9, 8, dtype=np.float32)
+    std = np.ones(8, dtype=np.float32)
+    from driveauth.ood_detector import save_encrypted_ood_stats
+
+    path = tmp_path / "ood_stats" / "voice_driver1.npz"
+    save_encrypted_ood_stats(tmp_path, path, mean=mean, std=std)
+
+    loaded = False
+    try:
+        data = np.load(path)
+        loaded = True
+        got = np.asarray(data["mean"], dtype=np.float32)
+        assert not np.allclose(got, mean, atol=1e-5), "plaintext embedding leaked on disk"
+    except Exception:
+        assert loaded is False
+
+    det = OODDetector.load(str(tmp_path), "driver1")
+    assert det.voice.has_baseline
+    np.testing.assert_allclose(det.voice._mean, mean, atol=1e-5)
+
+
 @pytest.mark.skipif(
     not (DATA / "ood" / "voice").exists()
     or len(list((DATA / "ood" / "voice").glob("*.wav"))) < 3,

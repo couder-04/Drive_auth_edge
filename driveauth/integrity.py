@@ -223,6 +223,18 @@ def check_all_drivers(store_dir: Path | str, *, allow_legacy: bool = True) -> di
     }
 
 
+def integrity_check_enabled() -> bool:
+    """Honor explicit ``DRIVEAUTH_INTEGRITY_CHECK``; else default ON in production."""
+    explicit = (os.getenv("DRIVEAUTH_INTEGRITY_CHECK") or "").strip().lower()
+    if explicit in ("1", "true", "yes", "on"):
+        return True
+    if explicit in ("0", "false", "no", "off"):
+        return False
+    from driveauth.config import is_production
+
+    return is_production()
+
+
 def verify_store_integrity(
     store_dir: str | Path,
     *,
@@ -235,14 +247,13 @@ def verify_store_integrity(
 
     When ``DRIVEAUTH_INTEGRITY_CHECK=1`` (or ``fail_closed=True``), mismatches
     raise :class:`IntegrityError`. When disabled, returns ``(True, "skipped")``.
+
+    Default: ON in production (``DRIVEAUTH_ENV=production``), OFF otherwise.
+    An explicit ``DRIVEAUTH_INTEGRITY_CHECK=0`` still disables even in production.
     """
     enabled = fail_closed
     if enabled is None:
-        enabled = os.getenv("DRIVEAUTH_INTEGRITY_CHECK", "").strip() in (
-            "1",
-            "true",
-            "yes",
-        )
+        enabled = integrity_check_enabled()
     store = Path(store_dir)
     manifest_path = store / MANIFEST_NAME
     sig_path = store / SIG_NAME

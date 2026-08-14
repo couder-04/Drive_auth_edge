@@ -13,6 +13,7 @@ element — it is an upgrade path, off by default.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
@@ -153,16 +154,38 @@ def default_protector() -> KeyProtector:
     return SoftwareKeyProtector()
 
 
+def _allow_key_protector_fallback() -> bool:
+    return (os.getenv("DRIVEAUTH_ALLOW_KEY_PROTECTOR_FALLBACK") or "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
 def configured_protector() -> KeyProtector:
-    """Load protector from ``DRIVEAUTH_KEY_PROTECTOR`` (software|tpm)."""
+    """Load protector from ``DRIVEAUTH_KEY_PROTECTOR`` (software|tpm).
+
+    Explicit ``tpm`` with an unavailable backend is a hard failure unless
+    ``DRIVEAUTH_ALLOW_KEY_PROTECTOR_FALLBACK=1`` is also set. The default
+    software protector is unchanged.
+    """
     from driveauth import config
 
+    name = config.KEY_PROTECTOR
+    requested = (name or "software").strip().lower()
     try:
-        return load_protector(config.KEY_PROTECTOR)
+        return load_protector(name)
     except (ValueError, RuntimeError) as exc:
+        tpm_requested = requested in ("tpm", "tpm2", "hardware")
+        if tpm_requested and not _allow_key_protector_fallback():
+            raise RuntimeError(
+                f"DRIVEAUTH_KEY_PROTECTOR={name!r} is unavailable ({exc}). "
+                "Set DRIVEAUTH_ALLOW_KEY_PROTECTOR_FALLBACK=1 to permit software wrapping."
+            ) from exc
         logger.warning(
             "KeyProtector %r unavailable (%s) — falling back to software",
-            config.KEY_PROTECTOR,
+            name,
             exc,
         )
         return SoftwareKeyProtector()

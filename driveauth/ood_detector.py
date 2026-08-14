@@ -6,6 +6,7 @@ as OOD-unavailable so confidence drops and policy prefers STEP_UP.
 
 from __future__ import annotations
 
+import io
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -29,6 +30,52 @@ class OODEvaluation:
     )
 
 
+def _store_fernet(store_dir: Path):
+    """Same Fernet key used for biometric templates (``.bio_key`` + KeyProtector)."""
+    from cryptography.fernet import Fernet
+
+    from driveauth.key_protection import read_store_key
+    from driveauth.template_store import TemplateStore
+
+    ts = TemplateStore(store_dir)
+    ts.ensure_key()
+    return Fernet(read_store_key(ts.store_dir, ts.protector))
+
+
+def save_encrypted_ood_stats(
+    store_dir: str | Path, path: Path, *, mean: np.ndarray, std: np.ndarray
+) -> None:
+    buf = io.BytesIO()
+    np.savez(buf, mean=mean.astype(np.float32), std=std.astype(np.float32))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(_store_fernet(Path(store_dir)).encrypt(buf.getvalue()))
+
+
+def load_ood_stats(
+    store_dir: str | Path, path: Path
+) -> tuple[np.ndarray | None, np.ndarray | None]:
+    """Load mean/std. Encrypted npz first; plaintext npz kept as a read fallback."""
+    if not path.exists():
+        return None, None
+    raw = path.read_bytes()
+    try:
+        dec = _store_fernet(Path(store_dir)).decrypt(raw)
+        data = np.load(io.BytesIO(dec))
+        mean = data["mean"].astype(np.float32)
+        std = data["std"].astype(np.float32)
+        return mean, np.where(std < 1e-6, 1e-6, std)
+    except Exception:
+        pass
+    try:
+        data = np.load(path)
+        mean = data["mean"].astype(np.float32)
+        std = data["std"].astype(np.float32)
+        return mean, np.where(std < 1e-6, 1e-6, std)
+    except Exception as exc:
+        logger.warning("OOD: stats load failed (%s)", exc)
+        return None, None
+
+
 class _ModalityOOD:
     def __init__(self, mean: np.ndarray | None, std: np.ndarray | None):
         self._mean = mean
@@ -39,16 +86,9 @@ class _ModalityOOD:
         return self._mean is not None
 
     @classmethod
-    def from_store(cls, stats_path: Path) -> _ModalityOOD:
-        mean = std = None
-        if stats_path.exists():
-            try:
-                data = np.load(stats_path)
-                mean = data["mean"].astype(np.float32)
-                std = data["std"].astype(np.float32)
-                std = np.where(std < 1e-6, 1e-6, std)
-            except Exception as exc:
-                logger.warning("OOD: stats load failed (%s)", exc)
+    def from_store(cls, stats_path: Path, store_dir: Path | None = None) -> _ModalityOOD:
+        key_root = Path(store_dir) if store_dir is not None else stats_path.parent.parent
+        mean, std = load_ood_stats(key_root, stats_path)
         return cls(mean, std)
 
     def is_ood(self, embedding: np.ndarray | None) -> tuple[bool, float, bool]:
@@ -84,11 +124,12 @@ class OODDetector:
 
     @classmethod
     def load(cls, store_dir: str, driver_id: str = "driver1") -> OODDetector:
-        store = Path(store_dir) / "ood_stats"
+        root = Path(store_dir)
+        store = root / "ood_stats"
         return cls(
-            voice=_ModalityOOD.from_store(store / f"voice_{driver_id}.npz"),
-            face=_ModalityOOD.from_store(store / f"face_{driver_id}.npz"),
-            finger=_ModalityOOD.from_store(store / f"finger_{driver_id}.npz"),
+            voice=_ModalityOOD.from_store(store / f"voice_{driver_id}.npz", store_dir=root),
+            face=_ModalityOOD.from_store(store / f"face_{driver_id}.npz", store_dir=root),
+            finger=_ModalityOOD.from_store(store / f"finger_{driver_id}.npz", store_dir=root),
         )
 
     @classmethod
@@ -102,7 +143,8 @@ class OODDetector:
         finger_dim: int = 64,
     ) -> OODDetector:
         """Write neutral baselines (mean=0, std=1) for demos/tests."""
-        store = Path(store_dir) / "ood_stats"
+        root = Path(store_dir)
+        store = root / "ood_stats"
         store.mkdir(parents=True, exist_ok=True)
         for name, dim in (
             ("voice", voice_dim),
@@ -110,7 +152,8 @@ class OODDetector:
             ("finger", finger_dim),
         ):
             path = store / f"{name}_{driver_id}.npz"
-            np.savez(
+            save_encrypted_ood_stats(
+                root,
                 path,
                 mean=np.zeros(dim, dtype=np.float32),
                 std=np.ones(dim, dtype=np.float32),

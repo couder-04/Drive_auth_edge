@@ -227,6 +227,26 @@ BOOTSTRAP_MIN_DAYS = _as_float(_P["bootstrap"]["min_days"])
 _KEY_PROT_RAW = str(os.getenv("DRIVEAUTH_KEY_PROTECTOR", "software")).strip().lower()
 KEY_PROTECTOR = _KEY_PROT_RAW if _KEY_PROT_RAW else "software"
 
+# PIN at-rest KDF. OWASP Password Storage Cheat Sheet (2023): PBKDF2-HMAC-SHA256 ≥ 600k.
+PIN_PBKDF2_ITERATIONS = max(
+    100_000,
+    _as_int(os.getenv("DRIVEAUTH_PIN_PBKDF2_ITERATIONS", "600000")),
+)
+
+
+def is_production() -> bool:
+    """True when ``DRIVEAUTH_ENV`` / ``DRIVEAUTH_ENVIRONMENT`` is prod.
+
+    Looked up at call time so tests can toggle it without reimporting. Used to
+    default integrity checking ON (and to refuse demo-only score overrides)
+    without flipping those guards for local/dev workflows.
+    """
+    raw = (
+        os.getenv("DRIVEAUTH_ENV") or os.getenv("DRIVEAUTH_ENVIRONMENT") or ""
+    ).strip().lower()
+    return raw in ("prod", "production")
+
+
 # Fleet telemetry pilot — explicit opt-in required for outbound posts.
 FLEET_TELEMETRY_OPT_IN = _as_bool01(os.getenv("DRIVEAUTH_FLEET_TELEMETRY_OPT_IN", "0"))
 FLEET_TELEMETRY_URL = str(os.getenv("DRIVEAUTH_FLEET_TELEMETRY_URL", "") or "").strip()
