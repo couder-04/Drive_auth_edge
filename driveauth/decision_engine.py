@@ -448,7 +448,8 @@ class DecisionEngine:
                 stage3_reached = ("otp" in probed) or (
                     "finger" in probed and not finger_is_mock
                 )
-                rigor_satisfied = len(probed) >= req_min_modalities and (
+                n_conf_so_far = self._n_confident(results)
+                rigor_satisfied = n_conf_so_far >= req_min_modalities and (
                     not req_force_step_up or probed_stage3
                 )
                 mock_finger_blocks = (
@@ -511,9 +512,20 @@ class DecisionEngine:
                 ladder_rule = f"{config.POLICY_VERSION}:ladder_reject"
                 explanations.append("ladder_exhausted_reject")
         else:
+            # Parallel capture when the ladder is off. OTP is never probed here
+            # — PolicyEngine must treat missing OTP as stage-3 not reached.
+            # Do not add live OTP probing to this path.
             results = self._capture_all(audio_np, qflags, available)
             trust, confidence, ood_flags, ood_baseline_missing, eff_w = self._score(
                 results, qflags, sensor_gaps
+            )
+            finger_cap = results.get(
+                "finger", ModalityResult(None, False, available=False)
+            )
+            stage3_reached = (not finger_is_mock) and bool(
+                finger_cap.available
+                and finger_cap.confident
+                and finger_cap.score is not None
             )
 
         voice_r, face_r, finger_r = results["voice"], results["face"], results["finger"]
@@ -630,6 +642,11 @@ class DecisionEngine:
         return result
 
     def _capture_all(self, audio_np, qflags, available) -> dict[str, ModalityResult]:
+        """Probe voice/face/finger in parallel. OTP is intentionally not probed.
+
+        Callers (escalation-disabled path) must treat missing OTP as
+        stage-3 not reached; do not add live OTP probing here.
+        """
         results: dict[str, ModalityResult] = {}
         threads: list[threading.Thread] = []
 

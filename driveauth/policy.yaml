@@ -37,7 +37,8 @@ trust:
 # Per-modality bars from phases/phase2b_calibration.json (2026-07-15):
 #   voice 0.72 — lowest thr with FAR=0 on enroll/genuine vs attack (0.70 leaked 1/12 replay)
 #   face  0.70 — keep strict; genuine/attack fully overlap (EER≈0.40); no safe lower bar
-#   finger 0.70 — last-resort match OK (mock until FingerNet + HW); same bar as face
+#   finger 0.70 — last-resort match OK; MockFingerMatcher cannot satisfy
+#                 forced stage-3 (high_value / bootstrap / force_step_up)
 ladder:
   accept: ${DRIVEAUTH_LADDER_ACCEPT:0.70}
   accept_voice: ${DRIVEAUTH_LADDER_ACCEPT_VOICE:0.72}

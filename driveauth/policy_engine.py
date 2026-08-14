@@ -34,6 +34,17 @@ def classify_tier(ctx: RiskContext, is_guest: bool = False) -> str:
     return "standard"
 
 
+def _needs_stage3(tier: str, fraud_rigor: dict) -> bool:
+    return tier == "high_value" or bool(fraud_rigor.get("force_step_up"))
+
+
+def _req_min_modalities(tier: str, fraud_rigor: dict) -> int:
+    req = int(fraud_rigor.get("min_modalities", 1))
+    if tier == "high_value":
+        req = max(req, 2)
+    return req
+
+
 class PolicyEngine:
     """
     Hard security gates plus independent stage-3 verification.
@@ -98,11 +109,11 @@ class PolicyEngine:
             return Decision.REJECT, f"{POLICY_VERSION}:risk_ceiling", active, None
 
         # Ladder already chose ACCEPT or REJECT from biometric probes.
-        # Independently verify forced stage-3 rather than trusting the ladder.
+        # Independently verify forced stage-3 and min_modalities rather than
+        # trusting the ladder's bookkeeping.
         if ladder_decision is not None:
-            needs_stage3 = tier == "high_value" or bool(
-                fraud_rigor.get("force_step_up")
-            )
+            needs_stage3 = _needs_stage3(tier, fraud_rigor)
+            req_min = _req_min_modalities(tier, fraud_rigor)
             via_mock_finger = finger_is_mock and "ladder_accept_finger" in (
                 ladder_rule or ""
             )
@@ -132,16 +143,57 @@ class PolicyEngine:
                     active,
                     "otp_mobile",
                 )
+            if (
+                ladder_decision == Decision.ACCEPT
+                and n_confident_modalities < req_min
+            ):
+                # Ladder claimed Accept without enough confident matches — fail closed.
+                explanations.append("policy_min_modalities_verification_failed")
+                return (
+                    Decision.REJECT,
+                    f"{POLICY_VERSION}:policy_min_modalities_reject",
+                    active,
+                    None,
+                )
             rule = ladder_rule or f"{POLICY_VERSION}:ladder"
             return ladder_decision, rule, active, None
 
-        # Fallback when ladder disabled: Accept on strong fused trust, else Reject.
+        # Fallback when ladder disabled (DRIVEAUTH_ESCALATION_ENABLED=0).
+        # _capture_all never probes OTP, so missing OTP is "stage-3 not reached".
+        needs_stage3 = _needs_stage3(tier, fraud_rigor)
+        req_min = _req_min_modalities(tier, fraud_rigor)
+        genuine_stage3 = bool(stage3_reached) and not finger_is_mock
         if (
             trust >= trust_bar
             and risk <= _RISK_LOW
             and confidence >= _CONF_FLOOR
             and n_confident_modalities >= 1
         ):
+            if needs_stage3 and not genuine_stage3:
+                if stage3_reached and finger_is_mock:
+                    # Counted mock finger as stage-3 — bookkeeping lie, hard fail.
+                    explanations.append("policy_fallback_stage3_verification_failed")
+                    return (
+                        Decision.REJECT,
+                        f"{POLICY_VERSION}:policy_fallback_stage3_reject",
+                        active,
+                        None,
+                    )
+                explanations.append("policy_fallback_stage3_step_up")
+                return (
+                    Decision.STEP_UP_REQUIRED,
+                    f"{POLICY_VERSION}:policy_fallback_stage3_step_up",
+                    active,
+                    "otp_mobile",
+                )
+            if n_confident_modalities < req_min:
+                explanations.append("policy_fallback_min_modalities_failed")
+                return (
+                    Decision.REJECT,
+                    f"{POLICY_VERSION}:policy_fallback_min_modalities_reject",
+                    active,
+                    None,
+                )
             return Decision.ACCEPT, f"{POLICY_VERSION}:accept_{tier}", active, None
 
         explanations.append("biometric_ladder_reject")

@@ -153,6 +153,88 @@ def test_policy_step_up_when_high_value_has_no_stage3():
     assert method == "otp_mobile"
 
 
+def test_policy_fallback_high_value_without_stage3_is_step_up():
+    """Escalation-disabled fused-trust shortcut cannot Accept high-value
+    without a real stage-3 (OTP was never probed on that path).
+    """
+    from driveauth.types import Decision
+
+    engine = PolicyEngine()
+    decision, rule, _, method = engine.decide(
+        trust=0.95,
+        risk=0.10,
+        confidence=0.90,
+        tier="high_value",
+        n_confident_modalities=2,
+        fraud_rigor={
+            "min_modalities": 1,
+            "force_step_up": False,
+            "block": False,
+            "trust_margin": 0.0,
+        },
+        explanations=[],
+        ladder_decision=None,
+        stage3_reached=False,
+        finger_is_mock=True,
+    )
+    assert decision == Decision.STEP_UP_REQUIRED
+    assert "policy_fallback_stage3_step_up" in rule
+    assert method == "otp_mobile"
+
+
+def test_policy_rejects_accept_below_min_modalities():
+    """Ladder Accept with fewer confident matches than fraud min_modalities
+    is a bookkeeping lie — fail closed to Reject (not Step-Up).
+    """
+    from driveauth.types import Decision
+
+    engine = PolicyEngine()
+    decision, rule, _, method = engine.decide(
+        trust=0.90,
+        risk=0.10,
+        confidence=0.85,
+        tier="standard",
+        n_confident_modalities=1,
+        fraud_rigor={
+            "min_modalities": 2,
+            "force_step_up": False,
+            "block": False,
+            "trust_margin": 0.0,
+        },
+        explanations=[],
+        ladder_decision=Decision.ACCEPT,
+        ladder_rule="driveauth-1.0:ladder_accept_face",
+        stage3_reached=False,
+        finger_is_mock=True,
+    )
+    assert decision == Decision.REJECT
+    assert "policy_min_modalities_reject" in rule
+    assert method is None
+
+
+def test_escalation_disabled_high_value_cannot_accept_on_fused_trust(monkeypatch):
+    """DRIVEAUTH_ESCALATION_ENABLED=0 used to Accept high-value on fused
+    trust with n_confident_modalities >= 1 and no real stage-3.
+    """
+    from driveauth.types import Decision
+    from testsupport import good_audio, make_auth, mature
+
+    monkeypatch.setattr("driveauth.config.ESCALATION_ENABLED", False)
+    auth = make_auth()
+    mature(auth)
+    result = auth.authenticate(
+        audio_np=good_audio(),
+        amount=75_000.0,
+        beneficiary_known=False,
+        beneficiary="new_merchant",
+    )
+    assert result.tier == "high_value"
+    assert result.decision != Decision.ACCEPT
+    assert result.decision == Decision.STEP_UP_REQUIRED
+    assert result.step_up_method == "otp_mobile"
+    assert any("policy_fallback_stage3_step_up" in e for e in result.explanations)
+
+
 def test_policy_honors_ladder_reject():
     from driveauth.types import Decision
 

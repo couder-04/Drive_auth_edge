@@ -87,7 +87,8 @@ flowchart LR
     F -->|high| A2[ACCEPT]
     F -->|low| G
     G -->|match OK| A3[ACCEPT]
-    G -->|fail| X[REJECT]
+    G -->|mismatch / mock lie| X[REJECT]
+    G -->|no real HW| SU[STEP_UP]
   end
 
   subgraph Side["Side scores"]
@@ -156,8 +157,9 @@ flowchart TD
   QV -->|low / no score| QF["2. QualityGate · FaceMatcher"]
   QF -->|score ≥ ladder.accept_face| ACC
   QF -->|low / no score| QG["3. QualityGate · FingerMatcher"]
-  QG -->|score ≥ ladder.accept_finger| ACC
-  QG -->|fail / unavailable| REJ[REJECT]
+  QG -->|score ≥ ladder.accept_finger and rigor ok| ACC[ACCEPT]
+  QG -->|mismatch / mock finger claiming stage-3| REJ[REJECT]
+  QG -->|no real stage-3 on high_value or bootstrap| SU[STEP_UP otp_mobile]
 
   RISK --> HARD{Risk ceiling / fraud lock?}
   HARD -->|Yes| REJ
@@ -201,7 +203,7 @@ flowchart TB
   TF --> RPT[Reporting / audit]
   RM --> HARD[Hard reject gates]
   CS --> RPT
-  HARD --> OUT["ACCEPT · REJECT\n(+ guest STEP_UP for PIN)"]
+  HARD --> OUT["ACCEPT · REJECT\n(+ STEP_UP: guest PIN or no real stage-3)"]
 ```
 
 Behaviour and location **never** enter Trust — only Risk. Biometric Accept/Reject is decided only by the Voice → Face → Finger ladder.
@@ -213,8 +215,9 @@ flowchart LR
   V[Voice] -->|conf low| F[Face] -->|still low| G[Finger]
   V -->|conf high| OK[ACCEPT]
   F -->|conf high| OK
-  G -->|match OK| OK
-  G -->|fail| X[REJECT]
+  G -->|match OK| OK[ACCEPT]
+  G -->|mismatch / mock lie| X[REJECT]
+  G -->|no real HW| SU[STEP_UP]
 ```
 
 Probe order is fixed: **voice → face → finger**.
@@ -223,10 +226,10 @@ Probe order is fixed: **voice → face → finger**.
   - voice `≥ ladder.accept_voice` (default **0.72**)
   - face `≥ ladder.accept_face` (default **0.70**)
   - finger `≥ ladder.accept_finger` (default **0.70**, “match OK”)
-- Bootstrap and `high_value` require a stage-3 (finger/OTP) probe; they never Accept on voice (or voice+face) alone.
+- Bootstrap and `high_value` require a **real** stage-3 (finger or OTP) probe; they never Accept on voice (or voice+face) alone, and `MockFingerMatcher` cannot satisfy that requirement.
 - **Low / missing score**, or a score that clears the bar but not rigor → escalate to the next modality.
-- After fingerprint (last option) still fails, or rigor cannot be met → **REJECT**.
-- No OTP mid-ladder. Risk hard-ceiling and fraud-lock can still force REJECT. Guest mode may still request PIN (`STEP_UP_REQUIRED`).
+- After fingerprint (last option) a **genuine mismatch** or a mock finger claiming stage-3 → **REJECT**. If no real stage-3 hardware was available at all on high-value/bootstrap → **STEP_UP_REQUIRED** (`otp_mobile`), not silent Accept or silent Reject.
+- Risk hard-ceiling and fraud-lock can still force REJECT. Guest mode may still request PIN (`STEP_UP_REQUIRED`).
 - Re-baseline with `python scripts/calibrate_bio_thresholds.py --store ./driveauth_store_phase2a`.
 
 ```mermaid
@@ -238,9 +241,10 @@ flowchart TD
   F2 --> FOK{score ≥ accept and rigor ok?}
   FOK -->|Yes| ACC
   FOK -->|No| G2["3. Probe finger"]
-  G2 --> GOK{match OK?}
+  G2 --> GOK{real stage-3 match?}
   GOK -->|Yes| ACC
-  GOK -->|No| REJ[REJECT]
+  GOK -->|mismatch / mock finger lie| REJ[REJECT]
+  GOK -->|never reached (no HW)| SU[STEP_UP otp_mobile]
 ```
 
 Fraud ladder (separate from probe order — raises rigor over time):
@@ -495,7 +499,7 @@ result = auth.authenticate(
 print(result.decision, result.legacy_decision, result.trust_score, result.risk_score)
 ```
 
-Decisions: `ACCEPT`, `REJECT` from the biometric ladder; `STEP_UP_REQUIRED` remains for guest PIN / OTP fallbacks only (Nova aliases: `pass`, `step_up`, `deny`).
+Decisions: `ACCEPT`, `REJECT` from the biometric ladder; `STEP_UP_REQUIRED` for guest PIN and for high-value/bootstrap when no real stage-3 hardware was available (`otp_mobile`). Nova aliases: `pass`, `step_up`, `deny`.
 
 ## Phase 3 data
 

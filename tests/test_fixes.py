@@ -132,7 +132,12 @@ def test_face_borderline_both_barely_pass_escalates(monkeypatch):
 
 
 def test_ladder_same_shape_on_high_value():
-    """High-value does not force full-set / OTP — same Voice→Face→Finger ladder."""
+    """High-value keeps the same Voice→Face→Finger probe order.
+
+    Accept still requires a real stage-3 (finger/OTP) via DecisionEngine /
+    PolicyEngine rigor — this test only asserts the *shape* of the plan,
+    not that high-value may Accept on voice alone.
+    """
     pol = EscalationPolicy()
     plan = pol.plan(
         tier="high_value",

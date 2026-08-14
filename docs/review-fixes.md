@@ -27,7 +27,9 @@ the risk model's `amount_z` was a constant.
   modalities one at a time. A modality that clears its score bar is not
   enough to Accept: the engine also enforces fraud `min_modalities` /
   `force_step_up`, and `high_value` always requires a stage-3 (finger/OTP)
-  probe. If rigor cannot be met, the ladder fail-closes to REJECT.
+  probe. If no real stage-3 is available on high-value/bootstrap, PolicyEngine
+  offers `STEP_UP_REQUIRED` (`otp_mobile`). A mock finger claiming stage-3, or a
+  genuine biometric mismatch, fail-closes to REJECT.
 - **Security floor:** single-modality Accept is only allowed when rigor
   permits it (mature, non-high-value). Toggle with `DRIVEAUTH_ESCALATION_ENABLED`.
 

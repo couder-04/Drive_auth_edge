@@ -198,6 +198,28 @@ def test_cache_invalidation_tier_upgrade():
     assert second.tier == "high_value"
 
 
+def test_elevated_cannot_accept_on_failed_voice_plus_face():
+    """Elevated fraud (min_modalities=2, force_step_up=False) must not Accept
+    on a non-confident voice attempt + a successful face. min_modalities
+    counts confident matches, not probe attempts.
+    """
+    auth = make_auth()
+    mature(auth)
+    auth._bump_fraud_epoch(auth._fraud.record_soft_flag("elevated-test"))
+    auth._engine._m.voice = MockVoiceMatcher(score=0.40, confident=False)
+    auth._engine._m.face = MockFaceMatcher(score=0.92)
+    auth._engine._m.fingerprint_available = False
+    r = auth.authenticate(
+        audio_np=good_audio(),
+        amount=50.0,
+        beneficiary_known=True,
+        beneficiary="Mom",
+    )
+    assert r.fraud_state == "elevated"
+    assert r.decision != Decision.ACCEPT
+    assert any("ladder_rigor_requires_more_after_face" in e for e in r.explanations)
+
+
 def test_fraud_state_invalidates_cache():
     auth = make_auth()
     mature(auth)
