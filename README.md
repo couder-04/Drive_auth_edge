@@ -72,10 +72,10 @@ Sensors and transaction context feed three independent scores; a deterministic p
 ```mermaid
 flowchart LR
   subgraph In["Inputs"]
-    MIC[Mic / voice]
-    CAM[Camera / face]
+    MIC["Mic / voice"]
+    CAM["Camera / face"]
     FNG[Fingerprint]
-    CTX[Amount · GPS · speed · CAN]
+    CTX["Amount · GPS · speed · CAN"]
   end
 
   subgraph Ladder["Biometric ladder"]
@@ -86,9 +86,9 @@ flowchart LR
     V -->|low| F
     F -->|high| A2[ACCEPT]
     F -->|low| G
-    G -->|match OK| A3[ACCEPT]
-    G -->|mismatch / mock lie| X[REJECT]
-    G -->|no real HW| SU[STEP_UP]
+    G -->|"match OK"| A3[ACCEPT]
+    G -->|"mismatch / mock lie"| X[REJECT]
+    G -->|"no real HW"| SU[STEP_UP]
   end
 
   subgraph Side["Side scores"]
@@ -99,7 +99,7 @@ flowchart LR
   CAM --> F
   FNG --> G
   CTX --> R
-  R -->|hard ceiling / locked| X
+  R -->|"hard ceiling / locked"| X
 ```
 
 ### System context
@@ -107,10 +107,10 @@ flowchart LR
 ```mermaid
 flowchart LR
   subgraph Vehicle
-    STT[STT / mic]
-    IR[IR / DMS camera]
-    FP[Fingerprint sensor]
-    CAN[CAN / GPS / speed]
+    STT["STT / mic"]
+    IR["IR / DMS camera"]
+    FP["Fingerprint sensor"]
+    CAN["CAN / GPS / speed"]
   end
 
   subgraph Edge["DriveAuth Edge"]
@@ -121,8 +121,8 @@ flowchart LR
   end
 
   subgraph Outcomes
-    OK[ACCEPT → LLM / payment]
-    NO[REJECT / deny]
+    OK["ACCEPT → LLM / payment"]
+    NO["REJECT / deny"]
     AUD[AuditLog]
   end
 
@@ -141,7 +141,7 @@ Non-payment commands (`open navigation`, `play music`, …) bypass the payment p
 
 ```mermaid
 flowchart TD
-  IN["Entry: intercept / authenticate / require_auth"] --> PAY{Payment utterance?}
+  IN["Entry: intercept / authenticate / require_auth"] --> PAY{"Payment utterance?"}
 
   PAY -->|No| BYPASS["Forward to LLM\nbio_pass · non_payment"]
   PAY -->|Yes| INTENT["Intent parser\namount · beneficiary · action · currency · channel"]
@@ -153,15 +153,15 @@ flowchart TD
 
   FRAUD --> ESC["Ladder: Voice → Face → Finger"]
   ESC --> QV["1. QualityGate · VoiceMatcher"]
-  QV -->|score ≥ ladder.accept_voice| ACC[ACCEPT]
-  QV -->|low / no score| QF["2. QualityGate · FaceMatcher"]
-  QF -->|score ≥ ladder.accept_face| ACC
-  QF -->|low / no score| QG["3. QualityGate · FingerMatcher"]
-  QG -->|score ≥ ladder.accept_finger and rigor ok| ACC[ACCEPT]
-  QG -->|mismatch / mock finger claiming stage-3| REJ[REJECT]
-  QG -->|no real stage-3 on high_value or bootstrap| SU[STEP_UP otp_mobile]
+  QV -->|"score >= ladder.accept_voice"| ACC[ACCEPT]
+  QV -->|"low / no score"| QF["2. QualityGate · FaceMatcher"]
+  QF -->|"score >= ladder.accept_face"| ACC
+  QF -->|"low / no score"| QG["3. QualityGate · FingerMatcher"]
+  QG -->|"score >= ladder.accept_finger and rigor ok"| ACC[ACCEPT]
+  QG -->|"mismatch / mock finger claiming stage-3"| REJ[REJECT]
+  QG -->|"no real stage-3 on high_value or bootstrap"| SU["STEP_UP otp_mobile"]
 
-  RISK --> HARD{Risk ceiling / fraud lock?}
+  RISK --> HARD{"Risk ceiling / fraud lock?"}
   HARD -->|Yes| REJ
   HARD -->|No| ESC
 
@@ -174,18 +174,18 @@ flowchart TD
 ```mermaid
 flowchart TB
   subgraph Trust["Trust — who is driving?"]
-    V[Voice score]
-    F[Face score]
-    P[Finger score]
+    V["Voice score"]
+    F["Face score"]
+    P["Finger score"]
     V --> TF[TrustFusion]
     F --> TF
     P --> TF
   end
 
   subgraph Risk["Risk — how risky is this act?"]
-    A[Amount / beneficiary]
-    G[GPS / zone / speed]
-    B[Behavioural monitor]
+    A["Amount / beneficiary"]
+    G["GPS / zone / speed"]
+    B["Behavioural monitor"]
     A --> RM[RiskModel]
     G --> RM
     B --> RM
@@ -193,15 +193,15 @@ flowchart TB
 
   subgraph Confidence["Confidence — can we trust our scores?"]
     Q[QualityFlags]
-    O[OOD flags / missing baselines]
-    D[Modality disagreement]
+    O["OOD flags / missing baselines"]
+    D["Modality disagreement"]
     Q --> CS[ConfidenceScorer]
     O --> CS
     D --> CS
   end
 
-  TF --> RPT[Reporting / audit]
-  RM --> HARD[Hard reject gates]
+  TF --> RPT["Reporting / audit"]
+  RM --> HARD["Hard reject gates"]
   CS --> RPT
   HARD --> OUT["ACCEPT · REJECT\n(+ STEP_UP: guest PIN or no real stage-3)"]
 ```
@@ -212,12 +212,12 @@ Behaviour and location **never** enter Trust — only Risk. Biometric Accept/Rej
 
 ```mermaid
 flowchart LR
-  V[Voice] -->|conf low| F[Face] -->|still low| G[Finger]
-  V -->|conf high| OK[ACCEPT]
-  F -->|conf high| OK
-  G -->|match OK| OK[ACCEPT]
-  G -->|mismatch / mock lie| X[REJECT]
-  G -->|no real HW| SU[STEP_UP]
+  V[Voice] -->|"conf low"| F[Face] -->|"still low"| G[Finger]
+  V -->|"conf high"| OK[ACCEPT]
+  F -->|"conf high"| OK
+  G -->|"match OK"| OK[ACCEPT]
+  G -->|"mismatch / mock lie"| X[REJECT]
+  G -->|"no real HW"| SU[STEP_UP]
 ```
 
 Probe order is fixed: **voice → face → finger**.
@@ -234,17 +234,17 @@ Probe order is fixed: **voice → face → finger**.
 
 ```mermaid
 flowchart TD
-  START[Payment auth] --> V2["1. Probe voice"]
-  V2 --> VOK{score ≥ accept and rigor ok?}
+  START["Payment auth"] --> V2["1. Probe voice"]
+  V2 --> VOK{"score >= accept and rigor ok?"}
   VOK -->|Yes| ACC[ACCEPT]
   VOK -->|No| F2["2. Probe face"]
-  F2 --> FOK{score ≥ accept and rigor ok?}
+  F2 --> FOK{"score >= accept and rigor ok?"}
   FOK -->|Yes| ACC
   FOK -->|No| G2["3. Probe finger"]
-  G2 --> GOK{real stage-3 match?}
+  G2 --> GOK{"real stage-3 match?"}
   GOK -->|Yes| ACC
-  GOK -->|mismatch / mock finger lie| REJ[REJECT]
-  GOK -->|never reached (no HW)| SU[STEP_UP otp_mobile]
+  GOK -->|"mismatch / mock finger lie"| REJ[REJECT]
+  GOK -->|"never reached (no HW)"| SU["STEP_UP otp_mobile"]
 ```
 
 Fraud ladder (separate from probe order — raises rigor over time):
